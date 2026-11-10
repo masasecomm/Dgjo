@@ -264,6 +264,7 @@
           <div><div class="eyebrow"><span class="eyebrow-dot"></span> Handpicked opportunities</div><h2>Good jobs, good people.</h2><p>Real roles at teams doing work that matters.</p></div>
           <a class="browse-link" href="#job-list">Explore all jobs <span aria-hidden="true">→</span></a>
         </div>
+        <p id="jobs-api-status" role="status" hidden></p>
         <div class="job-toolbar">
           <div class="filters" role="group" aria-label="Filter jobs">
             <button class="filter-chip active" type="button" data-filter="All">All jobs <span id="all-count"></span></button>
@@ -310,20 +311,25 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
-    const jobs = [
-      { title: "Senior Product Designer", company: "Northstar", location: "Remote · US", type: "Full-time", category: "Design", salary: 145000, salaryText: "$120k – $145k", posted: "2 days ago", logo: "n", color: "#eaf1e2", logoColor: "#64803f" },
-      { title: "Staff Software Engineer", company: "Loom", location: "New York, NY", type: "Full-time", category: "Engineering", salary: 195000, salaryText: "$165k – $195k", posted: "1 day ago", logo: "◉", color: "#fcece5", logoColor: "#d97f56" },
-      { title: "Product Marketing Manager", company: "Goodside", location: "Remote · US", type: "Full-time", category: "Marketing", salary: 135000, salaryText: "$110k – $135k", posted: "3 days ago", logo: "g", color: "#eee9f7", logoColor: "#7962a0" },
-      { title: "Product Manager, Growth", company: "Pebble", location: "Austin, TX · Hybrid", type: "Full-time", category: "Product", salary: 155000, salaryText: "$130k – $155k", posted: "4 days ago", logo: "p", color: "#f6eedb", logoColor: "#aa873c" },
-      { title: "UX Researcher", company: "Ordinary", location: "Remote · US", type: "Contract", category: "Design", salary: 120000, salaryText: "$95k – $120k", posted: "5 days ago", logo: "o", color: "#e7f0f1", logoColor: "#528289" },
-      { title: "Frontend Engineer", company: "Fieldnotes", location: "Brooklyn, NY · Hybrid", type: "Full-time", category: "Engineering", salary: 175000, salaryText: "$145k – $175k", posted: "1 week ago", logo: "f", color: "#f4e8e8", logoColor: "#a65959" }
-    ];
+    const JOBS_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
+    let jobs = [];
+    let jobsLoadError = "";
     const jobList = document.querySelector("#job-list");
     const keyword = document.querySelector("#keyword");
     const locationInput = document.querySelector("#location");
     const countLabel = document.querySelector("#job-count");
     const dialog = document.querySelector("#apply-dialog");
     let activeFilter = "All";
+
+    function escapeHTML(value) {
+      return String(value).replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[character]);
+    }
 
     function renderJobs() {
       const query = keyword.value.trim().toLowerCase();
@@ -341,9 +347,9 @@
         const empty = document.createElement("div");
         empty.className = "empty-state";
         const title = document.createElement("strong");
-        title.textContent = "No roles found just yet";
+        title.textContent = jobsLoadError ? "Job listings couldn't be loaded" : "No roles found just yet";
         const description = document.createElement("span");
-        description.textContent = "Try another search or clear a filter to see more opportunities.";
+        description.textContent = jobsLoadError || "Try another search or clear a filter to see more opportunities.";
         empty.append(title, description);
         jobList.append(empty);
         return;
@@ -351,7 +357,9 @@
       visible.forEach(job => {
         const card = document.createElement("article");
         card.className = "job-card";
-        card.innerHTML = `<div class="job-card-top"><div class="company"><span class="company-logo" style="background:${job.color};color:${job.logoColor}">${job.logo}</span><div class="company-meta">${job.company}<small>${job.location}</small></div></div><button class="save-button" type="button" aria-label="Save ${job.title}" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></button></div><h3>${job.title}</h3><div class="job-details"><span>${job.type}</span><span>${job.category}</span><span>Remote-friendly</span></div><div class="job-card-bottom"><div class="salary">${job.salaryText} <small>/ yr</small></div><span class="posted">${job.posted}</span><button class="apply-link" type="button">View role ↗</button></div>`;
+        const color = /^#[0-9a-f]{6}$/i.test(job.color) ? job.color : "#eaf1e2";
+        const logoColor = /^#[0-9a-f]{6}$/i.test(job.logoColor) ? job.logoColor : "#64803f";
+        card.innerHTML = `<div class="job-card-top"><div class="company"><span class="company-logo" style="background:${color};color:${logoColor}">${escapeHTML(job.logo)}</span><div class="company-meta">${escapeHTML(job.company)}<small>${escapeHTML(job.location)}</small></div></div><button class="save-button" type="button" aria-label="Save ${escapeHTML(job.title)}" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></button></div><h3>${escapeHTML(job.title)}</h3><div class="job-details"><span>${escapeHTML(job.type)}</span><span>${escapeHTML(job.category)}</span><span>Remote-friendly</span></div><div class="job-card-bottom"><div class="salary">${escapeHTML(job.salaryText)} <small>/ yr</small></div><span class="posted">${escapeHTML(job.posted)}</span><button class="apply-link" type="button">View role ↗</button></div>`;
         card.querySelector(".save-button").addEventListener("click", event => {
           const button = event.currentTarget;
           const saved = button.getAttribute("aria-pressed") !== "true";
@@ -366,6 +374,34 @@
         });
         jobList.append(card);
       });
+    }
+
+    async function loadJobs() {
+      try {
+        const response = await fetch(JOBS_API_URL || "jobs.json");
+        if (!response.ok) throw new Error(`The job list returned HTTP ${response.status}.`);
+        jobs = await response.json();
+        if (!Array.isArray(jobs)) throw new Error("The job list has an invalid format.");
+        renderJobs();
+      } catch (error) {
+        if (!JOBS_API_URL) {
+          jobsLoadError = error.message;
+          renderJobs();
+          return;
+        }
+        try {
+          const fallback = await fetch("jobs.json");
+          if (!fallback.ok) throw new Error(`The backup job list returned HTTP ${fallback.status}.`);
+          jobs = await fallback.json();
+          if (!Array.isArray(jobs)) throw new Error("The backup job list has an invalid format.");
+          document.querySelector("#jobs-api-status").textContent = "Live job listings are temporarily unavailable. Showing the saved backup listings instead.";
+          document.querySelector("#jobs-api-status").hidden = false;
+          renderJobs();
+        } catch (fallbackError) {
+          jobsLoadError = `Live listings: ${error.message} Backup listings: ${fallbackError.message}`;
+          renderJobs();
+        }
+      }
     }
 
     let toastTimer;
@@ -411,7 +447,7 @@
       event.currentTarget.reset();
       showToast("You're on the list. Look out for good things.");
     });
-    renderJobs();
+    loadJobs();
   </script>
 </body>
 </html>

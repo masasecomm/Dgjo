@@ -1,0 +1,13 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "goodwork-jobs-api",
+	"main": "worker.js",
+	"compatibility_date": "2026-11-10",
+	"kv_namespaces": [
+		{
+			"binding": "JOBS",
+			"id": "86d46102cd004012b4ec5bd3f6ced889",
+			"remote": true
+		}
+	]
+}
