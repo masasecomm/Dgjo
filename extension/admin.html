@@ -38,10 +38,16 @@
         <label class="field"><span>Admin key</span><input id="admin-token" type="password" placeholder="Enter your Cloudflare secret" autocomplete="new-password" required></label>
         <div class="connection-actions">
           <button id="connect" class="button button-dark" type="submit">Connect and save</button>
-          <button id="forget-credentials" class="text-button" type="button" hidden>Forget saved credentials</button>
           <span class="privacy-note">Saved only in Chrome on this device. Never shared with the website.</span>
         </div>
       </form>
+      <div id="connected-details" class="connected-details" hidden>
+        <div><span class="connected-dot"></span><span id="connected-url"></span></div>
+        <div class="connected-actions">
+          <button id="change-connection" class="text-button" type="button">Change connection</button>
+          <button id="forget-credentials" class="text-button" type="button">Forget saved credentials</button>
+        </div>
+      </div>
     </section>
 
     <section class="list-section" aria-labelledby="list-title">

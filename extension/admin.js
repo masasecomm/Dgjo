@@ -6,6 +6,8 @@ const connectionForm = document.querySelector("#connection-form");
 const connectButton = document.querySelector("#connect");
 const forgetButton = document.querySelector("#forget-credentials");
 const connectionBadge = document.querySelector("#connection-badge");
+const connectedDetails = document.querySelector("#connected-details");
+const connectedUrl = document.querySelector("#connected-url");
 const jobSearch = document.querySelector("#job-search");
 const sortJobs = document.querySelector("#sort-jobs");
 const jobList = document.querySelector("#job-list");
@@ -91,8 +93,10 @@ async function connect(urlValue, tokenValue, askPermission) {
     apiUrlInput.value = apiUrl;
     tokenInput.value = "";
     connectionForm.classList.remove("connection-error");
+    connectionForm.hidden = true;
+    connectedDetails.hidden = false;
+    connectedUrl.textContent = url.origin;
     setConnected(true);
-    forgetButton.hidden = false;
     renderJobs();
     showToast("Connected. Your settings are saved on this device.");
   } catch (error) {
@@ -255,6 +259,11 @@ connectionForm.addEventListener("submit", event => {
   connect(apiUrlInput.value.trim(), tokenInput.value, true);
 });
 
+document.querySelector("#change-connection").addEventListener("click", () => {
+  connectionForm.hidden = false;
+  connectedDetails.hidden = true;
+});
+
 forgetButton.addEventListener("click", async () => {
   if (!confirm("Forget the saved connection and admin key on this device?")) return;
   const stored = await chrome.storage.local.get(SETTINGS_KEY);
@@ -266,6 +275,8 @@ forgetButton.addEventListener("click", async () => {
   jobs = [];
   tokenInput.value = "";
   apiUrlInput.value = DEFAULT_API_URL;
+  connectionForm.hidden = false;
+  connectedDetails.hidden = true;
   forgetButton.hidden = true;
   connectionForm.classList.remove("connection-error");
   setConnected(false);

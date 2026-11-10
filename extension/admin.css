@@ -56,6 +56,11 @@ h1 { margin-bottom: 8px; font-family: "Manrope", "Segoe UI", sans-serif; font-si
 .text-button { padding: 6px 0; border: 0; background: transparent; color: #87534d; font-size: 10px; font-weight: 650; }
 .text-button:hover { text-decoration: underline; }
 .privacy-note { color: #858a80; font-size: 10px; }
+.connected-details { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #f0f0eb; color: #68705f; font-size: 11px; }
+.connected-details > div:first-child { display: flex; min-width: 0; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.connected-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #75a740; box-shadow: 0 0 0 4px #edf5e3; }
+.connected-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 14px; }
+.connected-actions .text-button:first-child { color: #5d7541; }
 .list-section { padding: 36px 0 55px; }
 .list-heading { display: flex; align-items: end; justify-content: space-between; gap: 15px; }
 .search-box { width: min(230px, 42%); display: flex; align-items: center; gap: 8px; color: #898e84; }
@@ -121,6 +126,8 @@ dialog::backdrop { background: #1a1f18aa; backdrop-filter: blur(3px); }
   .connection-form { grid-template-columns: 1fr; gap: 12px; }
   .connection-actions { grid-column: 1; align-items: flex-start; flex-direction: column; gap: 8px; }
   .connection-actions .button { width: 100%; }
+  .connected-details { align-items: flex-start; flex-direction: column; }
+  .connected-actions { width: 100%; justify-content: space-between; }
   .list-heading { align-items: flex-start; flex-direction: column; }
   .search-box { width: 100%; }
   .search-box input { flex: 1; }
