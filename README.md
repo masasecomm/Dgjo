@@ -22,6 +22,10 @@ The website is configured to read live listings from `https://goodwork-jobs-api.
 
 The repository includes a `CNAME` file for `dpsagovernmentjobs.co.za`. In Cloudflare DNS, point the apex to GitHub Pages using `A` records for `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, and `185.199.111.153`; point `www` to `masasecomm.github.io` with a `CNAME` record. Remove the existing Vercel `CNAME` records for `@` and `www` when making the switch. Keep unrelated TXT records. Use DNS-only proxy status while GitHub provisions HTTPS, then enable Cloudflare proxying only if needed. DNS and certificate changes may take time to propagate.
 
+## Google Analytics
+
+The site loads the Google tag `GT-NMDDFKGP` and configures the Google Analytics 4 measurement ID `G-69H0HQGRT9` from the page head. Use Google Tag Assistant or the Analytics Realtime report to verify incoming visits.
+
 ## Load the Chrome extension
 
 1. Open `chrome://extensions` in Google Chrome and turn on **Developer mode**.
