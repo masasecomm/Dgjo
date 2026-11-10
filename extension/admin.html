@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Job manager — Goodwork</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="https://masasecomm.github.io/Dgjo/" target="_blank" rel="noreferrer">
+      <span class="brand-mark">g.</span><span>goodwork <small>ADMIN</small></span>
+    </a>
+    <a class="site-link" href="https://masasecomm.github.io/Dgjo/" target="_blank" rel="noreferrer">View live site <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main class="page">
+    <section class="page-intro">
+      <div>
+        <p class="eyebrow"><span class="eyebrow-dot"></span> YOUR WORKSPACE</p>
+        <h1>Job listings</h1>
+        <p class="intro-copy">A good team starts with a good opportunity. Manage the roles on your site here.</p>
+      </div>
+      <button id="add-job" class="button button-dark" type="button"><span aria-hidden="true">＋</span> Add a job</button>
+    </section>
+
+    <section class="settings-card" aria-labelledby="connection-title">
+      <div class="settings-heading">
+        <div>
+          <h2 id="connection-title">Publishing connection</h2>
+          <p>Connect once. Your connection details are remembered on this Chrome profile.</p>
+        </div>
+        <span id="connection-badge" class="badge badge-muted"><span class="badge-dot"></span> Not connected</span>
+      </div>
+      <form id="connection-form" class="connection-form">
+        <label class="field"><span>Worker API URL</span><input id="api-url" type="url" placeholder="https://your-worker.workers.dev/api/jobs" autocomplete="url" required></label>
+        <label class="field"><span>Admin key</span><input id="admin-token" type="password" placeholder="Enter your Cloudflare secret" autocomplete="new-password" required></label>
+        <div class="connection-actions">
+          <button id="connect" class="button button-dark" type="submit">Connect and save</button>
+          <button id="forget-credentials" class="text-button" type="button" hidden>Forget saved credentials</button>
+          <span class="privacy-note">Saved only in Chrome on this device. Never shared with the website.</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="list-section" aria-labelledby="list-title">
+      <div class="list-heading">
+        <div><h2 id="list-title">Published opportunities</h2><p id="job-summary">Connect to load your current listings.</p></div>
+        <label class="search-box"><span class="visually-hidden">Search listings</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="job-search" type="search" placeholder="Search jobs" disabled></label>
+      </div>
+      <div class="toolbar">
+        <div class="filters" role="group" aria-label="Filter jobs">
+          <button class="filter-chip active" type="button" data-filter="All">All</button>
+          <button class="filter-chip" type="button" data-filter="Design">Design</button>
+          <button class="filter-chip" type="button" data-filter="Engineering">Engineering</button>
+          <button class="filter-chip" type="button" data-filter="Marketing">Marketing</button>
+          <button class="filter-chip" type="button" data-filter="Product">Product</button>
+        </div>
+        <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="recent">Recently added</option><option value="salary">Highest salary</option><option value="title">Job title</option></select></label>
+      </div>
+      <div id="job-list" class="job-grid" aria-live="polite">
+        <div class="empty-state"><span class="empty-icon">✳</span><strong>Your job board, in one place.</strong><span>Connect to Cloudflare to view and manage published roles.</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer"><span class="brand-mark">g.</span><span>Good work starts with a good fit.</span><a href="https://masasecomm.github.io/Dgjo/" target="_blank" rel="noreferrer">Visit your website ↗</a></footer>
+
+  <dialog id="job-dialog" aria-labelledby="form-title">
+    <form id="job-form" class="job-form">
+      <div class="dialog-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> JOB DETAILS</p><h2 id="form-title">Add a job</h2></div><button id="cancel-edit" class="close-button" type="button" aria-label="Close dialog">×</button></div>
+      <input id="job-id" type="hidden">
+      <div class="form-grid">
+        <label class="field field-wide"><span>Job title</span><input id="title" maxlength="160" placeholder="e.g. Product Designer" required></label>
+        <label class="field"><span>Company</span><input id="company" maxlength="160" placeholder="Company name" required></label>
+        <label class="field"><span>Location</span><input id="location" maxlength="160" placeholder="Remote · US" required></label>
+        <label class="field"><span>Category</span><select id="category"><option>Design</option><option>Engineering</option><option>Marketing</option><option>Product</option></select></label>
+        <label class="field"><span>Employment type</span><select id="type"><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option></select></label>
+        <label class="field"><span>Top salary (number)</span><input id="salary" type="number" min="0" max="100000000" placeholder="130000" required></label>
+        <label class="field"><span>Salary range</span><input id="salary-text" maxlength="160" placeholder="$100k – $130k" required></label>
+        <label class="field field-wide"><span>Posted label</span><input id="posted" maxlength="160" value="Just posted" required></label>
+        <label class="field"><span>Logo background</span><input id="color" type="color" value="#eaf1e2"></label>
+        <label class="field"><span>Logo text</span><input id="logo-color" type="color" value="#64803f"></label>
+      </div>
+      <div class="dialog-actions"><button class="button button-light" id="cancel-form" type="button">Cancel</button><button id="save-job" class="button button-dark" type="submit">Publish job</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="admin.js"></script>
+</body>
+</html>

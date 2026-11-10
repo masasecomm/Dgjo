@@ -4,14 +4,13 @@ The site reads its initial job listings from `jobs.json`. A Cloudflare Worker ca
 
 ## Set up the Cloudflare Worker
 
-From the `cloudflare` directory:
+From the `cloudflare` directory (use `npm.cmd` / `npx.cmd` in Windows PowerShell if script execution blocks the `.ps1` launchers):
 
-1. Install Node.js, then run `npm install`.
-2. Sign in to Cloudflare with `npx wrangler login`.
-3. Create a KV namespace: `npx wrangler kv namespace create JOBS`.
-4. Put the namespace ID from the command output in `cloudflare/wrangler.jsonc`, replacing `REPLACE_WITH_YOUR_KV_NAMESPACE_ID`.
-5. Create a long, unique admin key and set it as a Worker secret: `npx wrangler secret put ADMIN_TOKEN`. Enter the same key in the Chrome extension when connecting. Do not put this key in the repository or website code.
-6. Deploy with `npm run deploy`.
+1. Install dependencies with `npm.cmd install`.
+2. Sign in to Cloudflare with `npx.cmd wrangler login`.
+3. Create a KV namespace with `npx.cmd wrangler kv namespace create JOBS`, and add its ID to `cloudflare/wrangler.jsonc`.
+4. Create a long, unique admin key and set it as a Worker secret with `npx.cmd wrangler secret put ADMIN_TOKEN`. Enter the same key in the Chrome extension when connecting. Do not put this key in the repository or website code.
+5. Deploy with `npm.cmd run deploy`.
 
 The API URL is printed by Wrangler and ends in `/api/jobs`. `GET /api/jobs` returns the published listings. `PUT /api/jobs` replaces them and requires the admin key.
 
@@ -23,7 +22,8 @@ The website is configured to read live listings from `https://goodwork-jobs-api.
 
 1. Open `chrome://extensions` in Google Chrome and turn on **Developer mode**.
 2. Select **Load unpacked** and choose this repository's `extension` folder.
-3. Open **Goodwork Job Manager**, enter the Worker API URL and the admin key you set above, then select **Connect to jobs**. Approve Chrome's prompt to access that Worker.
-4. Add, edit, or delete listings. Changes are published immediately and appear on the website.
+3. Click the Goodwork Job Manager extension icon to open the full-page admin dashboard.
+4. Enter the Worker API URL and admin key, then select **Connect and save**. Approve Chrome's prompt to access the Worker.
+5. Add, edit, or delete listings. Changes are published immediately and appear on the website.
 
-The extension asks for permission only for the Worker origin you enter. It does not save the admin key; closing its popup clears it.
+The extension remembers the Worker URL and admin key in Chrome's local extension storage on this browser profile. These credentials are not synced by the extension or sent to the website, but they are not separately encrypted by the extension; anyone with access to this Chrome profile or device may be able to access them. Use **Forget saved credentials** to remove them from this browser. The extension asks for site access only to the Worker origin you enter.
