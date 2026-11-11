@@ -239,11 +239,12 @@ async function publishJobs(nextJobs) {
 function openEditor(job = null) {
   form.reset();
   document.querySelector("#job-id").value = job?.id ?? "";
+  document.querySelector("#source-url").value = job?.sourceUrl ?? "";
   document.querySelector("#title").value = job?.title ?? "";
   document.querySelector("#company").value = job?.company ?? "";
   document.querySelector("#location").value = job?.location ?? "";
-  document.querySelector("#category").value = job?.category ?? "Design";
-  document.querySelector("#type").value = job?.type ?? "Full-time";
+  document.querySelector("#category").value = job?.category ?? "Other";
+  document.querySelector("#type").value = job?.type ?? "Permanent";
   document.querySelector("#salary").value = job?.salary ?? "";
   document.querySelector("#salary-text").value = job?.salaryText ?? "";
   document.querySelector("#posted").value = job?.posted ?? "Just posted";
@@ -308,6 +309,7 @@ form.addEventListener("submit", async event => {
   const title = document.querySelector("#title").value.trim();
   const job = {
     id,
+    sourceUrl: document.querySelector("#source-url").value.trim(),
     title,
     company: document.querySelector("#company").value.trim(),
     location: document.querySelector("#location").value.trim(),

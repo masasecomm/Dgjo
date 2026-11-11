@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Job manager — Goodwork</title>
+  <title>Job manager — DPSA Government Jobs</title>
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="https://masasecomm.github.io/Dgjo/" target="_blank" rel="noreferrer">
-      <span class="brand-mark">g.</span><span>goodwork <small>ADMIN</small></span>
+    <a class="brand" href="https://dpsagovernmentjobs.co.za/" target="_blank" rel="noreferrer">
+      <span class="brand-mark">D</span><span>DPSA Government Jobs <small>ADMIN</small></span>
     </a>
-    <a class="site-link" href="https://masasecomm.github.io/Dgjo/" target="_blank" rel="noreferrer">View live site <span aria-hidden="true">↗</span></a>
+    <a class="site-link" href="https://dpsagovernmentjobs.co.za/" target="_blank" rel="noreferrer">View live site <span aria-hidden="true">↗</span></a>
   </header>
 
   <main class="page">
@@ -20,7 +20,7 @@
       <div>
         <p class="eyebrow"><span class="eyebrow-dot"></span> YOUR WORKSPACE</p>
         <h1>Job listings</h1>
-        <p class="intro-copy">A good team starts with a good opportunity. Manage the roles on your site here.</p>
+        <p class="intro-copy">Manage South African public service opportunities. Add the official advert link and include “South Africa” in the location to show a listing on the public site.</p>
       </div>
       <button id="add-job" class="button button-dark" type="button"><span aria-hidden="true">＋</span> Add a job</button>
     </section>
@@ -58,10 +58,12 @@
       <div class="toolbar">
         <div class="filters" role="group" aria-label="Filter jobs">
           <button class="filter-chip active" type="button" data-filter="All">All</button>
-          <button class="filter-chip" type="button" data-filter="Design">Design</button>
-          <button class="filter-chip" type="button" data-filter="Engineering">Engineering</button>
-          <button class="filter-chip" type="button" data-filter="Marketing">Marketing</button>
-          <button class="filter-chip" type="button" data-filter="Product">Product</button>
+          <button class="filter-chip" type="button" data-filter="Administration">Administration</button>
+          <button class="filter-chip" type="button" data-filter="Education">Education</button>
+          <button class="filter-chip" type="button" data-filter="Finance">Finance</button>
+          <button class="filter-chip" type="button" data-filter="Health">Health</button>
+          <button class="filter-chip" type="button" data-filter="Law Enforcement">Law enforcement</button>
+          <button class="filter-chip" type="button" data-filter="Other">Other</button>
         </div>
         <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="recent">Recently added</option><option value="salary">Highest salary</option><option value="title">Job title</option></select></label>
       </div>
@@ -71,7 +73,7 @@
     </section>
   </main>
 
-  <footer class="footer"><span class="brand-mark">g.</span><span>Good work starts with a good fit.</span><a href="https://masasecomm.github.io/Dgjo/" target="_blank" rel="noreferrer">Visit your website ↗</a></footer>
+  <footer class="footer"><span class="brand-mark">D</span><span>Independent South African government jobs guide.</span><a href="https://dpsagovernmentjobs.co.za/" target="_blank" rel="noreferrer">Visit your website ↗</a></footer>
 
   <dialog id="job-dialog" aria-labelledby="form-title">
     <form id="job-form" class="job-form">
@@ -79,13 +81,15 @@
       <input id="job-id" type="hidden">
       <div class="form-grid">
         <label class="field field-wide"><span>Job title</span><input id="title" maxlength="160" placeholder="e.g. Product Designer" required></label>
-        <label class="field"><span>Company</span><input id="company" maxlength="160" placeholder="Company name" required></label>
-        <label class="field"><span>Location</span><input id="location" maxlength="160" placeholder="Remote · US" required></label>
-        <label class="field"><span>Category</span><select id="category"><option>Design</option><option>Engineering</option><option>Marketing</option><option>Product</option></select></label>
-        <label class="field"><span>Employment type</span><select id="type"><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option></select></label>
-        <label class="field"><span>Top salary (number)</span><input id="salary" type="number" min="0" max="100000000" placeholder="130000" required></label>
-        <label class="field"><span>Salary range</span><input id="salary-text" maxlength="160" placeholder="$100k – $130k" required></label>
-        <label class="field field-wide"><span>Posted label</span><input id="posted" maxlength="160" value="Just posted" required></label>
+        <label class="field field-wide"><span>Official advert URL</span><input id="source-url" type="url" placeholder="https://… department advert or official circular" required></label>
+        <label class="field field-wide"><span>Job title</span><input id="title" maxlength="160" placeholder="e.g. Administrative Clerk" required></label>
+        <label class="field"><span>Department</span><input id="company" maxlength="160" placeholder="e.g. Department of Health" required></label>
+        <label class="field"><span>Location</span><input id="location" maxlength="160" placeholder="Pretoria, Gauteng, South Africa" required></label>
+        <label class="field"><span>Category</span><select id="category"><option>Administration</option><option>Education</option><option>Finance</option><option>Health</option><option>Law Enforcement</option><option>Other</option><optgroup label="Legacy categories"><option>Design</option><option>Engineering</option><option>Marketing</option><option>Product</option></optgroup></select></label>
+        <label class="field"><span>Employment type</span><select id="type"><option>Permanent</option><option>Fixed-term</option><option>Temporary</option><option>Contract</option><optgroup label="Legacy types"><option>Full-time</option><option>Part-time</option><option>Internship</option></optgroup></select></label>
+        <label class="field"><span>Top salary (numeric rand amount)</span><input id="salary" type="number" min="0" max="100000000" placeholder="0 if not stated" required></label>
+        <label class="field"><span>Salary range</span><input id="salary-text" maxlength="160" placeholder="R350 000 – R450 000, or Not stated" required></label>
+        <label class="field field-wide"><span>Posted or closing-date note</span><input id="posted" maxlength="160" placeholder="Closing date: 30 November 2026" required></label>
         <label class="field"><span>Logo background</span><input id="color" type="color" value="#eaf1e2"></label>
         <label class="field"><span>Logo text</span><input id="logo-color" type="color" value="#64803f"></label>
       </div>

@@ -1,13 +1,19 @@
 import defaultJobs from "../jobs.json" with { type: "json" };
 
 const JOBS_KEY = "published-jobs";
-const CATEGORIES = new Set(["Design", "Engineering", "Marketing", "Product"]);
-const TYPES = new Set(["Full-time", "Part-time", "Contract", "Internship"]);
+const CATEGORIES = new Set([
+  "Administration", "Education", "Finance", "Health", "Law Enforcement", "Other",
+  "Design", "Engineering", "Marketing", "Product"
+]);
+const TYPES = new Set([
+  "Permanent", "Fixed-term", "Temporary",
+  "Full-time", "Part-time", "Contract", "Internship"
+]);
 const MAX_JOBS = 500;
 const MAX_TEXT_LENGTH = 160;
 const JOB_FIELDS = new Set([
   "id", "title", "company", "location", "type", "category", "salary",
-  "salaryText", "posted", "logo", "color", "logoColor"
+  "salaryText", "posted", "logo", "color", "logoColor", "sourceUrl"
 ]);
 
 function jsonResponse(body, status = 200) {
@@ -38,6 +44,15 @@ function validateJobs(value) {
     if (ids.has(job.id) || !CATEGORIES.has(job.category) || !TYPES.has(job.type)) return false;
     if (!Number.isFinite(job.salary) || job.salary < 0 || job.salary > 100000000) return false;
     if (!/^#[0-9a-f]{6}$/i.test(job.color) || !/^#[0-9a-f]{6}$/i.test(job.logoColor)) return false;
+    if (job.sourceUrl !== undefined) {
+      if (typeof job.sourceUrl !== "string" || job.sourceUrl.length > 2048) return false;
+      try {
+        const sourceUrl = new URL(job.sourceUrl);
+        if (sourceUrl.protocol !== "https:" || sourceUrl.username || sourceUrl.password) return false;
+      } catch {
+        return false;
+      }
+    }
     ids.add(job.id);
     return true;
   });
@@ -51,7 +66,15 @@ export default {
 
     if (request.method === "GET") {
       const savedJobs = await env.JOBS.get(JOBS_KEY, "json");
-      return jsonResponse(savedJobs ?? defaultJobs);
+      const jobs = savedJobs ?? defaultJobs;
+      const authorization = request.headers.get("Authorization");
+      if (authorization) {
+        if (!env.ADMIN_TOKEN || authorization !== `Bearer ${env.ADMIN_TOKEN}`) {
+          return jsonResponse({ error: "Invalid admin token." }, 401);
+        }
+        return jsonResponse(jobs);
+      }
+      return jsonResponse(jobs.filter(job => typeof job.location === "string" && /south africa/i.test(job.location)));
     }
 
     if (request.method !== "PUT") {

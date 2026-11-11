@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dpsagovernmentjobs.co.za/sitemap.xml
