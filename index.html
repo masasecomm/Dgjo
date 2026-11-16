@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6f7f2">
+  <meta name="theme-color" content="#17499e">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="description" content="Find DPSA vacancies and South African government jobs. Browse official public service vacancy circulars, check closing dates and get Z83 application guidance.">
   <link rel="canonical" href="https://dpsagovernmentjobs.co.za/">
@@ -41,39 +41,61 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <nav class="nav shell" aria-label="Main navigation">
-      <a class="brand" href="/" aria-label="DPSA Government Jobs home"><span class="brand-mark" aria-hidden="true">D</span><span>DPSA <b>Government Jobs</b></span></a>
+      <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="south-african-flag.png" alt=""><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
       <div class="nav-links">
-        <a href="/dpsa-vacancy-circulars/">Vacancy circulars</a>
-        <a href="/how-to-apply/">How to apply</a>
-        <a class="nav-official" href="https://www.dpsa.gov.za/newsroom/psvc/">Official DPSA source <span aria-hidden="true">↗</span></a>
+        <a href="/" aria-current="page">Home</a>
+        <a href="/dpsa-vacancy-circulars/">Circulars</a>
+        <a href="#listings">Province</a>
+        <a href="#questions-heading">Contact &amp; help</a>
       </div>
     </nav>
   </header>
 
   <main id="main">
-    <section class="hero">
-      <div class="shell hero-grid">
-        <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> South African public service opportunities</p>
-          <h1>DPSA vacancies and government jobs in South Africa</h1>
-          <p class="lead">Find your way to public service job adverts published in DPSA vacancy circulars. For DPSA vacancies in 2026, check the current official circular, confirm each department’s requirements and closing date, then apply directly to the department advertising the post.</p>
-          <div class="hero-actions">
-            <a class="button" href="/dpsa-vacancy-circulars/">Browse DPSA vacancy circulars <span aria-hidden="true">→</span></a>
-            <a class="button button-light" href="/how-to-apply/">How to apply</a>
-          </div>
-          <p class="independent-note">Independent information guide — not an official South African government website.</p>
+    <section class="home-hero">
+      <span class="home-hero-orb home-hero-orb-one" aria-hidden="true"></span>
+      <span class="home-hero-orb home-hero-orb-two" aria-hidden="true"></span>
+      <div class="home-hero-inner">
+        <div class="home-hero-copy">
+          <p class="home-eyebrow"><span aria-hidden="true"></span> SOUTH AFRICAN PUBLIC SERVICE OPPORTUNITIES</p>
+          <h1>South African Government Jobs</h1>
+          <p>Find current government vacancies by job title, province or department. Confirm every requirement and closing date in the official advert.</p>
+          <form id="job-search" class="home-search" action="#listings">
+            <label class="home-search-field home-search-keywords">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.5 4.5"></path></svg>
+              <input id="job-query" name="q" type="search" placeholder="Job title, keywords..." aria-label="Job title or keywords">
+            </label>
+            <label class="home-search-field">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+              <select id="job-province" name="province" aria-label="Province"><option value="">All Provinces</option></select>
+            </label>
+            <label class="home-search-field">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1"></path></svg>
+              <select id="job-department" name="department" aria-label="Department"><option value="">All Departments</option></select>
+            </label>
+            <button type="submit">Find Jobs <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="home-hero-trust"><span aria-hidden="true">✓</span> Independent guide · Always verify vacancies with the official department advert</p>
         </div>
-        <aside class="hero-card" aria-label="Quick application guidance">
-          <div class="card-icon" aria-hidden="true">✓</div>
-          <p class="card-kicker">Before you apply</p>
-          <h2>Use the official advert as your source of truth</h2>
-          <ul class="check-list">
-            <li>Confirm the post and reference number</li>
-            <li>Check the closing date and required documents</li>
-            <li>Send your application to the named department</li>
-          </ul>
-          <a class="text-link" href="https://www.dpsa.gov.za/newsroom/psvc/">Open the DPSA circular page <span aria-hidden="true">↗</span></a>
-        </aside>
+      </div>
+    </section>
+
+    <section class="home-section home-featured" id="listings" aria-labelledby="listings-heading">
+      <div class="home-section-heading">
+          <div>
+            <p class="home-kicker">TAKE THE NEXT STEP</p>
+            <h2 id="listings-heading">GOVERNMENT JOBS</h2>
+            <p>Explore current public service roles and find the right opportunity for you.</p>
+          </div>
+          <a class="home-text-link" href="/dpsa-vacancy-circulars/">Browse DPSA vacancy circulars <span aria-hidden="true">→</span></a>
+      </div>
+      <nav id="province-filters" class="province-filters" aria-label="Browse jobs by province">
+        <a class="province-filter is-active" href="#listings" data-province="">All Provinces</a>
+      </nav>
+      <p class="independent-note" id="job-list-status" role="status" hidden></p>
+      <p class="job-count" id="job-count" role="status">Loading current vacancies…</p>
+      <div class="listing-grid" id="job-list" aria-live="polite">
+        <p class="listing-empty">Loading South African job listings…</p>
       </div>
     </section>
 
@@ -128,23 +150,6 @@
       </div>
     </section>
 
-    <section class="section" aria-labelledby="listings-heading">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">South African opportunities</p>
-            <h2 id="listings-heading">Government job listings</h2>
-            <p class="section-intro">Listings shown here are managed by this site and may be from any location. Confirm each role, closing date and application process in the original advert before applying.</p>
-          </div>
-          <a class="text-link" href="https://www.dpsa.gov.za/newsroom/psvc/">Check official DPSA circulars <span aria-hidden="true">↗</span></a>
-        </div>
-        <p class="independent-note" id="job-list-status" role="status" hidden></p>
-        <div class="listing-grid" id="job-list" aria-live="polite">
-          <p class="listing-empty">Loading South African job listings…</p>
-        </div>
-      </div>
-    </section>
-
     <section class="section" aria-labelledby="questions-heading">
       <div class="shell narrow">
         <p class="eyebrow">Helpful answers</p>
@@ -167,7 +172,7 @@
 
   <footer class="site-footer">
     <div class="shell footer-inner">
-      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">D</span><span>DPSA <b>Government Jobs</b></span></a>
+      <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="south-african-flag.png" alt=""><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
       <p>Independent guide to South African public service vacancies. Verify details with the official advert and hiring department.</p>
       <div class="footer-links">
         <a href="/dpsa-vacancy-circulars/">DPSA circulars</a>
@@ -182,6 +187,13 @@
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
     const jobsList = document.querySelector("#job-list");
     const jobsStatus = document.querySelector("#job-list-status");
+    const jobCount = document.querySelector("#job-count");
+    const jobSearch = document.querySelector("#job-search");
+    const jobQuery = document.querySelector("#job-query");
+    const jobProvince = document.querySelector("#job-province");
+    const jobDepartment = document.querySelector("#job-department");
+    const provinceFilters = document.querySelector("#province-filters");
+    let allJobs = [];
 
     function appendTextWithLinks(container, value) {
       const text = String(value ?? "");
@@ -234,6 +246,58 @@
       appendBulletPoints(container, splitVacancyPoints(value));
     }
 
+    function populateSearchFilters(jobs) {
+      const provinces = [...new Set(jobs.map(job => String(job.province ?? "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
+      const departments = [...new Set(jobs.map(job => String(job.company ?? "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
+      const selectedProvince = new URLSearchParams(location.search).get("province") ?? "";
+      const selectedDepartment = new URLSearchParams(location.search).get("department") ?? "";
+      const selectedQuery = new URLSearchParams(location.search).get("q") ?? "";
+      jobQuery.value = selectedQuery;
+      jobProvince.replaceChildren(new Option("All Provinces", ""), ...provinces.map(name => new Option(name, name)));
+      jobDepartment.replaceChildren(new Option("All Departments", ""), ...departments.map(name => new Option(name, name)));
+      if (provinces.includes(selectedProvince)) jobProvince.value = selectedProvince;
+      if (departments.includes(selectedDepartment)) jobDepartment.value = selectedDepartment;
+
+      provinceFilters.replaceChildren();
+      const filters = [{ name: "All Provinces", value: "", count: jobs.length },
+        ...provinces.map(name => ({
+          name,
+          value: name,
+          count: jobs.filter(job => String(job.province ?? "").trim() === name).length
+        }))];
+      for (const filter of filters) {
+        const link = document.createElement("a");
+        link.className = "province-filter";
+        link.href = "#listings";
+        link.dataset.province = filter.value;
+        link.textContent = `${filter.name} (${filter.count})`;
+        provinceFilters.append(link);
+      }
+    }
+
+    function filterJobListings() {
+      const query = jobQuery.value.trim().toLowerCase();
+      const province = jobProvince.value;
+      const department = jobDepartment.value.toLowerCase();
+      const filtered = allJobs.filter(job => {
+        if (province && String(job.province ?? "").trim() !== province) return false;
+        if (department && String(job.company ?? "").trim().toLowerCase() !== department) return false;
+        if (!query) return true;
+        return [
+          job.title, job.company, job.location, job.province, job.refNo,
+          job.category, job.type, job.salaryText, job.requirements, job.duties
+        ].some(value => String(value ?? "").toLowerCase().includes(query));
+      });
+      provinceFilters.querySelectorAll(".province-filter").forEach(link => {
+        link.classList.toggle("is-active", link.dataset.province === province);
+      });
+      const criteria = [query && `matching “${jobQuery.value.trim()}”`, province, jobDepartment.value].filter(Boolean);
+      jobCount.textContent = `${filtered.length} ${filtered.length === 1 ? "opportunity" : "opportunities"}${criteria.length ? ` · ${criteria.join(" · ")}` : ""}`;
+      showJobListings(filtered);
+    }
+
     function showJobListings(jobs) {
       jobsList.replaceChildren();
       const displayableJobs = jobs.filter(job =>
@@ -245,7 +309,9 @@
       if (!displayableJobs.length) {
         const empty = document.createElement("p");
         empty.className = "listing-empty";
-        empty.textContent = "There are no job listings right now. Please check back later.";
+        empty.textContent = allJobs.length
+          ? "No vacancies match your search. Try another keyword or filter."
+          : "There are no job listings right now. Please check back later.";
         jobsList.append(empty);
         return;
       }
@@ -253,8 +319,28 @@
       displayableJobs.forEach(job => {
         const card = document.createElement("article");
         card.className = "listing-card";
+        const mark = document.createElement("span");
+        mark.className = "listing-card-mark";
+        if (job.circularName || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""))) {
+          const crest = document.createElement("img");
+          crest.src = "south-african-coat-of-arms.png";
+          crest.alt = "South African coat of arms";
+          mark.append(crest);
+        } else {
+          mark.classList.add("listing-card-mark-generic");
+          mark.setAttribute("aria-hidden", "true");
+          mark.textContent = "▦";
+        }
+        const content = document.createElement("div");
+        content.className = "listing-card-content";
         const title = document.createElement("h3");
         title.textContent = job.title;
+        const titleRow = document.createElement("div");
+        titleRow.className = "listing-card-title";
+        const status = document.createElement("span");
+        status.className = "listing-card-status";
+        status.textContent = "Open";
+        titleRow.append(title, status);
         const company = document.createElement("p");
         company.className = "listing-meta";
         company.textContent = job.company;
@@ -278,7 +364,7 @@
           verify.href = "https://www.google.com/search?q=" + encodeURIComponent(`${job.title} ${job.company} job`);
           verify.textContent = "Search for this job ↗";
         }
-        card.append(title, company, location, details);
+        content.append(titleRow, company, location, details);
 
         const vacancyFields = [
           ["Reference number", job.refNo],
@@ -334,12 +420,32 @@
             });
             vacancyDetails.append(linkList);
           }
-          card.append(vacancyDetails);
+          content.append(vacancyDetails);
         }
-        card.append(verify);
+        content.append(verify);
+        card.append(mark, content);
         jobsList.append(card);
       });
     }
+
+    jobSearch.addEventListener("submit", event => {
+      event.preventDefault();
+      const params = new URLSearchParams();
+      if (jobQuery.value.trim()) params.set("q", jobQuery.value.trim());
+      if (jobProvince.value) params.set("province", jobProvince.value);
+      if (jobDepartment.value) params.set("department", jobDepartment.value);
+      history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}#listings`);
+      filterJobListings();
+      document.querySelector("#listings").scrollIntoView({ behavior: "smooth" });
+    });
+
+    provinceFilters.addEventListener("click", event => {
+      const link = event.target.closest(".province-filter");
+      if (!link) return;
+      event.preventDefault();
+      jobProvince.value = link.dataset.province ?? "";
+      filterJobListings();
+    });
 
     async function loadJobListings() {
       try {
@@ -347,14 +453,18 @@
         if (!response.ok) throw new Error(`Job service returned HTTP ${response.status}.`);
         const jobs = await response.json();
         if (!Array.isArray(jobs)) throw new Error("Job service returned an invalid list.");
-        showJobListings(jobs);
+        allJobs = jobs;
+        populateSearchFilters(jobs);
+        filterJobListings();
       } catch (apiError) {
         try {
           const response = await fetch("jobs.json");
           if (!response.ok) throw new Error(`Backup job list returned HTTP ${response.status}.`);
           const jobs = await response.json();
           if (!Array.isArray(jobs)) throw new Error("Backup job list returned an invalid list.");
-          showJobListings(jobs);
+          allJobs = jobs;
+          populateSearchFilters(jobs);
+          filterJobListings();
           jobsStatus.textContent = `Live listings could not be loaded: ${apiError.message} Showing saved backup listings instead.`;
           jobsStatus.hidden = false;
         } catch (backupError) {

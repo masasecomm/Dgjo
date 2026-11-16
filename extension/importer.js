@@ -82,13 +82,19 @@ function categoryFor(text) {
   return "Other";
 }
 
+function isDemographicGroupHeading(title) {
+  const group = String.raw`(?:African|Black|Colou?red|Indian|Asian|White)\s+(?:male|female)s?`;
+  const heading = new RegExp(`^(?:(?:employment\\s+equity|target\\s+group|designated\\s+groups)\\s*[:\\-]?\\s*)?${group}(?:\\s*(?:,|;|\\/|&|\\band\\b)\\s*${group})*\\.?$`, "i");
+  return heading.test(title.replace(/\s+/g, " ").trim());
+}
+
 function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers) {
   const text = cleanText(body);
   const links = pdfLinks.filter(link => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
   const fields = fieldMatches(text);
   const titleEnd = fields.length ? fields[0].start : Math.min(text.length, text.indexOf("\n") > 0 ? text.indexOf("\n") : 500);
   const title = cleanText(text.slice(0, titleEnd)).replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
-  if (title.length < 4) return null;
+  if (title.length < 4 || isDemographicGroupHeading(title)) return null;
 
   const values = Object.fromEntries(FIELD_LABELS.map(([key]) => [key, readField(text, fields, key)]));
   const department = cleanText(values.departmentName.split(/\n/)[0] ||

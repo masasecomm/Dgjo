@@ -47086,13 +47086,18 @@
     if (/\b(administrative|administration|clerk|secretary|office support)\b/i.test(text)) return "Administration";
     return "Other";
   }
+  function isDemographicGroupHeading(title) {
+    const group = String.raw`(?:African|Black|Colou?red|Indian|Asian|White)\s+(?:male|female)s?`;
+    const heading = new RegExp(`^(?:(?:employment\\s+equity|target\\s+group|designated\\s+groups)\\s*[:\\-]?\\s*)?${group}(?:\\s*(?:,|;|\\/|&|\\band\\b)\\s*${group})*\\.?$`, "i");
+    return heading.test(title.replace(/\s+/g, " ").trim());
+  }
   function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers) {
     const text = cleanText(body);
     const links = pdfLinks.filter((link) => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
     const fields = fieldMatches(text);
     const titleEnd = fields.length ? fields[0].start : Math.min(text.length, text.indexOf("\n") > 0 ? text.indexOf("\n") : 500);
     const title = cleanText(text.slice(0, titleEnd)).replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
-    if (title.length < 4) return null;
+    if (title.length < 4 || isDemographicGroupHeading(title)) return null;
     const values = Object.fromEntries(FIELD_LABELS.map(([key]) => [key, readField(text, fields, key)]));
     const department = cleanText(values.departmentName.split(/\n/)[0] || text.match(/\bDEPARTMENT\s*[:.\u2013\u2014-]\s*([^\n]+)/i)?.[1] || text.match(/\b(?:NATIONAL|PROVINCIAL)\s+DEPARTMENT\s+OF\s+([^\n]+)/i)?.[0] || "");
     const province = cleanText(text.match(/\b(?:EASTERN CAPE|FREE STATE|GAUTENG|KWAZULU[- ]?NATAL|LIMPOPO|MPUMALANGA|NORTHERN CAPE|NORTH WEST|WESTERN CAPE)\b/i)?.[0] ?? "");
