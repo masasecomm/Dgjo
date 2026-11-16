@@ -9,7 +9,7 @@ const TYPES = new Set([
   "Permanent", "Fixed-term", "Temporary",
   "Full-time", "Part-time", "Contract", "Internship"
 ]);
-const MAX_JOBS = 500;
+const MAX_JOBS = 1000;
 const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const OPTIONAL_TEXT_FIELDS = new Map([
@@ -124,7 +124,7 @@ export default {
       return jsonResponse({ error: "Request body must be valid JSON." }, 400);
     }
     if (!validateJobs(jobs)) {
-      return jsonResponse({ error: "Job list is invalid or exceeds the 500-job limit." }, 400);
+      return jsonResponse({ error: `Job list is invalid or exceeds the ${MAX_JOBS}-job limit.` }, 400);
     }
 
     const serializedJobs = JSON.stringify(jobs);

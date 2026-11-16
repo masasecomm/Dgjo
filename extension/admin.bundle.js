@@ -47310,6 +47310,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   // admin.js
   var DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
   var SETTINGS_KEY = "goodworkAdminSettings";
+  var MAX_PUBLISHED_JOBS = 1e3;
   var apiUrlInput = document.querySelector("#api-url");
   var tokenInput = document.querySelector("#admin-token");
   var sourceUrlInput = document.querySelector("#source-url");
@@ -47789,16 +47790,16 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       return;
     }
     if (!confirm(`Publish ${selected.length} selected vacancies to your website? Existing jobs will be kept.`)) return;
-    if (jobs.length > 500) {
-      showToast("The Worker currently has more than 500 jobs. Remove some listings before importing.", true);
+    if (jobs.length > MAX_PUBLISHED_JOBS) {
+      showToast(`The Worker currently has more than ${MAX_PUBLISHED_JOBS} jobs. Remove some listings before importing.`, true);
       return;
     }
     const byKey = new Map(jobs.map((job) => [vacancyMatchKey(job), job]));
     const imported = selected.map(createPublishedVacancy);
     for (const vacancy of imported) byKey.set(vacancyMatchKey(vacancy), vacancy);
     const nextJobs = [...byKey.values()];
-    if (nextJobs.length > 500) {
-      showToast(`This import would exceed the 500-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
+    if (nextJobs.length > MAX_PUBLISHED_JOBS) {
+      showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
       return;
     }
     const button = document.querySelector("#publish-import");

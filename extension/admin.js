@@ -8,6 +8,7 @@ import {
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
+const MAX_PUBLISHED_JOBS = 1000;
 const apiUrlInput = document.querySelector("#api-url");
 const tokenInput = document.querySelector("#admin-token");
 const sourceUrlInput = document.querySelector("#source-url");
@@ -526,8 +527,8 @@ async function publishImportedVacancies() {
     return;
   }
   if (!confirm(`Publish ${selected.length} selected vacancies to your website? Existing jobs will be kept.`)) return;
-  if (jobs.length > 500) {
-    showToast("The Worker currently has more than 500 jobs. Remove some listings before importing.", true);
+  if (jobs.length > MAX_PUBLISHED_JOBS) {
+    showToast(`The Worker currently has more than ${MAX_PUBLISHED_JOBS} jobs. Remove some listings before importing.`, true);
     return;
   }
 
@@ -535,8 +536,8 @@ async function publishImportedVacancies() {
   const imported = selected.map(createPublishedVacancy);
   for (const vacancy of imported) byKey.set(vacancyMatchKey(vacancy), vacancy);
   const nextJobs = [...byKey.values()];
-  if (nextJobs.length > 500) {
-    showToast(`This import would exceed the 500-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
+  if (nextJobs.length > MAX_PUBLISHED_JOBS) {
+    showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
     return;
   }
 
