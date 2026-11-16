@@ -88,7 +88,7 @@ function isDemographicGroupHeading(title) {
   return heading.test(title.replace(/\s+/g, " ").trim());
 }
 
-function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers) {
+function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers, circularPage) {
   const text = cleanText(body);
   const links = pdfLinks.filter(link => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
   const fields = fieldMatches(text);
@@ -125,6 +125,7 @@ function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers)
     logoColor: "#64803f",
     circularName: circular.name,
     circularDate: circular.date,
+    circularPage: circularPage ? String(circularPage) : "",
     postNo: postNumber,
     refNo,
     province,
@@ -226,7 +227,15 @@ export function parseDpsaCircular(text, { fileName = "", sourceUrl = "", links =
       ...(previousPageMarker ? [Number(previousPageMarker[1])] : []),
       ...[...normalized.slice(match.index, end).matchAll(/__PAGE_(\d+)__/g)].map(page => Number(page[1]))
     ];
-    const vacancy = parsePost(match[1].trim(), normalized.slice(match.index + match[0].length, end), circular, sourceUrl, links, pageNumbers);
+    const vacancy = parsePost(
+      match[1].trim(),
+      normalized.slice(match.index + match[0].length, end),
+      circular,
+      sourceUrl,
+      links,
+      pageNumbers,
+      previousPageMarker ? Number(previousPageMarker[1]) : 0
+    );
     if (vacancy) vacancies.push(vacancy);
   }
 

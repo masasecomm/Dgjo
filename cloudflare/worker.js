@@ -13,7 +13,7 @@ const MAX_JOBS = 500;
 const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const OPTIONAL_TEXT_FIELDS = new Map([
-  ["circularName", 160], ["circularDate", 80], ["postNo", 80], ["refNo", 160],
+  ["circularName", 160], ["circularDate", 80], ["circularPage", 20], ["postNo", 80], ["refNo", 160],
   ["province", 80], ["natureOfAppointment", 160], ["branch", 6000],
   ["chiefDirectorate", 6000], ["directorate", 6000], ["cluster", 6000],
   ["level", 160], ["centre", 6000], ["closingDate", 120],

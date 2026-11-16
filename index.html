@@ -298,6 +298,46 @@
       showJobListings(filtered);
     }
 
+    function displayJobTitle(value) {
+      const title = String(value ?? "").trim();
+      const letters = title.match(/\p{L}/gu) ?? [];
+      if (!letters.length || letters.some(letter => letter !== letter.toLocaleUpperCase("en-ZA"))) return title;
+      const acronyms = new Set(["AIDS", "CEO", "CFO", "DDG", "DPSA", "GIS", "HIV", "HOD", "HR", "ICT", "ID", "IT", "MEC", "NQF", "OHS", "PMDS", "SAPS", "SCM", "SMS", "TVET"]);
+      return title.toLocaleLowerCase("en-ZA").replace(/\b[\p{L}][\p{L}'’.-]*/gu, word =>
+        acronyms.has(word.toLocaleUpperCase("en-ZA"))
+          ? word.toLocaleUpperCase("en-ZA")
+          : `${word.charAt(0).toLocaleUpperCase("en-ZA")}${word.slice(1)}`
+      );
+    }
+
+    function jobIntroduction(job, title) {
+      const sentences = [];
+      const department = String(job.company ?? "").trim();
+      if (department) sentences.push(`The ${department} invites applications for ${title}.`);
+
+      const closingDate = String(job.closingDate ?? "").trim();
+      if (closingDate) sentences.push(`Applications close on ${closingDate}.`);
+
+      const location = [job.centre, job.location, job.province]
+        .map(value => String(value ?? "").trim())
+        .find(value => value && value.toLocaleLowerCase("en-ZA") !== "south africa");
+      if (location) sentences.push(`The successful candidate will be based in ${location}.`);
+
+      const appointmentSource = `${job.natureOfAppointment ?? ""} ${job.type ?? ""}`;
+      const appointment = appointmentSource.match(/\b(permanent|contract|sessional|fixed[\s-]?term|temporary|full[\s-]?time|part[\s-]?time|internship)\b/i)?.[1];
+      if (appointment) {
+        const label = appointment.toLocaleLowerCase("en-ZA").replace(/[\s-]+/g, " ");
+        sentences.push(`This is a ${label} position.`);
+      }
+
+      const circular = String(job.circularName ?? "").trim();
+      if (circular) {
+        const page = String(job.circularPage ?? "").trim();
+        sentences.push(`It was published in ${circular}${page ? `, page ${page}` : ""}.`);
+      }
+      return sentences.join(" ");
+    }
+
     function showJobListings(jobs) {
       jobsList.replaceChildren();
       const displayableJobs = jobs.filter(job =>
@@ -333,8 +373,9 @@
         }
         const content = document.createElement("div");
         content.className = "listing-card-content";
+        const displayTitle = displayJobTitle(job.title);
         const title = document.createElement("h3");
-        title.textContent = job.title;
+        title.textContent = displayTitle;
         const titleRow = document.createElement("div");
         titleRow.className = "listing-card-title";
         const status = document.createElement("span");
@@ -352,6 +393,9 @@
         const details = document.createElement("p");
         details.className = "listing-meta";
         details.textContent = [job.type, job.category, job.salaryText].filter(Boolean).join(" · ");
+        const introduction = document.createElement("p");
+        introduction.className = "listing-introduction";
+        introduction.textContent = jobIntroduction(job, displayTitle);
         const verify = document.createElement("a");
         verify.className = "text-link";
         const sourceUrl = typeof job.sourceUrl === "string" && /^https:\/\//i.test(job.sourceUrl)
@@ -365,6 +409,7 @@
           verify.textContent = "Search for this job ↗";
         }
         content.append(titleRow, company, location, details);
+        if (introduction.textContent) content.append(introduction);
 
         const vacancyFields = [
           ["Reference number", job.refNo],

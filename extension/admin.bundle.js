@@ -47091,7 +47091,7 @@
     const heading = new RegExp(`^(?:(?:employment\\s+equity|target\\s+group|designated\\s+groups)\\s*[:\\-]?\\s*)?${group}(?:\\s*(?:,|;|\\/|&|\\band\\b)\\s*${group})*\\.?$`, "i");
     return heading.test(title.replace(/\s+/g, " ").trim());
   }
-  function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers) {
+  function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers, circularPage) {
     const text = cleanText(body);
     const links = pdfLinks.filter((link) => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
     const fields = fieldMatches(text);
@@ -47123,6 +47123,7 @@
       logoColor: "#64803f",
       circularName: circular.name,
       circularDate: circular.date,
+      circularPage: circularPage ? String(circularPage) : "",
       postNo: postNumber,
       refNo,
       province,
@@ -47215,7 +47216,15 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         ...previousPageMarker ? [Number(previousPageMarker[1])] : [],
         ...[...normalized.slice(match.index, end).matchAll(/__PAGE_(\d+)__/g)].map((page) => Number(page[1]))
       ];
-      const vacancy = parsePost(match[1].trim(), normalized.slice(match.index + match[0].length, end), circular, sourceUrl, links, pageNumbers);
+      const vacancy = parsePost(
+        match[1].trim(),
+        normalized.slice(match.index + match[0].length, end),
+        circular,
+        sourceUrl,
+        links,
+        pageNumbers,
+        previousPageMarker ? Number(previousPageMarker[1]) : 0
+      );
       if (vacancy) vacancies.push(vacancy);
     }
     const unique = /* @__PURE__ */ new Map();
@@ -47565,6 +47574,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         ["natureOfAppointment", "Appointment type"],
         ["salaryText", "Salary / stipend"],
         ["sourceUrl", "Official advert or circular URL"],
+        ["circularPage", "Circular page number"],
         ["level", "Level"],
         ["branch", "Branch"],
         ["directorate", "Directorate"],
@@ -47584,7 +47594,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         const input = document.createElement(["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? "textarea" : "input");
         if (key === "sourceUrl") input.type = "url";
         input.value = key === "links" ? (vacancy.links ?? []).map((link) => `${link.label || link.url} | ${link.url}`).join("\n") : vacancy[key] ?? "";
-        input.maxLength = key === "sourceUrl" ? 2048 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? 6e3 : 160;
+        input.maxLength = key === "sourceUrl" ? 2048 : key === "circularPage" ? 20 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? 6e3 : 160;
         input.addEventListener("input", () => {
           if (key === "links") {
             vacancy.links = input.value.split(/\r?\n/).map((line) => {
@@ -47692,6 +47702,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     const existingDetails = {
       circularName: truncate(vacancy.circularName, 160),
       circularDate: truncate(vacancy.circularDate, 80),
+      circularPage: truncate(vacancy.circularPage, 20),
       postNo: truncate(vacancy.postNo, 80),
       refNo: truncate(vacancy.refNo, 160),
       province: truncate(vacancy.province, 80),
@@ -48033,6 +48044,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         Selected: selected ? "Yes" : "No",
         "Circular": vacancy.circularName,
         "Circular date": vacancy.circularDate,
+        "Circular page": vacancy.circularPage,
         "Post number": vacancy.postNo,
         "Reference number": vacancy.refNo,
         "Job title": vacancy.title,

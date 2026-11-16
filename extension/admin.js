@@ -296,6 +296,7 @@ function renderImportedVacancies() {
       ["natureOfAppointment", "Appointment type"],
       ["salaryText", "Salary / stipend"],
       ["sourceUrl", "Official advert or circular URL"],
+      ["circularPage", "Circular page number"],
       ["level", "Level"],
       ["branch", "Branch"],
       ["directorate", "Directorate"],
@@ -317,7 +318,7 @@ function renderImportedVacancies() {
       input.value = key === "links"
         ? (vacancy.links ?? []).map(link => `${link.label || link.url} | ${link.url}`).join("\n")
         : vacancy[key] ?? "";
-      input.maxLength = key === "sourceUrl" ? 2048 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? 6000 : 160;
+      input.maxLength = key === "sourceUrl" ? 2048 : key === "circularPage" ? 20 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? 6000 : 160;
       input.addEventListener("input", () => {
         if (key === "links") {
           vacancy.links = input.value.split(/\r?\n/).map(line => {
@@ -432,6 +433,7 @@ function createPublishedVacancy(vacancy) {
   const existingDetails = {
     circularName: truncate(vacancy.circularName, 160),
     circularDate: truncate(vacancy.circularDate, 80),
+    circularPage: truncate(vacancy.circularPage, 20),
     postNo: truncate(vacancy.postNo, 80),
     refNo: truncate(vacancy.refNo, 160),
     province: truncate(vacancy.province, 80),
@@ -803,6 +805,7 @@ document.querySelector("#export-excel").addEventListener("click", () => {
     Selected: selected ? "Yes" : "No",
     "Circular": vacancy.circularName,
     "Circular date": vacancy.circularDate,
+    "Circular page": vacancy.circularPage,
     "Post number": vacancy.postNo,
     "Reference number": vacancy.refNo,
     "Job title": vacancy.title,

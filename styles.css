@@ -266,6 +266,7 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .listing-card-title h3 { min-width: 0; margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .listing-card-status { color: #39a85b; font-size: 11px; font-weight: 600; }
 .listing-meta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0; color: #737d85; font-size: 12px; overflow-wrap: anywhere; }
+.listing-introduction { margin: 0; padding: 11px 12px; border-left: 3px solid #f2b632; border-radius: 0 7px 7px 0; color: #536171; background: #f7f9fc; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
 .listing-card-content > .text-link { margin-top: 2px; color: #087ad2; font-size: 11px; text-decoration: none; }
 .vacancy-details { margin-top: 2px; }
 .listing-empty { grid-column: 1 / -1; border-color: #c9d6e9; background: #f8fbff; }
