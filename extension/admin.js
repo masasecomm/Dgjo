@@ -8,7 +8,7 @@ import {
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
-const MAX_PUBLISHED_JOBS = 1000;
+const MAX_PUBLISHED_JOBS = 2000;
 const apiUrlInput = document.querySelector("#api-url");
 const tokenInput = document.querySelector("#admin-token");
 const sourceUrlInput = document.querySelector("#source-url");

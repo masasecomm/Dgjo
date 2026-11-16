@@ -47310,7 +47310,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   // admin.js
   var DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
   var SETTINGS_KEY = "goodworkAdminSettings";
-  var MAX_PUBLISHED_JOBS = 1e3;
+  var MAX_PUBLISHED_JOBS = 2e3;
   var apiUrlInput = document.querySelector("#api-url");
   var tokenInput = document.querySelector("#admin-token");
   var sourceUrlInput = document.querySelector("#source-url");

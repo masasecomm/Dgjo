@@ -9,7 +9,7 @@ const TYPES = new Set([
   "Permanent", "Fixed-term", "Temporary",
   "Full-time", "Part-time", "Contract", "Internship"
 ]);
-const MAX_JOBS = 1000;
+const MAX_JOBS = 2000;
 const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const OPTIONAL_TEXT_FIELDS = new Map([
