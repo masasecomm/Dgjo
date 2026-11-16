@@ -74,7 +74,7 @@ export default {
         }
         return jsonResponse(jobs);
       }
-      return jsonResponse(jobs.filter(job => typeof job.location === "string" && /south africa/i.test(job.location)));
+      return jsonResponse(jobs);
     }
 
     if (request.method !== "PUT") {

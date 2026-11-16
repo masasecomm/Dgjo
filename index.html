@@ -134,7 +134,7 @@
           <div>
             <p class="eyebrow">South African opportunities</p>
             <h2 id="listings-heading">Government job listings</h2>
-            <p class="section-intro">Listings shown here are managed by this site. Confirm each role, closing date and application process in the original department advert before applying.</p>
+            <p class="section-intro">Listings shown here are managed by this site and may be from any location. Confirm each role, closing date and application process in the original advert before applying.</p>
           </div>
           <a class="text-link" href="https://www.dpsa.gov.za/newsroom/psvc/">Check official DPSA circulars <span aria-hidden="true">↗</span></a>
         </div>
@@ -183,23 +183,21 @@
 
     function showJobListings(jobs) {
       jobsList.replaceChildren();
-      const localJobs = jobs.filter(job =>
+      const displayableJobs = jobs.filter(job =>
         job &&
         typeof job.title === "string" &&
-        typeof job.company === "string" &&
-        typeof job.location === "string" &&
-        /south africa/i.test(job.location)
+        typeof job.company === "string"
       );
 
-      if (!localJobs.length) {
+      if (!displayableJobs.length) {
         const empty = document.createElement("p");
         empty.className = "listing-empty";
-        empty.textContent = "There are no South African listings on this site right now. Browse the official DPSA vacancy circulars for current adverts.";
+        empty.textContent = "There are no job listings right now. Please check back later.";
         jobsList.append(empty);
         return;
       }
 
-      localJobs.forEach(job => {
+      displayableJobs.forEach(job => {
         const card = document.createElement("article");
         card.className = "listing-card";
         const title = document.createElement("h3");
@@ -209,7 +207,9 @@
         company.textContent = job.company;
         const location = document.createElement("p");
         location.className = "listing-meta";
-        location.textContent = job.location;
+        location.textContent = typeof job.location === "string" && job.location.trim()
+          ? job.location
+          : "Location not specified";
         const details = document.createElement("p");
         details.className = "listing-meta";
         details.textContent = [job.type, job.category, job.salaryText].filter(Boolean).join(" · ");
@@ -217,9 +217,14 @@
         verify.className = "text-link";
         const sourceUrl = typeof job.sourceUrl === "string" && /^https:\/\//i.test(job.sourceUrl)
           ? job.sourceUrl
-          : "https://www.dpsa.gov.za/newsroom/psvc/";
-        verify.href = sourceUrl;
-        verify.textContent = job.sourceUrl ? "View original advert ↗" : "Find in official DPSA circulars ↗";
+          : null;
+        if (sourceUrl) {
+          verify.href = sourceUrl;
+          verify.textContent = "View original advert ↗";
+        } else {
+          verify.href = "https://www.google.com/search?q=" + encodeURIComponent(`${job.title} ${job.company} job`);
+          verify.textContent = "Search for this job ↗";
+        }
         card.append(title, company, location, details, verify);
         jobsList.append(card);
       });
