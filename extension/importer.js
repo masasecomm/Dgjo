@@ -1,3 +1,5 @@
+import { formatVacancyText } from "../vacancy-format.js";
+
 const MAX_PDF_BYTES = 40 * 1024 * 1024;
 const MAX_PDF_PAGES = 500;
 
@@ -128,13 +130,13 @@ function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers)
     level: values.level,
     centre: values.centre,
     closingDate,
-    requirements: values.requirements,
-    duties: values.duties,
+    requirements: formatVacancyText(values.requirements),
+    duties: formatVacancyText(values.duties),
     jobPurpose: values.jobPurpose,
     skillsAndCompetencies: values.skillsAndCompetencies,
     enquiries: values.enquiries,
     applications: values.applications,
-    note: values.note,
+    note: formatVacancyText(values.note),
     links: [...new Map(links.map(link => [link.url, link])).values()]
   };
 }
