@@ -54,7 +54,7 @@ function fieldMatches(text) {
     pattern.lastIndex = 0;
     for (const match of text.matchAll(pattern)) {
       if (key === "directorate" && /\bCHIEF\s+$/i.test(text.slice(Math.max(0, match.index - 16), match.index))) continue;
-      if (key === "departmentName" && text.slice(text.lastIndexOf("\n", match.index - 1) + 1, match.index).trim()) continue;
+      if (["departmentName", "centre"].includes(key) && text.slice(text.lastIndexOf("\n", match.index - 1) + 1, match.index).trim()) continue;
       matches.push({ key, start: match.index, end: match.index + match[0].length });
     }
   }

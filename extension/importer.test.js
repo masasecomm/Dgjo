@@ -37,3 +37,15 @@ REQUIREMENTS: Grade 12 and procurement experience.`, { fileName: "Circular 41 of
 
   assert.equal(vacancies[0].company, "South African Police Service");
 });
+
+test("centre values containing the word centre are not truncated at that word", () => {
+  const { vacancies } = parseDpsaCircular(`DEPARTMENT OF EMPLOYMENT AND LABOUR
+POST 41/20: CLIENT SERVICE OFFICER: EMPLOYER SERVICES
+CENTRE: Labour Centre: KuGompo City
+REQUIREMENTS: Grade 12 and no experience required.
+DUTIES: Provide screening services and process applications for UIF benefits.`, {
+    fileName: "Circular 41 of 2026.pdf"
+  });
+
+  assert.equal(vacancies[0].centre, "Labour Centre: KuGompo City");
+});

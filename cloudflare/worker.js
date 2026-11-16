@@ -14,6 +14,20 @@ const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
 const GENERIC_EMPLOYERS = new Set(["south african public service", "hiring department not identified", "department not specified"]);
+const VERIFIED_CIRCULAR_FACTS = new Map([
+  ["Circular 41 of 2026|41/20", {
+    company: "Department of Employment and Labour",
+    centre: "Labour Centre: KuGompo City",
+    location: "KuGompo City",
+    province: "Eastern Cape"
+  }],
+  ["Circular 41 of 2026|41/21", {
+    company: "Department of Employment and Labour",
+    centre: "Labour Centre: KuGompo City",
+    location: "KuGompo City",
+    province: "Eastern Cape"
+  }]
+]);
 const OPTIONAL_TEXT_FIELDS = new Map([
   ["circularName", 160], ["circularDate", 80], ["circularPage", 20], ["postNo", 80], ["refNo", 160],
   ["province", 80], ["natureOfAppointment", 160], ["branch", 6000],
@@ -172,13 +186,64 @@ function isExpired(job, now = Date.now()) {
   return closingDate !== null && Date.parse(closingDate) < now;
 }
 
-function isKnownEmployer(job) {
+function hiringOrganizationName(job) {
   const company = String(job.company ?? "").trim();
-  return Boolean(company) && !GENERIC_EMPLOYERS.has(company.toLowerCase());
+  if (company && !GENERIC_EMPLOYERS.has(company.toLowerCase())) return company;
+
+  const evidence = [
+    job.applications, job.enquiries, job.requirements, job.duties, job.note,
+    job.directorate, job.branch, job.refNo, job.sourceUrl
+  ].map(value => String(value ?? "")).join("\n");
+  const knownDepartments = [
+    [/@labour\.gov\.za\b|Department of Labour and UIF Policies|Labour Centre Operations/i, "Department of Employment and Labour"],
+    [/@judiciary\.org\.za\b|\bOCJ\b/i, "Office of the Chief Justice"],
+    [/\bWCCETC\b|Western Cape Community Education and Training College/i, "Western Cape Community Education and Training College"],
+    [/\bdcs\.gov\.za\b|\bDCS employee occupational health and safety\b|Department of Correctional Services/i, "Department of Correctional Services"]
+  ];
+  return knownDepartments.find(([pattern]) => pattern.test(evidence))?.[1] ?? "";
 }
 
 function jobPagePath(job) {
   return `/jobs/${encodeURIComponent(String(job.id))}/`;
+}
+
+function locationDetails(job) {
+  const province = String(job.province ?? "").trim();
+  const locationParts = [job.centre, job.location]
+    .map(value => String(value ?? "").trim())
+    .filter(value => value && !/^(?:south africa|labour|department of labour|national head office|(?:[a-z-]+\s+)*provincial service centre(?:\s+\d+)?|central office)$/i.test(value));
+  const locality = locationParts
+    .map(value => value.split(/[,\n:]/).map(part => part.trim()).filter(Boolean).at(-1) ?? "")
+    .find(value => value && !/^\d+$/.test(value) && value.toLowerCase() !== province.toLowerCase()) || "";
+  const isDpsaAdvert = /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
+  if (!locality && !province && !isDpsaAdvert) return null;
+  return {
+    address: {
+      "@type": "PostalAddress",
+      ...(locality ? { addressLocality: locality } : {}),
+      ...(province ? { addressRegion: province } : {}),
+      addressCountry: "ZA"
+    },
+    locality,
+    province
+  };
+}
+
+function publicJob(job) {
+  const correctionKey = `${job.circularName ?? ""}|${job.postNo ?? ""}`;
+  const enriched = { ...job, ...(VERIFIED_CIRCULAR_FACTS.get(correctionKey) ?? {}) };
+  const company = hiringOrganizationName(enriched);
+  const location = locationDetails(enriched);
+  const centreIsGeneric = /^(?:labour|department of labour|national head office|(?:[a-z-]+\s+)*provincial service centre(?:\s+\d+)?|central office)$/i
+    .test(String(enriched.centre ?? "").trim());
+  return {
+    ...enriched,
+    ...(company ? { company } : {}),
+    ...(location?.locality && centreIsGeneric ? { centre: location.locality } : {}),
+    ...(location?.locality && /^(?:south africa|labour|department of labour)$/i.test(String(enriched.location ?? "").trim())
+      ? { location: location.locality }
+      : {})
+  };
 }
 
 function jsonLdScript(value) {
@@ -203,23 +268,19 @@ function detailSections(job) {
   ].filter(([, value]) => typeof value === "string" && value.trim());
 }
 
-function schemaLocality(job) {
-  const centre = String(job.centre || job.location || "").trim();
-  const locality = centre.split(/[,\n:]/).map(part => part.trim()).filter(Boolean).at(-1) ?? "";
-  if (!locality || /^\d+$/.test(locality) || locality.toLowerCase() === String(job.province ?? "").trim().toLowerCase()) return "";
-  if (/^(?:south africa|national head office|provincial (?:office|service centre)|central office|labour|department of labour)$/i.test(locality)) return "";
-  return locality;
-}
-
 function schemaForJob(job, pageUrl) {
   const datePosted = parseSouthAfricanDate(job.circularDate || "", false);
   const validThrough = getClosingDate(job);
-  const province = String(job.province ?? "").trim();
-  const locality = schemaLocality(job);
-  const description = detailSections(job).map(([label, value]) => `${label}: ${value}`).join("\n\n");
-  if (!isKnownEmployer(job) || !datePosted || !validThrough || !province || !locality || description.length < 100 || !job.sourceUrl) return null;
+  const hiringOrganization = hiringOrganizationName(job);
+  const location = locationDetails(job);
+  const descriptionText = detailSections(job).map(([, value]) => value).join("\n\n").trim();
+  const description = detailSections(job).map(([label, value]) =>
+    `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value).replace(/\r?\n/g, "<br>")}</p>`
+  ).join("");
+  if (!hiringOrganization || !datePosted || !location || descriptionText.length < 100 || !job.sourceUrl) return null;
 
   const employmentTypes = {
+    permanent: "OTHER",
     "full-time": "FULL_TIME",
     "part-time": "PART_TIME",
     contract: "CONTRACTOR",
@@ -228,30 +289,26 @@ function schemaForJob(job, pageUrl) {
     internship: "INTERN"
   };
   const employmentType = employmentTypes[String(job.type ?? "").toLowerCase()];
+  const directApply = /@[\w.-]+\.[A-Z]{2,}\b|mailto:/i.test(String(job.applications ?? ""));
   return {
     "@context": "https://schema.org",
     "@type": "JobPosting",
     title: displayJobTitle(job.title),
-    description: description.replace(/\r?\n/g, "<br>"),
+    description,
     datePosted,
-    validThrough,
-    hiringOrganization: { "@type": "Organization", name: String(job.company).trim() },
+    ...(validThrough ? { validThrough } : {}),
+    hiringOrganization: { "@type": "Organization", name: hiringOrganization },
     jobLocation: {
       "@type": "Place",
-      address: {
-        "@type": "PostalAddress",
-        addressLocality: locality,
-        addressRegion: province,
-        addressCountry: "ZA"
-      }
+      address: location.address
     },
     identifier: {
       "@type": "PropertyValue",
-      name: String(job.company).trim(),
+      name: hiringOrganization,
       value: String(job.refNo || job.postNo || job.id)
     },
     url: pageUrl,
-    directApply: false,
+    ...(directApply ? { directApply: true } : {}),
     ...(employmentType ? { employmentType } : {})
   };
 }
@@ -270,14 +327,14 @@ function htmlResponse(content, status = 200, robots = "index, follow") {
 function vacancyPage(job, requestUrl) {
   const title = displayJobTitle(job.title);
   const pageUrl = new URL(jobPagePath(job), requestUrl.origin).href;
-  const employer = isKnownEmployer(job) ? String(job.company).trim() : "Check the official advert";
-  const location = [job.centre, job.province, job.location]
+  const employer = hiringOrganizationName(job);
+  const location = [locationDetails(job)?.locality, job.province, job.centre, job.location]
     .map(value => String(value ?? "").trim())
     .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
   const deadline = String(job.closingDate ?? "").trim() || "Not stated; check the official advert";
   const description = detailSections(job).map(([, value]) => value).join(" ").replace(/\s+/g, " ").trim();
-  const metaDescription = (description || `${title} vacancy in ${location || "South Africa"}. Check the official advert for requirements and application details.`)
-    .slice(0, 155);
+  const pageTitle = `${title}${employer ? ` at ${employer}` : ""} | DPSA Government Jobs`;
+  const metaDescription = `${title}${employer ? ` at ${employer}` : ""}${location ? ` in ${location}` : ""}. ${description || "Check the official advert for requirements and application details."}`.slice(0, 155);
   const sections = detailSections(job).map(([label, value]) =>
     `<section><h2>${escapeHtml(label)}</h2><p>${escapeHtml(value).replace(/\r?\n/g, "<br>")}</p></section>`
   ).join("");
@@ -291,15 +348,16 @@ function vacancyPage(job, requestUrl) {
 
   return htmlResponse(`<!doctype html>
 <html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)} | DPSA Government Jobs</title><meta name="description" content="${escapeHtml(metaDescription)}">
+<title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(metaDescription)}">
 <meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="article"><meta property="og:site_name" content="DPSA Government Jobs">
-<meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(metaDescription)}">
+<meta property="og:title" content="${escapeHtml(pageTitle)}"><meta property="og:description" content="${escapeHtml(metaDescription)}">
 <meta property="og:url" content="${escapeHtml(pageUrl)}">${schemaMarkup}
 <style>body{font:16px/1.65 system-ui,sans-serif;max-width:860px;margin:0 auto;padding:24px;color:#17233b}a{color:#17499e}header,footer{padding:16px 0;border-bottom:1px solid #dce3ed}main{padding:24px 0}h1{line-height:1.2}h2{font-size:1.15rem;margin-bottom:.3rem}.meta{color:#475569}.apply{display:inline-block;background:#17499e;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none}section{margin:28px 0}footer{border-top:1px solid #dce3ed;border-bottom:0}</style></head>
 <body><header><a href="${SITE_URL}/">DPSA Government Jobs</a></header><main>
 <nav aria-label="Breadcrumb"><a href="${SITE_URL}/">Home</a> › <a href="${escapeHtml(new URL("/jobs/", requestUrl.origin).href)}">Vacancies</a> › ${escapeHtml(title)}</nav>
-<article><h1>${escapeHtml(title)}</h1><p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer)}</p>
+<article><h1>${escapeHtml(title)}</h1><p class="intro">${employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`}</p>
+<p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
 ${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${escapeHtml(location)}</p>` : ""}
 <p class="meta"><strong>Employment type:</strong> ${escapeHtml(job.type)}</p>
 <p class="meta"><strong>Salary:</strong> ${escapeHtml(job.salaryText || "Not stated in advert")}</p>
@@ -315,7 +373,7 @@ function jobsIndexPage(jobs, requestUrl) {
   const activeJobs = jobs.filter(job => !isExpired(job));
   const links = activeJobs.map(job => {
     const title = displayJobTitle(job.title);
-    const employer = isKnownEmployer(job) ? String(job.company).trim() : "Hiring department: see official advert";
+    const employer = hiringOrganizationName(job) || "Hiring department: see official advert";
     return `<li><a href="${escapeHtml(new URL(jobPagePath(job), requestUrl.origin).href)}">${escapeHtml(title)}</a> — ${escapeHtml(employer)}${job.closingDate ? ` · Closes ${escapeHtml(job.closingDate)}` : ""}</li>`;
   }).join("");
   const canonical = new URL("/jobs/", requestUrl.origin).href;
@@ -358,8 +416,9 @@ export default {
     if (request.method === "GET") {
       const savedJobs = await env.JOBS.get(JOBS_KEY, "json");
       const jobs = savedJobs ?? defaultJobs;
-      if (url.pathname === "/sitemap.xml") return sitemapResponse(jobs, url);
-      if (url.pathname === "/jobs" || url.pathname === "/jobs/") return jobsIndexPage(jobs, url);
+      const publicJobs = jobs.map(publicJob);
+      if (url.pathname === "/sitemap.xml") return sitemapResponse(publicJobs, url);
+      if (url.pathname === "/jobs" || url.pathname === "/jobs/") return jobsIndexPage(publicJobs, url);
       const jobPath = url.pathname.match(/^\/jobs\/([^/]+)\/?$/);
       if (jobPath) {
         let jobId;
@@ -368,7 +427,7 @@ export default {
         } catch {
           return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>Vacancy not found.</body></html>", 404, "noindex");
         }
-        const job = jobs.find(candidate => candidate.id === jobId);
+        const job = publicJobs.find(candidate => candidate.id === jobId);
         if (!job) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>Vacancy not found.</body></html>", 404, "noindex");
         if (isExpired(job)) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>This vacancy has closed. Check the official advert for current opportunities.</body></html>", 410, "noindex");
         return vacancyPage(job, url);
@@ -381,7 +440,7 @@ export default {
         }
         return jsonResponse(jobs);
       }
-      return jsonResponse(jobs.filter(job => !isExpired(job)));
+      return jsonResponse(publicJobs.filter(job => !isExpired(job)));
     }
 
     if (url.pathname !== "/api/jobs") return jsonResponse({ error: "Not found." }, 404);
