@@ -371,12 +371,35 @@ function vacancyPage(job, requestUrl) {
   ).join("");
   const schema = schemaForJob(job, pageUrl);
   const schemaMarkup = schema ? `<script type="application/ld+json">${jsonLdScript(schema)}</script>` : "";
-  const circularInfo = [job.circularName, job.circularPage ? `page ${job.circularPage}` : ""].filter(Boolean).join(", ");
-  const sourceLink = typeof job.sourceUrl === "string" && /^https:\/\//i.test(job.sourceUrl)
-    ? `<p><a href="${escapeHtml(job.sourceUrl)}" rel="noopener noreferrer">Read the official vacancy advert or circular</a></p>`
+  const circularPage = String(job.circularPage ?? "").replace(/^page\s*/i, "").trim();
+  const publicationDetails = [
+    job.circularName && ["Published", job.circularName],
+    job.circularDate && ["Date", job.circularDate],
+    circularPage && ["Page on Circular", `Page ${circularPage}`]
+  ].filter(Boolean);
+  const officialCircularLink = typeof job.sourceUrl === "string" && /^https:\/\//i.test(job.sourceUrl)
+    ? `<p class="official-circular">Read/Download the official vacancy advert on ${job.circularName
+      ? `<a href="${escapeHtml(job.sourceUrl)}" rel="noopener noreferrer">${escapeHtml(job.circularName)}</a>`
+      : `<a href="${escapeHtml(job.sourceUrl)}" rel="noopener noreferrer">the official advert</a>`}</p>`
     : "";
-  const reference = [job.refNo && `Reference: ${job.refNo}`, job.postNo && `Post number: ${job.postNo}`].filter(Boolean).join(" · ");
+  const referenceDetails = [
+    job.refNo && ["Reference", job.refNo],
+    job.postNo && ["Post number", job.postNo]
+  ].filter(Boolean);
   const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
+  const shareImageUrl = new URL(
+    isCircularJob ? "/south-african-coat-of-arms.png" : "/south-african-flag.png",
+    SITE_URL
+  ).href;
+  const shareLinks = {
+    facebook: `https://www.facebook.com/sharer/sharer.php?${new URLSearchParams({ u: pageUrl })}`,
+    twitter: `https://twitter.com/intent/tweet?${new URLSearchParams({ url: pageUrl, text: title })}`,
+    pinterest: `https://pinterest.com/pin/create/button/?${new URLSearchParams({
+      url: pageUrl,
+      media: shareImageUrl,
+      description: title
+    })}`
+  };
   const jobMark = isCircularJob
     ? `<img src="${SITE_URL}/south-african-coat-of-arms.png" alt="South African coat of arms" width="58" height="58" fetchpriority="high">`
     : `<span class="job-mark-generic" aria-hidden="true">▦</span>`;
@@ -387,9 +410,14 @@ function vacancyPage(job, requestUrl) {
 <meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="article"><meta property="og:site_name" content="DPSA Government Jobs">
 <meta property="og:title" content="${escapeHtml(pageTitle)}"><meta property="og:description" content="${escapeHtml(metaDescription)}">
-<meta property="og:url" content="${escapeHtml(pageUrl)}"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>${schemaMarkup}
+<meta property="og:url" content="${escapeHtml(pageUrl)}"><meta property="og:image" content="${escapeHtml(shareImageUrl)}">
+<meta property="og:image:alt" content="DPSA Government Jobs vacancy">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(pageTitle)}">
+<meta name="twitter:description" content="${escapeHtml(metaDescription)}"><meta name="twitter:image" content="${escapeHtml(shareImageUrl)}">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>${schemaMarkup}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{color-scheme:light;font-family:Arial,Helvetica,sans-serif;color:#32373c;background:#f8fbff}
+:root{color-scheme:light;font-family:"Jost",Arial,Helvetica,sans-serif;color:#32373c;background:#f8fbff}
 *{box-sizing:border-box}body{margin:0;font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
 a{color:#087ad2;text-underline-offset:3px}.shell{width:min(1120px,calc(100% - 40px));margin-inline:auto}
 .site-header{background:#17499e;color:#fff;box-shadow:0 4px 16px rgba(13,42,95,.12)}
@@ -402,15 +430,22 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .vacancy-card{display:grid;grid-template-columns:58px minmax(0,1fr);gap:18px;padding:26px;border:1px solid #e6eaf0;border-radius:12px;background:#fff;box-shadow:0 8px 26px rgba(26,52,94,.045)}
 .job-mark{display:grid;width:58px;height:58px;place-items:center;overflow:hidden;border:1px solid #e6eaf0;border-radius:11px;background:#fff}
 .job-mark img{width:100%;height:100%;object-fit:contain}.job-mark-generic{display:grid;width:100%;height:100%;place-items:center;border-color:transparent;color:#fff;background:#2193e9;font-size:28px}
-.job-content{min-width:0}.job-title{margin:0 0 14px;color:#17499e;font-size:clamp(24px,4vw,34px);line-height:1.2;letter-spacing:-.035em;overflow-wrap:anywhere}
+.job-content{min-width:0}.job-title{margin:0 0 14px;color:#17499e;font-size:20px;line-height:1.2;letter-spacing:-.035em;overflow-wrap:anywhere}
 .intro{margin:0 0 18px;padding:13px 15px;border-left:3px solid #f2b632;border-radius:0 7px 7px 0;color:#536171;background:#f7f9fc}
 .meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;margin:0 0 20px}
-.meta{margin:0;color:#737d85;font-size:13px;overflow-wrap:anywhere}.meta strong{color:#32373c}
-.circular-info{margin:0 0 16px;color:#737d85;font-size:12px}.apply{display:inline-flex;min-height:43px;align-items:center;justify-content:center;padding:10px 17px;border-radius:7px;color:#fff;background:#17499e;font-size:13px;font-weight:700;text-decoration:none}
+.meta{margin:0;color:#737d85;font-size:16px;overflow-wrap:anywhere}.meta strong{color:#32373c}
+.circular-info{margin:0 0 16px;color:#737d85;font-size:13px}.apply{display:inline-flex;min-height:43px;align-items:center;justify-content:center;padding:10px 17px;border-radius:7px;color:#fff;background:#17499e;font-size:14px;font-weight:700;text-decoration:none}
 .apply:hover{background:#13377f;color:#fff}.sections{grid-column:1/-1;border-top:1px solid #e6eaf0;margin-top:8px;padding-top:8px}
-.sections section{margin:20px 0}.sections h2{margin:0 0 7px;color:#17499e;font-size:18px;line-height:1.3}.sections p{margin:0;color:#536171;white-space:pre-line;overflow-wrap:anywhere}
+.sections section{margin:20px 0}.sections h2{margin:0 0 7px;color:#17499e;font-size:20px;line-height:1.3}.sections p,.sections li{color:#536171;font-size:16px;white-space:pre-line;overflow-wrap:anywhere}
 .important{margin:24px 0 0;padding-top:15px;border-top:1px solid #e6eaf0;color:#737d85;font-size:12px}
-.site-footer{padding:22px 0;border-top:1px solid #e6eaf0;color:#6b747c;background:#f4f8fd;font-size:12px}.site-footer p{margin:0}
+.official-circular{margin:24px 0;color:#536171;font-size:16px}.site-footer{padding:22px 0;border-top:1px solid #e6eaf0;color:#6b747c;background:#f4f8fd;font-size:12px}.site-footer p{margin:0}
+.sections .share-post{margin:24px 0;padding-top:16px;border-top:1px solid #e6eaf0}
+.share-post h2{margin:0 0 12px;font-size:18px}
+.post-share-links{display:flex;flex-wrap:wrap;gap:10px}
+.post-share-link{display:inline-flex;min-height:40px;align-items:center;gap:8px;padding:7px 13px;border:1px solid #dce3ed;border-radius:7px;color:#17499e;background:#fff;font-size:14px;font-weight:600;text-decoration:none}
+.post-share-link:hover{background:#e0ebfb}
+.post-share-icon{display:grid;width:20px;height:20px;place-items:center;font-size:15px;font-weight:800}
+.social-links{display:flex;align-items:center;gap:12px;margin-top:12px}.social-links a{display:grid;width:32px;height:32px;place-items:center;border:1px solid #dce3ed;border-radius:50%;color:#17499e;font-size:14px;font-weight:700;text-decoration:none}.social-links a:hover{background:#e0ebfb}
 @media(max-width:600px){.shell{width:min(100% - 28px,1120px)}.nav{min-height:70px;gap:12px}.brand img{width:36px;height:36px}.nav-links{gap:12px;font-size:11px}main{padding-block:22px 38px}.vacancy-card{grid-template-columns:48px minmax(0,1fr);gap:13px;padding:17px}.job-mark{width:48px;height:48px;border-radius:9px}.meta-grid{grid-template-columns:1fr;gap:7px}.sections{margin-top:0}}
 </style></head>
 <body><header class="site-header"><nav class="nav shell" aria-label="Main navigation">
@@ -423,11 +458,22 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 <div class="meta-grid"><p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
 ${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${escapeHtml(location)}</p>` : ""}
 <p class="meta"><strong>Employment type:</strong> ${escapeHtml(job.type)}</p><p class="meta"><strong>Salary:</strong> ${escapeHtml(job.salaryText || "Not stated in advert")}</p>
-<p class="meta"><strong>Closing date:</strong> ${escapeHtml(deadline)}</p>${reference ? `<p class="meta">${escapeHtml(reference)}</p>` : ""}</div>
-${circularInfo ? `<p class="circular-info">Published in ${escapeHtml(circularInfo)}${job.circularDate ? ` · ${escapeHtml(job.circularDate)}` : ""}</p>` : ""}
-${sourceLink}${sourceLink ? `<p><a class="apply" href="${escapeHtml(job.sourceUrl)}" rel="noopener noreferrer">View official advert</a></p>` : ""}
-</div><div class="sections">${sections}<p class="important"><strong>Important:</strong> Confirm the department, eligibility, closing date and submission instructions in the official advert.</p></div>
-</article></main><footer class="site-footer"><div class="shell"><p><a href="${SITE_URL}/">DPSA Government Jobs</a> is an independent guide. Always verify vacancy details with the hiring department.</p></div></footer></body></html>`);
+<p class="meta"><strong>Closing date:</strong> ${escapeHtml(deadline)}</p>${referenceDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}
+${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}</div>
+</div><div class="sections">${sections}${officialCircularLink}
+<section class="share-post" aria-labelledby="share-post-title"><h2 id="share-post-title">Share this post</h2>
+<nav class="post-share-links" aria-label="Share this post">
+<a class="post-share-link" href="${escapeHtml(shareLinks.facebook)}" target="_blank" rel="noopener noreferrer"><span class="post-share-icon" aria-hidden="true">f</span>Facebook</a>
+<a class="post-share-link" href="${escapeHtml(shareLinks.twitter)}" target="_blank" rel="noopener noreferrer"><span class="post-share-icon" aria-hidden="true">𝕏</span>Twitter</a>
+<a class="post-share-link" href="${escapeHtml(shareLinks.pinterest)}" target="_blank" rel="noopener noreferrer"><span class="post-share-icon" aria-hidden="true">P</span>Pinterest</a>
+</nav></section>
+<p class="important"><strong>Important:</strong> Confirm the department, eligibility, closing date and submission instructions in the official advert.</p></div>
+</article></main><footer class="site-footer"><div class="shell"><p><a href="${SITE_URL}/">DPSA Government Jobs</a> is an independent guide. Always verify vacancy details with the hiring department.</p>
+<nav class="social-links" aria-label="Social media">
+<a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><span aria-hidden="true">f</span></a>
+<a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><span aria-hidden="true">𝕏</span></a>
+<a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><span aria-hidden="true">P</span></a>
+</nav></div></footer></body></html>`);
 }
 
 function sitemapResponse(jobs, requestUrl) {
