@@ -18,7 +18,7 @@ The API URL is printed by Wrangler and ends in `/api/jobs`. `GET /api/jobs` retu
 
 GitHub Pages serves the static guide pages in this repository. `robots.txt` and `sitemap.xml` provide crawler directions and list the public pages. The Worker and Chrome extension provide managed job cards, and the public page displays listings in any location. The static fallback `jobs.json` starts empty.
 
-The DPSA circular and application pages summarize public instructions in original wording and link readers to the official DPSA source. Imported requirements, duties, and notes display as sentence bullets; detected PDF hyperlinks are kept clickable. Confirm current publication dates, vacancy requirements and closing dates on the original department advert.
+The DPSA circular and application pages summarize public instructions in original wording and link readers to the official DPSA source. Imported requirements, duties, and notes display as sentence bullets; visual line wraps are joined so sentences are not split, and detected PDF hyperlinks are kept clickable. Confirm current publication dates, vacancy requirements and closing dates on the original department advert.
 
 ## Search visibility and legacy pages
 

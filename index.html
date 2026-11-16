@@ -204,28 +204,31 @@
     }
 
     function splitVacancyPoints(value) {
-      const lines = String(value ?? "").replace(/\r/g, "").split(/\n+/);
       const points = [];
       const links = [];
-      for (const rawLine of lines) {
-        const bulletLines = rawLine.replace(/[•●▪]\s*/g, "\n").split("\n");
-        for (const bulletLine of bulletLines) {
-          const line = bulletLine.replace(/^\s*(?:[\-–]\s*)+/, "").replace(/https?:\/\/\S+|www\.\S+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, match => {
-            let link = match;
-            let punctuation = "";
-            while (/[.,;:!?)}\]]$/.test(link)) {
-              punctuation = link.slice(-1) + punctuation;
-              link = link.slice(0, -1);
-            }
-            const token = `\uE000${links.length}\uE001`;
-            links.push(link);
-            return `${token}${punctuation}`;
-          }).trim();
-          if (!line) continue;
-          const sentences = line.split(/(?<=\.)\s+/);
-          for (const sentence of sentences) {
-            points.push(...splitColonSubpoints(sentence));
+      const wrappedText = String(value ?? "")
+        .replace(/\r/g, "")
+        .replace(/(^|\n)\s*[-–]\s+/g, "$1• ")
+        .replace(/\s*\n\s*/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+      const bulletLines = wrappedText.replace(/[•●▪]\s*/g, "\n").split("\n");
+      for (const bulletLine of bulletLines) {
+        const line = bulletLine.replace(/https?:\/\/\S+|www\.\S+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, match => {
+          let link = match;
+          let punctuation = "";
+          while (/[.,;:!?)}\]]$/.test(link)) {
+            punctuation = link.slice(-1) + punctuation;
+            link = link.slice(0, -1);
           }
+          const token = `\uE000${links.length}\uE001`;
+          links.push(link);
+          return `${token}${punctuation}`;
+        }).trim();
+        if (!line) continue;
+        const sentences = line.split(/(?<=\.)\s+/);
+        for (const sentence of sentences) {
+          points.push(...splitColonSubpoints(sentence));
         }
       }
       return points.map(point => point.replace(/\uE000(\d+)\uE001/g, (_, index) => links[Number(index)] ?? ""));
