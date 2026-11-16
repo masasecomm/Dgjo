@@ -12,13 +12,13 @@ From the `cloudflare` directory (use `npm.cmd` / `npx.cmd` in Windows PowerShell
 4. Create a long, unique admin key and set it as a Worker secret with `npx.cmd wrangler secret put ADMIN_TOKEN`. Enter the same key in the Chrome extension when connecting. Do not put this key in the repository or website code.
 5. Deploy with `npm.cmd run deploy`.
 
-The API URL is printed by Wrangler and ends in `/api/jobs`. `GET /api/jobs` returns the published listings. `PUT /api/jobs` replaces them and requires the admin key. Redeploy the Worker after updating this repository so it accepts imported vacancy details and validates the job-list size.
+The API URL is printed by Wrangler and ends in `/api/jobs`. `GET /api/jobs` returns the published listings. `PUT /api/jobs` replaces them and requires the admin key. Redeploy the Worker after updating this repository so it accepts imported vacancy details and preserved circular PDF links.
 
 ## Public website
 
 GitHub Pages serves the static guide pages in this repository. `robots.txt` and `sitemap.xml` provide crawler directions and list the public pages. The Worker and Chrome extension provide managed job cards, and the public page displays listings in any location. The static fallback `jobs.json` starts empty.
 
-The DPSA circular and application pages summarize public instructions in original wording and link readers to the official DPSA source. Confirm current publication dates, vacancy requirements and closing dates on the original department advert.
+The DPSA circular and application pages summarize public instructions in original wording and link readers to the official DPSA source. Imported requirements, duties, and notes display as sentence bullets; detected PDF hyperlinks are kept clickable. Confirm current publication dates, vacancy requirements and closing dates on the original department advert.
 
 ## Search visibility and legacy pages
 

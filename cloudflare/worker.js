@@ -21,10 +21,11 @@ const OPTIONAL_TEXT_FIELDS = new Map([
   ["skillsAndCompetencies", 6000], ["enquiries", 6000], ["applications", 6000],
   ["note", 6000]
 ]);
+const MAX_JOB_LINKS = 100;
 const JOB_FIELDS = new Set([
   "id", "title", "company", "location", "type", "category", "salary",
   "salaryText", "posted", "logo", "color", "logoColor", "sourceUrl",
-  ...OPTIONAL_TEXT_FIELDS.keys()
+  ...OPTIONAL_TEXT_FIELDS.keys(), "links"
 ]);
 
 function jsonResponse(body, status = 200) {
@@ -57,6 +58,21 @@ function validateJobs(value) {
     if (!/^#[0-9a-f]{6}$/i.test(job.color) || !/^#[0-9a-f]{6}$/i.test(job.logoColor)) return false;
     for (const [field, maxLength] of OPTIONAL_TEXT_FIELDS) {
       if (job[field] !== undefined && (typeof job[field] !== "string" || job[field].length > maxLength)) return false;
+    }
+    if (job.links !== undefined) {
+      if (!Array.isArray(job.links) || job.links.length > MAX_JOB_LINKS) return false;
+      if (!job.links.every(link => {
+        if (!link || typeof link !== "object" || Array.isArray(link)) return false;
+        if (Object.keys(link).some(field => !["label", "url"].includes(field))) return false;
+        if (typeof link.label !== "string" || link.label.length > 300) return false;
+        if (typeof link.url !== "string" || link.url.length > 2048) return false;
+        try {
+          const parsedUrl = new URL(link.url);
+          return ["https:", "http:", "mailto:", "tel:"].includes(parsedUrl.protocol) && !parsedUrl.username && !parsedUrl.password;
+        } catch {
+          return false;
+        }
+      })) return false;
     }
     if (job.sourceUrl !== undefined) {
       if (typeof job.sourceUrl !== "string" || job.sourceUrl.length > 2048) return false;

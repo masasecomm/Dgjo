@@ -304,19 +304,33 @@ function renderImportedVacancies() {
       ["centre", "Centre"],
       ["enquiries", "Enquiries"],
       ["applications", "How to apply"],
-      ["note", "Notes"]
+      ["note", "Notes"],
+      ["links", "Links found in circular PDF"]
     ];
     for (const [key, label] of detailFields) {
       const field = document.createElement("label");
       field.className = "import-detail-field";
       const fieldLabel = document.createElement("span");
       fieldLabel.textContent = label;
-      const input = document.createElement(["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note"].includes(key) ? "textarea" : "input");
+      const input = document.createElement(["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? "textarea" : "input");
       if (key === "sourceUrl") input.type = "url";
-      input.value = vacancy[key] ?? "";
-      input.maxLength = key === "sourceUrl" ? 2048 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note"].includes(key) ? 6000 : 160;
+      input.value = key === "links"
+        ? (vacancy.links ?? []).map(link => `${link.label || link.url} | ${link.url}`).join("\n")
+        : vacancy[key] ?? "";
+      input.maxLength = key === "sourceUrl" ? 2048 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? 6000 : 160;
       input.addEventListener("input", () => {
-        vacancy[key] = input.value.trim();
+        if (key === "links") {
+          vacancy.links = input.value.split(/\r?\n/).map(line => {
+            const value = line.trim();
+            if (!value) return null;
+            const match = value.match(/^(.*?)\s+\|\s+(https?:\/\/\S+)$/i);
+            if (match) return { label: match[1].trim(), url: match[2].trim() };
+            if (/^https?:\/\//i.test(value)) return { label: value, url: value };
+            return { label: value, url: "" };
+          }).filter(Boolean);
+        } else {
+          vacancy[key] = input.value.trim();
+        }
       });
       field.append(fieldLabel, input);
       details.append(field);
@@ -351,19 +365,25 @@ function updatePublishButton() {
   button.textContent = selectedCount ? `Publish selected (${selectedCount})` : "Publish selected";
 }
 
-async function importPdfFile(file, sourceUrl = "") {
-  const text = await extractPdfText(file);
+async function importPdfFile(file, sourceUrl = "", circularMetadata = null) {
+  const extracted = await extractPdfText(file);
+  const text = extracted.text;
   if (!text.replace(/__PAGE_\d+__/g, "").trim()) {
     throw new Error("No selectable text was found. This may be a scanned PDF; image-only PDFs need OCR and cannot be imported automatically.");
   }
-  const { vacancies } = parseDpsaCircular(text, { fileName: file.name, sourceUrl });
+  const { vacancies } = parseDpsaCircular(text, { fileName: file.name, sourceUrl, links: extracted.links });
   if (!vacancies.length) {
     throw new Error("No DPSA post headings were found. Check that this is a text-based DPSA vacancy circular.");
   }
   let added = 0;
   for (const vacancy of vacancies) {
     if (!importedVacancies.has(vacancy.id)) added++;
-    importedVacancies.set(vacancy.id, { ...vacancy, selected: false });
+    importedVacancies.set(vacancy.id, {
+      ...vacancy,
+      ...(circularMetadata?.circularName ? { circularName: circularMetadata.circularName } : {}),
+      ...(circularMetadata?.publishedDate ? { circularDate: circularMetadata.publishedDate } : {}),
+      selected: false
+    });
   }
   renderImportedVacancies();
   return { found: vacancies.length, added };
@@ -388,14 +408,14 @@ async function importFiles(files) {
   setImportStatus(results.join(" · "), failedFiles > 0 && successfulFiles === 0);
 }
 
-async function importDpsaUrl(url) {
+async function importDpsaUrl(url, circularMetadata = null) {
   const parsedUrl = new URL(url);
   if (parsedUrl.protocol !== "https:" || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(parsedUrl.hostname) || !parsedUrl.pathname.toLowerCase().endsWith(".pdf")) {
     throw new Error("For safety, PDF links must be HTTPS PDFs hosted on dpsa.gov.za.");
   }
   await requestDpsaPermission(parsedUrl);
   const { file, url: sourceUrl } = await downloadDpsaPdf(parsedUrl.href);
-  return importPdfFile(file, sourceUrl);
+  return importPdfFile(file, sourceUrl, circularMetadata);
 }
 
 function truncate(value, limit) {
@@ -429,7 +449,13 @@ function createPublishedVacancy(vacancy) {
     skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
     enquiries: truncate(vacancy.enquiries, maxDetailLength),
     applications: truncate(vacancy.applications, maxDetailLength),
-    note: truncate(vacancy.note, maxDetailLength)
+    note: truncate(vacancy.note, maxDetailLength),
+    links: [...new Map((Array.isArray(vacancy.links) ? vacancy.links : [])
+      .filter(link => typeof link?.url === "string" && /^(?:https?:\/\/|mailto:|tel:)/i.test(link.url))
+      .map(link => [link.url, {
+        label: String(link.label || link.url).trim(),
+        url: link.url
+      }])).values()]
   };
   const sourceUrl = truncate(vacancy.sourceUrl, 2048);
   return {
@@ -481,6 +507,20 @@ async function publishImportedVacancies() {
   });
   if (invalidSource) {
     showToast(`Use a valid HTTPS official advert or circular URL for “${invalidSource.title}”.`, true);
+    return;
+  }
+  const invalidPdfLink = selected.flatMap(vacancy => vacancy.links ?? []).find(link =>
+    !link || typeof link.url !== "string" || link.url.length > 2048 ||
+    typeof link.label !== "string" || link.label.length > 300 ||
+    !/^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)
+  );
+  const tooManyPdfLinks = selected.find(vacancy => Array.isArray(vacancy.links) && vacancy.links.length > 100);
+  if (tooManyPdfLinks) {
+    showToast(`“${tooManyPdfLinks.title}” has more than 100 extracted PDF links. Remove unrelated links before publishing.`, true);
+    return;
+  }
+  if (invalidPdfLink) {
+    showToast("A circular PDF link is invalid or too long. Review the extracted links before publishing.", true);
     return;
   }
   if (!confirm(`Publish ${selected.length} selected vacancies to your website? Existing jobs will be kept.`)) return;
@@ -739,7 +779,7 @@ loadCircularButton.addEventListener("click", async () => {
   loadCircularButton.disabled = true;
   setImportStatus(`Loading ${circular.label}…`);
   try {
-    const result = await importDpsaUrl(circular.url);
+    const result = await importDpsaUrl(circular.url, circular);
     setImportStatus(`Loaded ${result.found} vacancies from ${circular.label}.`);
   } catch (error) {
     setImportStatus(error.message, true);
@@ -786,6 +826,7 @@ document.querySelector("#export-excel").addEventListener("click", () => {
     Enquiries: vacancy.enquiries,
     Applications: vacancy.applications,
     Notes: vacancy.note,
+    "PDF hyperlinks": (vacancy.links ?? []).map(link => `${link.label} | ${link.url}`).join("\n"),
     "Official circular URL": vacancy.sourceUrl
     }));
     const workbook = XLSX.utils.book_new();

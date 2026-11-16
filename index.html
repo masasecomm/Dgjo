@@ -181,6 +181,88 @@
     const jobsList = document.querySelector("#job-list");
     const jobsStatus = document.querySelector("#job-list-status");
 
+    function splitVacancyPoints(value) {
+      const lines = String(value ?? "").replace(/\r/g, "").split(/\n+/);
+      const points = [];
+      const links = [];
+      for (const rawLine of lines) {
+        const bulletLines = rawLine.replace(/[•●▪]\s*/g, "\n").split("\n");
+        for (const bulletLine of bulletLines) {
+          const line = bulletLine.replace(/^\s*(?:[\-–]\s*)+/, "").replace(/https?:\/\/\S+|www\.\S+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, match => {
+            let link = match;
+            let punctuation = "";
+            while (/[.,;:!?)}\]]$/.test(link)) {
+              punctuation = link.slice(-1) + punctuation;
+              link = link.slice(0, -1);
+            }
+            const token = `\uE000${links.length}\uE001`;
+            links.push(link);
+            return `${token}${punctuation}`;
+          }).trim();
+          if (!line) continue;
+          const sentences = line.split(/(?<=[.!?])\s+(?=[A-Z0-9])/);
+          for (const sentence of sentences) {
+            const colon = sentence.indexOf(":");
+            const separators = colon >= 0 ? [...sentence.slice(colon + 1).matchAll(/[\/,]/g)] : [];
+            if (!separators.length) {
+              points.push(sentence.trim());
+              continue;
+            }
+            const prefix = sentence.slice(0, colon + 1).trim();
+            const subpoints = sentence.slice(colon + 1).split(/[\/,]/).map(point => point.trim()).filter(Boolean);
+            for (const point of subpoints) points.push(`${prefix} ${point}`);
+          }
+        }
+      }
+      return points.map(point => point.replace(/\uE000(\d+)\uE001/g, (_, index) => links[Number(index)] ?? ""));
+    }
+
+    function appendTextWithLinks(container, value) {
+      const text = String(value ?? "");
+      const urlPattern = /https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?:mailto:|tel:)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+      let offset = 0;
+      for (const match of text.matchAll(urlPattern)) {
+        const start = match.index;
+        let candidate = match[0];
+        let trailing = "";
+        while (/[.,;:!?)}\]]$/.test(candidate)) {
+          trailing = candidate.slice(-1) + trailing;
+          candidate = candidate.slice(0, -1);
+        }
+        if (start > offset) container.append(document.createTextNode(text.slice(offset, start)));
+        let href = candidate;
+        if (/^www\./i.test(candidate)) href = `https://${candidate}`;
+        if (/^[A-Z0-9._%+-]+@/i.test(candidate)) href = `mailto:${candidate}`;
+        try {
+          const parsed = new URL(href);
+          if (!["https:", "http:", "mailto:", "tel:"].includes(parsed.protocol)) throw new Error("Unsupported link protocol");
+          const link = document.createElement("a");
+          link.href = parsed.href;
+          if (["https:", "http:"].includes(parsed.protocol)) {
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+          }
+          link.textContent = candidate;
+          container.append(link, document.createTextNode(trailing));
+        } catch {
+          container.append(document.createTextNode(match[0]));
+        }
+        offset = start + match[0].length;
+      }
+      if (offset < text.length) container.append(document.createTextNode(text.slice(offset)));
+    }
+
+    function appendBulletList(container, value) {
+      const list = document.createElement("ul");
+      list.className = "vacancy-bullets";
+      for (const point of splitVacancyPoints(value)) {
+        const item = document.createElement("li");
+        appendTextWithLinks(item, point);
+        list.append(item);
+      }
+      container.append(list);
+    }
+
     function showJobListings(jobs) {
       jobsList.replaceChildren();
       const displayableJobs = jobs.filter(job =>
@@ -242,18 +324,44 @@
           ["Enquiries", job.enquiries],
           ["Notes", job.note]
         ].filter(([, value]) => typeof value === "string" && value.trim());
-        if (vacancyFields.length) {
+        if (vacancyFields.length || (Array.isArray(job.links) && job.links.length)) {
           const vacancyDetails = document.createElement("details");
           vacancyDetails.className = "vacancy-details";
           const summary = document.createElement("summary");
           summary.textContent = "Vacancy details";
           vacancyDetails.append(summary);
           for (const [label, value] of vacancyFields) {
-            const field = document.createElement("p");
+            const isBulletField = ["Requirements", "Duties", "Notes"].includes(label);
+            const field = document.createElement(isBulletField ? "div" : "p");
             const fieldLabel = document.createElement("strong");
             fieldLabel.textContent = `${label}: `;
-            field.append(fieldLabel, document.createTextNode(value));
+            field.append(fieldLabel);
+            if (isBulletField) {
+              appendBulletList(field, value);
+            } else {
+              appendTextWithLinks(field, value);
+            }
             vacancyDetails.append(field);
+          }
+          if (Array.isArray(job.links) && job.links.length) {
+            const linkList = document.createElement("p");
+            const linkLabel = document.createElement("strong");
+            linkLabel.textContent = "Related links: ";
+            linkList.append(linkLabel);
+            let linkCount = 0;
+            job.links.forEach(item => {
+              if (!item || typeof item.url !== "string" || !/^(?:https?:\/\/|mailto:|tel:)/i.test(item.url)) return;
+              if (linkCount++) linkList.append(document.createTextNode(" · "));
+              const link = document.createElement("a");
+              link.href = item.url;
+              if (/^https?:\/\//i.test(item.url)) {
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+              }
+              link.textContent = item.label || item.url;
+              linkList.append(link);
+            });
+            vacancyDetails.append(linkList);
           }
           card.append(vacancyDetails);
         }

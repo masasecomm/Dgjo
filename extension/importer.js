@@ -80,8 +80,9 @@ function categoryFor(text) {
   return "Other";
 }
 
-function parsePost(postNumber, body, circular, sourceUrl) {
+function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers) {
   const text = cleanText(body);
+  const links = pdfLinks.filter(link => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
   const fields = fieldMatches(text);
   const titleEnd = fields.length ? fields[0].start : Math.min(text.length, text.indexOf("\n") > 0 ? text.indexOf("\n") : 500);
   const title = cleanText(text.slice(0, titleEnd)).replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
@@ -133,7 +134,8 @@ function parsePost(postNumber, body, circular, sourceUrl) {
     skillsAndCompetencies: values.skillsAndCompetencies,
     enquiries: values.enquiries,
     applications: values.applications,
-    note: values.note
+    note: values.note,
+    links: [...new Map(links.map(link => [link.url, link])).values()]
   };
 }
 
@@ -155,6 +157,7 @@ export async function extractPdfText(file) {
 
   try {
     const pages = [];
+    const links = [];
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
@@ -172,15 +175,30 @@ export async function extractPdfText(file) {
         previousY = y;
       }
       if (currentLine.trim()) lines.push(currentLine.trim());
+      const annotations = await page.getAnnotations({ intent: "display" });
+      for (const annotation of annotations) {
+        const url = annotation.url;
+        if (annotation.subtype !== "Link" || typeof url !== "string" || !/^(?:https?:\/\/|mailto:|tel:)/i.test(url)) continue;
+        const [left, bottom, right, top] = annotation.rect ?? [];
+        const textLabel = Number.isFinite(left) && Number.isFinite(bottom) && Number.isFinite(right) && Number.isFinite(top)
+          ? content.items
+            .filter(item => "str" in item && item.str.trim() && item.transform[4] <= right && item.transform[4] + item.width >= left && item.transform[5] <= top && item.transform[5] + item.height >= bottom)
+            .sort((a, b) => a.transform[5] - b.transform[5] || a.transform[4] - b.transform[4])
+            .map(item => item.str.trim())
+            .join(" ")
+          : "";
+        const label = annotation.contents || annotation.title || textLabel || url;
+        links.push({ page: pageNumber, label, url });
+      }
       pages.push(`__PAGE_${pageNumber}__\n${lines.join("\n")}`);
     }
-    return pages.join("\n");
+    return { text: pages.join("\n"), links };
   } finally {
     await document.destroy();
   }
 }
 
-export function parseDpsaCircular(text, { fileName = "", sourceUrl = "" } = {}) {
+export function parseDpsaCircular(text, { fileName = "", sourceUrl = "", links = [] } = {}) {
   const circularMatch = `${fileName}\n${text.slice(0, 12000)}`
     .match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?:OF|\/)\s*(20\d{2})/i);
   const dateMatch = text.slice(0, 12000).match(/\bDATE\s+ISSUED\s*[:.]?\s*(\d{1,2}\s+[A-Z]+\s+20\d{2})\b/i);
@@ -195,7 +213,12 @@ export function parseDpsaCircular(text, { fileName = "", sourceUrl = "" } = {}) 
   for (let index = 0; index < matches.length; index++) {
     const match = matches[index];
     const end = matches[index + 1]?.index ?? normalized.length;
-    const vacancy = parsePost(match[1].trim(), normalized.slice(match.index + match[0].length, end), circular, sourceUrl);
+    const previousPageMarker = [...normalized.slice(0, match.index).matchAll(/__PAGE_(\d+)__/g)].at(-1);
+    const pageNumbers = [
+      ...(previousPageMarker ? [Number(previousPageMarker[1])] : []),
+      ...[...normalized.slice(match.index, end).matchAll(/__PAGE_(\d+)__/g)].map(page => Number(page[1]))
+    ];
+    const vacancy = parsePost(match[1].trim(), normalized.slice(match.index + match[0].length, end), circular, sourceUrl, links, pageNumbers);
     if (vacancy) vacancies.push(vacancy);
   }
 
@@ -259,6 +282,8 @@ export async function discoverDpsaCirculars() {
       if (!pageResponse.ok) throw new Error(`HTTP ${pageResponse.status}`);
       const pageHtml = await pageResponse.text();
       const pageDocument = new DOMParser().parseFromString(pageHtml, "text/html");
+      const pageText = pageDocument.body?.textContent.replace(/\s+/g, " ") ?? "";
+      const publishedDate = pageText.match(/\bPosting\s+Date\s*:\s*(\d{1,2}\s+[A-Z]+\s+20\d{2})\b/i)?.[1] ?? "";
       const pdfs = [...pageDocument.querySelectorAll("a[href]")].flatMap(link => {
         const pdfUrl = new URL(link.getAttribute("href"), pageResponse.url);
         if (!pdfUrl.pathname.toLowerCase().endsWith(".pdf") || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(pdfUrl.hostname)) return [];
@@ -270,7 +295,12 @@ export async function discoverDpsaCirculars() {
         warnings.push(`${page.label}: full circular PDF was not linked.`);
         return null;
       }
-      return { label: page.label, url: fullCircular.url };
+      return {
+        label: publishedDate ? `${page.label} — Published ${publishedDate}` : page.label,
+        circularName: page.label,
+        publishedDate,
+        url: fullCircular.url
+      };
     } catch (error) {
       warnings.push(`${page.label}: could not be checked (${error.message}).`);
       return null;

@@ -46979,8 +46979,9 @@
     if (/\b(administrative|administration|clerk|secretary|office support)\b/i.test(text)) return "Administration";
     return "Other";
   }
-  function parsePost(postNumber, body, circular, sourceUrl) {
+  function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers) {
     const text = cleanText(body);
+    const links = pdfLinks.filter((link) => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
     const fields = fieldMatches(text);
     const titleEnd = fields.length ? fields[0].start : Math.min(text.length, text.indexOf("\n") > 0 ? text.indexOf("\n") : 500);
     const title = cleanText(text.slice(0, titleEnd)).replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
@@ -47027,7 +47028,8 @@
       skillsAndCompetencies: values.skillsAndCompetencies,
       enquiries: values.enquiries,
       applications: values.applications,
-      note: values.note
+      note: values.note,
+      links: [...new Map(links.map((link) => [link.url, link])).values()]
     };
   }
   async function extractPdfText(file) {
@@ -47046,6 +47048,7 @@
     }
     try {
       const pages = [];
+      const links = [];
       for (let pageNumber = 1; pageNumber <= document2.numPages; pageNumber++) {
         const page = await document2.getPage(pageNumber);
         const content = await page.getTextContent();
@@ -47063,15 +47066,24 @@
           previousY = y;
         }
         if (currentLine.trim()) lines.push(currentLine.trim());
+        const annotations = await page.getAnnotations({ intent: "display" });
+        for (const annotation of annotations) {
+          const url = annotation.url;
+          if (annotation.subtype !== "Link" || typeof url !== "string" || !/^(?:https?:\/\/|mailto:|tel:)/i.test(url)) continue;
+          const [left, bottom, right, top] = annotation.rect ?? [];
+          const textLabel = Number.isFinite(left) && Number.isFinite(bottom) && Number.isFinite(right) && Number.isFinite(top) ? content.items.filter((item) => "str" in item && item.str.trim() && item.transform[4] <= right && item.transform[4] + item.width >= left && item.transform[5] <= top && item.transform[5] + item.height >= bottom).sort((a, b) => a.transform[5] - b.transform[5] || a.transform[4] - b.transform[4]).map((item) => item.str.trim()).join(" ") : "";
+          const label = annotation.contents || annotation.title || textLabel || url;
+          links.push({ page: pageNumber, label, url });
+        }
         pages.push(`__PAGE_${pageNumber}__
 ${lines.join("\n")}`);
       }
-      return pages.join("\n");
+      return { text: pages.join("\n"), links };
     } finally {
       await document2.destroy();
     }
   }
-  function parseDpsaCircular(text, { fileName = "", sourceUrl = "" } = {}) {
+  function parseDpsaCircular(text, { fileName = "", sourceUrl = "", links = [] } = {}) {
     const circularMatch = `${fileName}
 ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?:OF|\/)\s*(20\d{2})/i);
     const dateMatch = text.slice(0, 12e3).match(/\bDATE\s+ISSUED\s*[:.]?\s*(\d{1,2}\s+[A-Z]+\s+20\d{2})\b/i);
@@ -47086,7 +47098,12 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     for (let index = 0; index < matches.length; index++) {
       const match = matches[index];
       const end = matches[index + 1]?.index ?? normalized.length;
-      const vacancy = parsePost(match[1].trim(), normalized.slice(match.index + match[0].length, end), circular, sourceUrl);
+      const previousPageMarker = [...normalized.slice(0, match.index).matchAll(/__PAGE_(\d+)__/g)].at(-1);
+      const pageNumbers = [
+        ...previousPageMarker ? [Number(previousPageMarker[1])] : [],
+        ...[...normalized.slice(match.index, end).matchAll(/__PAGE_(\d+)__/g)].map((page) => Number(page[1]))
+      ];
+      const vacancy = parsePost(match[1].trim(), normalized.slice(match.index + match[0].length, end), circular, sourceUrl, links, pageNumbers);
       if (vacancy) vacancies.push(vacancy);
     }
     const unique = /* @__PURE__ */ new Map();
@@ -47142,6 +47159,8 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         if (!pageResponse.ok) throw new Error(`HTTP ${pageResponse.status}`);
         const pageHtml = await pageResponse.text();
         const pageDocument = new DOMParser().parseFromString(pageHtml, "text/html");
+        const pageText = pageDocument.body?.textContent.replace(/\s+/g, " ") ?? "";
+        const publishedDate = pageText.match(/\bPosting\s+Date\s*:\s*(\d{1,2}\s+[A-Z]+\s+20\d{2})\b/i)?.[1] ?? "";
         const pdfs = [...pageDocument.querySelectorAll("a[href]")].flatMap((link) => {
           const pdfUrl = new URL(link.getAttribute("href"), pageResponse.url);
           if (!pdfUrl.pathname.toLowerCase().endsWith(".pdf") || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(pdfUrl.hostname)) return [];
@@ -47152,7 +47171,12 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
           warnings.push(`${page.label}: full circular PDF was not linked.`);
           return null;
         }
-        return { label: page.label, url: fullCircular.url };
+        return {
+          label: publishedDate ? `${page.label} \u2014 Published ${publishedDate}` : page.label,
+          circularName: page.label,
+          publishedDate,
+          url: fullCircular.url
+        };
       } catch (error) {
         warnings.push(`${page.label}: could not be checked (${error.message}).`);
         return null;
@@ -47437,19 +47461,31 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         ["centre", "Centre"],
         ["enquiries", "Enquiries"],
         ["applications", "How to apply"],
-        ["note", "Notes"]
+        ["note", "Notes"],
+        ["links", "Links found in circular PDF"]
       ];
       for (const [key, label] of detailFields) {
         const field = document.createElement("label");
         field.className = "import-detail-field";
         const fieldLabel = document.createElement("span");
         fieldLabel.textContent = label;
-        const input = document.createElement(["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note"].includes(key) ? "textarea" : "input");
+        const input = document.createElement(["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? "textarea" : "input");
         if (key === "sourceUrl") input.type = "url";
-        input.value = vacancy[key] ?? "";
-        input.maxLength = key === "sourceUrl" ? 2048 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note"].includes(key) ? 6e3 : 160;
+        input.value = key === "links" ? (vacancy.links ?? []).map((link) => `${link.label || link.url} | ${link.url}`).join("\n") : vacancy[key] ?? "";
+        input.maxLength = key === "sourceUrl" ? 2048 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note", "links"].includes(key) ? 6e3 : 160;
         input.addEventListener("input", () => {
-          vacancy[key] = input.value.trim();
+          if (key === "links") {
+            vacancy.links = input.value.split(/\r?\n/).map((line) => {
+              const value = line.trim();
+              if (!value) return null;
+              const match = value.match(/^(.*?)\s+\|\s+(https?:\/\/\S+)$/i);
+              if (match) return { label: match[1].trim(), url: match[2].trim() };
+              if (/^https?:\/\//i.test(value)) return { label: value, url: value };
+              return { label: value, url: "" };
+            }).filter(Boolean);
+          } else {
+            vacancy[key] = input.value.trim();
+          }
         });
         field.append(fieldLabel, input);
         details.append(field);
@@ -47481,19 +47517,25 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     button.disabled = !adminToken || selectedCount === 0;
     button.textContent = selectedCount ? `Publish selected (${selectedCount})` : "Publish selected";
   }
-  async function importPdfFile(file, sourceUrl = "") {
-    const text = await extractPdfText(file);
+  async function importPdfFile(file, sourceUrl = "", circularMetadata = null) {
+    const extracted = await extractPdfText(file);
+    const text = extracted.text;
     if (!text.replace(/__PAGE_\d+__/g, "").trim()) {
       throw new Error("No selectable text was found. This may be a scanned PDF; image-only PDFs need OCR and cannot be imported automatically.");
     }
-    const { vacancies } = parseDpsaCircular(text, { fileName: file.name, sourceUrl });
+    const { vacancies } = parseDpsaCircular(text, { fileName: file.name, sourceUrl, links: extracted.links });
     if (!vacancies.length) {
       throw new Error("No DPSA post headings were found. Check that this is a text-based DPSA vacancy circular.");
     }
     let added = 0;
     for (const vacancy of vacancies) {
       if (!importedVacancies.has(vacancy.id)) added++;
-      importedVacancies.set(vacancy.id, { ...vacancy, selected: false });
+      importedVacancies.set(vacancy.id, {
+        ...vacancy,
+        ...circularMetadata?.circularName ? { circularName: circularMetadata.circularName } : {},
+        ...circularMetadata?.publishedDate ? { circularDate: circularMetadata.publishedDate } : {},
+        selected: false
+      });
     }
     renderImportedVacancies();
     return { found: vacancies.length, added };
@@ -47516,14 +47558,14 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     }
     setImportStatus(results.join(" \xB7 "), failedFiles > 0 && successfulFiles === 0);
   }
-  async function importDpsaUrl(url) {
+  async function importDpsaUrl(url, circularMetadata = null) {
     const parsedUrl = new URL(url);
     if (parsedUrl.protocol !== "https:" || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(parsedUrl.hostname) || !parsedUrl.pathname.toLowerCase().endsWith(".pdf")) {
       throw new Error("For safety, PDF links must be HTTPS PDFs hosted on dpsa.gov.za.");
     }
     await requestDpsaPermission(parsedUrl);
     const { file, url: sourceUrl } = await downloadDpsaPdf(parsedUrl.href);
-    return importPdfFile(file, sourceUrl);
+    return importPdfFile(file, sourceUrl, circularMetadata);
   }
   function truncate(value, limit) {
     return String(value ?? "").trim().slice(0, limit);
@@ -47555,7 +47597,11 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
       enquiries: truncate(vacancy.enquiries, maxDetailLength),
       applications: truncate(vacancy.applications, maxDetailLength),
-      note: truncate(vacancy.note, maxDetailLength)
+      note: truncate(vacancy.note, maxDetailLength),
+      links: [...new Map((Array.isArray(vacancy.links) ? vacancy.links : []).filter((link) => typeof link?.url === "string" && /^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)).map((link) => [link.url, {
+        label: String(link.label || link.url).trim(),
+        url: link.url
+      }])).values()]
     };
     const sourceUrl = truncate(vacancy.sourceUrl, 2048);
     return {
@@ -47605,6 +47651,18 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     });
     if (invalidSource) {
       showToast(`Use a valid HTTPS official advert or circular URL for \u201C${invalidSource.title}\u201D.`, true);
+      return;
+    }
+    const invalidPdfLink = selected.flatMap((vacancy) => vacancy.links ?? []).find(
+      (link) => !link || typeof link.url !== "string" || link.url.length > 2048 || typeof link.label !== "string" || link.label.length > 300 || !/^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)
+    );
+    const tooManyPdfLinks = selected.find((vacancy) => Array.isArray(vacancy.links) && vacancy.links.length > 100);
+    if (tooManyPdfLinks) {
+      showToast(`\u201C${tooManyPdfLinks.title}\u201D has more than 100 extracted PDF links. Remove unrelated links before publishing.`, true);
+      return;
+    }
+    if (invalidPdfLink) {
+      showToast("A circular PDF link is invalid or too long. Review the extracted links before publishing.", true);
       return;
     }
     if (!confirm(`Publish ${selected.length} selected vacancies to your website? Existing jobs will be kept.`)) return;
@@ -47841,7 +47899,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     loadCircularButton.disabled = true;
     setImportStatus(`Loading ${circular.label}\u2026`);
     try {
-      const result = await importDpsaUrl(circular.url);
+      const result = await importDpsaUrl(circular.url, circular);
       setImportStatus(`Loaded ${result.found} vacancies from ${circular.label}.`);
     } catch (error) {
       setImportStatus(error.message, true);
@@ -47886,6 +47944,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         Enquiries: vacancy.enquiries,
         Applications: vacancy.applications,
         Notes: vacancy.note,
+        "PDF hyperlinks": (vacancy.links ?? []).map((link) => `${link.label} | ${link.url}`).join("\n"),
         "Official circular URL": vacancy.sourceUrl
       }));
       const workbook = utils.book_new();
