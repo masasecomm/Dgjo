@@ -426,7 +426,7 @@ function truncate(value, limit) {
 
 function createPublishedVacancy(vacancy) {
   const title = truncate(vacancy.title, 160);
-  const company = truncate(vacancy.company, 160) || "South African Public Service";
+  const company = truncate(vacancy.company, 160) || "Hiring department not identified";
   const location = truncate(vacancy.location, 160) || "South Africa";
   const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
   const closingDate = truncate(vacancy.closingDate, 120);

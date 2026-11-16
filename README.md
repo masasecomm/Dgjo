@@ -14,11 +14,19 @@ From the `cloudflare` directory (use `npm.cmd` / `npx.cmd` in Windows PowerShell
 
 The API URL is printed by Wrangler and ends in `/api/jobs`. `GET /api/jobs` returns the published listings. `PUT /api/jobs` replaces them and requires the admin key. The Worker accepts up to 2,000 listings, subject to the 20 MB storage limit. Redeploy the Worker after updating this repository so it accepts imported vacancy details and preserved circular PDF links.
 
+The Worker config also binds the branded `jobs.dpsagovernmentjobs.co.za` custom domain. Cloudflare must host the `dpsagovernmentjobs.co.za` zone for this binding to deploy. The existing Worker API URL remains the `workers.dev` URL; vacancy pages and their sitemap use the branded subdomain.
+
 ## Public website
 
-GitHub Pages serves the static guide pages in this repository. `robots.txt` and `sitemap.xml` provide crawler directions and list the public pages. The Worker and Chrome extension provide managed job cards, and the public page displays listings in any location. The static fallback `jobs.json` starts empty.
+GitHub Pages serves the static guide pages in this repository. The Cloudflare Worker serves crawlable vacancy detail pages at `https://jobs.dpsagovernmentjobs.co.za/jobs/<job-id>/`, a linked vacancy index at `/jobs/`, and a live `/sitemap.xml` and `/robots.txt` for those pages. The homepage links to the Worker vacancy index and to each vacancy page. The static root sitemap covers the GitHub Pages guide pages; the Worker sitemap covers its own host. Submit both sitemap URLs in Google Search Console after deployment.
 
-The DPSA circular and application pages summarize public instructions in original wording and link readers to the official DPSA source. The public site applies the shared formatter to requirements, duties, and notes on every displayed listing; the Chrome extension also formats those fields for every circular-imported post before review and publishing. Vacancy cards display all-caps titles in normal capitalization and introduce the department, closing date, base location, appointment type, and circular page when those details are available. Imported circular page numbers are retained with each post. Visual line wraps are joined so sentences are not split, category labels stay with their first point, and detected PDF hyperlinks remain clickable. Confirm current publication dates, vacancy requirements and closing dates on the original department advert.
+The Worker removes vacancies with an explicit past closing date from public API results and the live sitemap. A closed detail URL returns HTTP 410 with `noindex`. When a department is unavailable, the site labels it as unverified rather than claiming the South African Public Service is the employer. The importer uses the same neutral placeholder so missing department data is easy to review in the extension.
+
+Vacancy detail pages include unique titles, descriptions, canonical URLs, full advert details, and links to the official source. `JobPosting` JSON-LD is emitted only when the advert supplies a real department, publication date, future closing date, province and identifiable locality, a sufficiently complete description, and an official source URL. Missing data is not invented. The public homepage points vacancy links at the branded Worker custom domain; the `workers.dev` hostname remains available for the API.
+
+The static fallback `jobs.json` starts empty.
+
+The DPSA circular and application pages summarize public instructions in original wording and link readers to the official DPSA source. The public site applies the shared formatter to requirements, duties, and notes on every displayed listing; the Chrome extension also formats those fields for every circular-imported post before review and publishing. Vacancy cards display all-caps titles in normal capitalization and introduce the department, closing date, centre/location, appointment type, and circular page when those details are available. Imported circular page numbers are retained with each post. Visual line wraps are joined so sentences are not split, category labels stay with their first point, and detected PDF hyperlinks remain clickable. Confirm current publication dates, vacancy requirements and closing dates on the original department advert.
 
 ## Search visibility and legacy pages
 

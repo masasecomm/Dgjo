@@ -235,6 +235,7 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .home-kicker { margin-bottom: 0; color: #74849c; }
 .home-section-heading h2 { margin: 8px 0 7px; color: #32373c; font-size: clamp(28px, 3.5vw, 36px); font-weight: 600; letter-spacing: -.035em; }
 .home-section-heading p { margin: 0; color: #6b747c; font-size: 13px; line-height: 1.75; }
+.home-section-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 24px; }
 .home-text-link { display: inline-flex; align-items: center; gap: 8px; color: #087ad2; font-size: 13px; font-weight: 700; text-decoration: none; }
 .home-text-link:hover { gap: 12px; color: #13377f; }
 .province-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 9px; margin: 0 0 18px; }

@@ -9,7 +9,7 @@
   <link rel="canonical" href="https://dpsagovernmentjobs.co.za/">
   <link rel="alternate" hreflang="en-ZA" href="https://dpsagovernmentjobs.co.za/">
   <link rel="stylesheet" href="styles.css">
-  <title>DPSA Vacancies 2026 &amp; Government Jobs in South Africa</title>
+  <title>DPSA Vacancies &amp; Government Jobs in South Africa</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
   <meta property="og:site_name" content="DPSA Government Jobs">
@@ -87,7 +87,10 @@
             <h2 id="listings-heading">GOVERNMENT JOBS</h2>
             <p>Explore current public service roles and find the right opportunity for you.</p>
           </div>
-          <a class="home-text-link" href="/dpsa-vacancy-circulars/">Browse DPSA vacancy circulars <span aria-hidden="true">→</span></a>
+          <div class="home-section-links">
+            <a class="home-text-link" href="https://jobs.dpsagovernmentjobs.co.za/jobs/">Browse vacancy detail pages <span aria-hidden="true">→</span></a>
+            <a class="home-text-link" href="/dpsa-vacancy-circulars/">Browse DPSA vacancy circulars <span aria-hidden="true">→</span></a>
+          </div>
       </div>
       <nav id="province-filters" class="province-filters" aria-label="Browse jobs by province">
         <a class="province-filter is-active" href="#listings" data-province="">All Provinces</a>
@@ -185,6 +188,7 @@
     import { splitVacancyPoints } from "/vacancy-format.js";
 
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
+    const jobsPageOrigin = "https://jobs.dpsagovernmentjobs.co.za";
     const jobsList = document.querySelector("#job-list");
     const jobsStatus = document.querySelector("#job-list-status");
     const jobCount = document.querySelector("#job-count");
@@ -313,15 +317,19 @@
     function jobIntroduction(job, title) {
       const sentences = [];
       const department = String(job.company ?? "").trim();
-      if (department) sentences.push(`The ${department} invites applications for ${title}.`);
+      if (department && !/^(?:south african public service|hiring department not identified|department not specified)$/i.test(department)) {
+        sentences.push(`The ${department} invites applications for ${title}.`);
+      } else {
+        sentences.push(`Applications are invited for ${title}. Check the official advert for the hiring department.`);
+      }
 
       const closingDate = String(job.closingDate ?? "").trim();
       if (closingDate) sentences.push(`Applications close on ${closingDate}.`);
 
-      const location = [job.centre, job.location, job.province]
+      const location = [job.centre, job.province, job.location]
         .map(value => String(value ?? "").trim())
-        .find(value => value && value.toLocaleLowerCase("en-ZA") !== "south africa");
-      if (location) sentences.push(`The successful candidate will be based in ${location}.`);
+        .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
+      if (location) sentences.push(`The advert lists the centre or location as ${location}.`);
 
       const appointmentSource = `${job.natureOfAppointment ?? ""} ${job.type ?? ""}`;
       const appointment = appointmentSource.match(/\b(permanent|contract|sessional|fixed[\s-]?term|temporary|full[\s-]?time|part[\s-]?time|internship)\b/i)?.[1];
@@ -380,22 +388,28 @@
         titleRow.className = "listing-card-title";
         const status = document.createElement("span");
         status.className = "listing-card-status";
-        status.textContent = "Open";
+        status.textContent = job.closingDate ? "Open" : "Check advert";
         titleRow.append(title, status);
         const company = document.createElement("p");
         company.className = "listing-meta";
-        company.textContent = job.company;
+        const hasDepartment = !/^(?:south african public service|hiring department not identified|department not specified)$/i.test(String(job.company ?? "").trim());
+        company.textContent = hasDepartment ? job.company : "Hiring department: see official advert";
         const location = document.createElement("p");
         location.className = "listing-meta";
-        location.textContent = typeof job.location === "string" && job.location.trim()
-          ? job.location
-          : "Location not specified";
+        const locationLabel = [job.centre, job.province, job.location]
+          .map(value => String(value ?? "").trim())
+          .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
+        location.textContent = locationLabel ? `Location/centre in advert: ${locationLabel}` : "Check the official advert for location";
         const details = document.createElement("p");
         details.className = "listing-meta";
         details.textContent = [job.type, job.category, job.salaryText].filter(Boolean).join(" · ");
         const introduction = document.createElement("p");
         introduction.className = "listing-introduction";
         introduction.textContent = jobIntroduction(job, displayTitle);
+        const detailsLink = document.createElement("a");
+        detailsLink.className = "text-link";
+        detailsLink.href = `${jobsPageOrigin}/jobs/${encodeURIComponent(String(job.id))}/`;
+        detailsLink.textContent = "Read full vacancy details";
         const verify = document.createElement("a");
         verify.className = "text-link";
         const sourceUrl = typeof job.sourceUrl === "string" && /^https:\/\//i.test(job.sourceUrl)
@@ -467,7 +481,7 @@
           }
           content.append(vacancyDetails);
         }
-        content.append(verify);
+        content.append(detailsLink, verify);
         card.append(mark, content);
         jobsList.append(card);
       });

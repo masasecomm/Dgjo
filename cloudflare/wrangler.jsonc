@@ -3,6 +3,12 @@
 	"name": "goodwork-jobs-api",
 	"main": "worker.js",
 	"compatibility_date": "2026-11-10",
+	"routes": [
+		{
+			"pattern": "jobs.dpsagovernmentjobs.co.za",
+			"custom_domain": true
+		}
+	],
 	"kv_namespaces": [
 		{
 			"binding": "JOBS",

@@ -47023,7 +47023,7 @@
   var MAX_PDF_PAGES = 500;
   var FIELD_LABELS = [
     ["refNo", /\bREF\s*NO\b\s*[:.\u2013\u2014-]\s*/gi],
-    ["departmentName", /\bDEPARTMENT\b\s*[:.\u2013\u2014-]\s*/gi],
+    ["departmentName", /\bDEPARTMENT\s+OF\s+|\bDEPARTMENT\b\s*[:.\u2013\u2014-]\s*/gi],
     ["branch", /\b(?:BRANCH|DIVISION)\b\s*[:.\u2013\u2014-]\s*/gi],
     ["chiefDirectorate", /\bCHIEF\s*DIRECTORATE\b\s*[:.\u2013\u2014-]\s*/gi],
     ["directorate", /\bDIRECTORATE\b\s*[:.\u2013\u2014-]\s*/gi],
@@ -47045,16 +47045,38 @@
   function cleanText(value) {
     return String(value ?? "").replace(/__PAGE_\d+__/g, " ").replace(/[ \t]+/g, " ").replace(/\s+\n/g, "\n").replace(/\n\s+/g, "\n").trim();
   }
+  function normalizeDepartmentName(value) {
+    const department = cleanText(value);
+    const letters = department.match(new RegExp("\\p{L}", "gu")) ?? [];
+    if (!letters.length || letters.some((letter) => letter !== letter.toLocaleUpperCase("en-ZA"))) return department;
+    const acronyms = /* @__PURE__ */ new Set(["SAPS", "SARS", "SANDF", "SASSA", "DPSA", "HIV", "AIDS"]);
+    const minorWords = /* @__PURE__ */ new Set(["and", "for", "in", "of", "the"]);
+    return department.toLocaleLowerCase("en-ZA").replace(/\b[\p{L}][\p{L}'’.-]*/gu, (word, offset) => {
+      const upper = word.toLocaleUpperCase("en-ZA");
+      if (acronyms.has(upper)) return upper;
+      if (offset > 0 && minorWords.has(word)) return word;
+      return `${word.charAt(0).toLocaleUpperCase("en-ZA")}${word.slice(1)}`;
+    });
+  }
   function fieldMatches(text) {
     const matches = [];
     for (const [key, pattern] of FIELD_LABELS) {
       pattern.lastIndex = 0;
       for (const match of text.matchAll(pattern)) {
         if (key === "directorate" && /\bCHIEF\s+$/i.test(text.slice(Math.max(0, match.index - 16), match.index))) continue;
+        if (key === "departmentName" && text.slice(text.lastIndexOf("\n", match.index - 1) + 1, match.index).trim()) continue;
         matches.push({ key, start: match.index, end: match.index + match[0].length });
       }
     }
-    return matches.sort((a, b) => a.start - b.start);
+    matches.sort((a, b) => a.start - b.start);
+    const firstVacancyField = matches.find((item) => item.key !== "departmentName");
+    return matches.filter((item) => item.key !== "departmentName" || !firstVacancyField || item.start < firstVacancyField.start);
+  }
+  function departmentHeadingBefore(text, position) {
+    const prefix = text.slice(0, position);
+    const headings = [...prefix.matchAll(/^\s*((?:(?:NATIONAL|PROVINCIAL)\s+)?DEPARTMENT\s+OF\s+[A-Z][A-Z0-9 &,'’()./-]{2,120})\s*$/gm)];
+    const heading = headings.at(-1)?.[1];
+    return heading ? normalizeDepartmentName(heading) : "";
   }
   function readField(text, matches, key) {
     const match = matches.find((item) => item.key === key);
@@ -47091,7 +47113,7 @@
     const heading = new RegExp(`^(?:(?:employment\\s+equity|target\\s+group|designated\\s+groups)\\s*[:\\-]?\\s*)?${group}(?:\\s*(?:,|;|\\/|&|\\band\\b)\\s*${group})*\\.?$`, "i");
     return heading.test(title.replace(/\s+/g, " ").trim());
   }
-  function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers, circularPage) {
+  function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers, circularPage, departmentContext) {
     const text = cleanText(body);
     const links = pdfLinks.filter((link) => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
     const fields = fieldMatches(text);
@@ -47099,7 +47121,10 @@
     const title = cleanText(text.slice(0, titleEnd)).replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
     if (title.length < 4 || isDemographicGroupHeading(title)) return null;
     const values = Object.fromEntries(FIELD_LABELS.map(([key]) => [key, readField(text, fields, key)]));
-    const department = cleanText(values.departmentName.split(/\n/)[0] || text.match(/\bDEPARTMENT\s*[:.\u2013\u2014-]\s*([^\n]+)/i)?.[1] || text.match(/\b(?:NATIONAL|PROVINCIAL)\s+DEPARTMENT\s+OF\s+([^\n]+)/i)?.[0] || "");
+    const departmentField = fields.find((field) => field.key === "departmentName");
+    const departmentValue = cleanText(values.departmentName.split(/\n/)[0] || "");
+    const explicitDepartment = departmentField && /\bDEPARTMENT\s+OF\s+$/i.test(text.slice(departmentField.start, departmentField.end)) ? `Department of ${normalizeDepartmentName(departmentValue)}` : normalizeDepartmentName(departmentValue);
+    const department = explicitDepartment || departmentContext;
     const province = cleanText(text.match(/\b(?:EASTERN CAPE|FREE STATE|GAUTENG|KWAZULU[- ]?NATAL|LIMPOPO|MPUMALANGA|NORTHERN CAPE|NORTH WEST|WESTERN CAPE)\b/i)?.[0] ?? "");
     const location = values.centre || province || "South Africa";
     const salaryText = values.salary || values.stipend || "Not stated in advert";
@@ -47111,7 +47136,7 @@
       id: `dpsa-${signature.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 130)}`,
       sourceUrl,
       title: normalizedTitle,
-      company: department || "South African Public Service",
+      company: department || "Hiring department not identified",
       location,
       category: categoryFor(`${normalizedTitle} ${department}`),
       type: parseAppointmentType(values.natureOfAppointment, text),
@@ -47212,6 +47237,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       const match = matches[index];
       const end = matches[index + 1]?.index ?? normalized.length;
       const previousPageMarker = [...normalized.slice(0, match.index).matchAll(/__PAGE_(\d+)__/g)].at(-1);
+      const departmentContext = departmentHeadingBefore(normalized, match.index);
       const pageNumbers = [
         ...previousPageMarker ? [Number(previousPageMarker[1])] : [],
         ...[...normalized.slice(match.index, end).matchAll(/__PAGE_(\d+)__/g)].map((page) => Number(page[1]))
@@ -47223,7 +47249,8 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         sourceUrl,
         links,
         pageNumbers,
-        previousPageMarker ? Number(previousPageMarker[1]) : 0
+        previousPageMarker ? Number(previousPageMarker[1]) : 0,
+        departmentContext
       );
       if (vacancy) vacancies.push(vacancy);
     }
@@ -47695,7 +47722,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   }
   function createPublishedVacancy(vacancy) {
     const title = truncate(vacancy.title, 160);
-    const company = truncate(vacancy.company, 160) || "South African Public Service";
+    const company = truncate(vacancy.company, 160) || "Hiring department not identified";
     const location = truncate(vacancy.location, 160) || "South Africa";
     const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
     const closingDate = truncate(vacancy.closingDate, 120);
