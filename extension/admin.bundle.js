@@ -47119,17 +47119,47 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     if (!response.ok) throw new Error(`Could not load the DPSA circular page (HTTP ${response.status}).`);
     const html = await response.text();
     const document2 = new DOMParser().parseFromString(html, "text/html");
-    const circulars = [];
+    const circularPages = /* @__PURE__ */ new Map();
     for (const link of document2.querySelectorAll("a[href]")) {
       const url = new URL(link.getAttribute("href"), response.url);
-      const label = link.textContent.replace(/\s+/g, " ").trim();
-      const isPdf = url.pathname.toLowerCase().endsWith(".pdf");
-      const isCircular = /circular|vacanc/i.test(label) || /circular/i.test(url.pathname);
-      if (isPdf && isCircular && ["www.dpsa.gov.za", "dpsa.gov.za"].includes(url.hostname)) {
-        circulars.push({ label: label || decodeURIComponent(url.pathname.split("/").pop()), url: url.href });
-      }
+      const match = url.pathname.match(/^\/newsroom\/psvc\/circular-(\d+)-of-(20\d{2})\/?$/i);
+      if (!match || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(url.hostname)) continue;
+      const number = Number(match[1]);
+      const year = Number(match[2]);
+      circularPages.set(`${year}-${number}`, {
+        label: `Circular ${number} of ${year}`,
+        number,
+        year,
+        url: url.href
+      });
     }
-    return [...new Map(circulars.map((item) => [item.url, item])).values()];
+    const latestPages = [...circularPages.values()].sort((a, b) => b.year - a.year || b.number - a.number).slice(0, 5);
+    if (!latestPages.length) throw new Error("No circular archive pages were found on the DPSA website.");
+    const warnings = [];
+    const circulars = (await Promise.all(latestPages.map(async (page) => {
+      try {
+        const pageResponse = await fetch(page.url, { cache: "no-store", credentials: "omit" });
+        if (!pageResponse.ok) throw new Error(`HTTP ${pageResponse.status}`);
+        const pageHtml = await pageResponse.text();
+        const pageDocument = new DOMParser().parseFromString(pageHtml, "text/html");
+        const pdfs = [...pageDocument.querySelectorAll("a[href]")].flatMap((link) => {
+          const pdfUrl = new URL(link.getAttribute("href"), pageResponse.url);
+          if (!pdfUrl.pathname.toLowerCase().endsWith(".pdf") || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(pdfUrl.hostname)) return [];
+          return [{ url: pdfUrl.href, path: decodeURIComponent(pdfUrl.pathname), label: link.textContent.replace(/\s+/g, " ").trim() }];
+        });
+        const fullCircular = pdfs.find((pdf) => /(?:^|\/)PSV\s+CIRCULAR\s+\d+\s+of\s+20\d{2}\.pdf$/i.test(pdf.path)) ?? pdfs.find((pdf) => /full document/i.test(pdf.label) && /circular/i.test(pdf.label));
+        if (!fullCircular) {
+          warnings.push(`${page.label}: full circular PDF was not linked.`);
+          return null;
+        }
+        return { label: page.label, url: fullCircular.url };
+      } catch (error) {
+        warnings.push(`${page.label}: could not be checked (${error.message}).`);
+        return null;
+      }
+    }))).filter(Boolean);
+    if (!circulars.length) throw new Error("The DPSA circular pages loaded, but no full circular PDFs could be found.");
+    return { circulars, warnings };
   }
 
   // admin.js
@@ -47782,7 +47812,8 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     setImportStatus("Checking the official DPSA circular page\u2026");
     try {
       await requestDpsaPermission(new URL("https://www.dpsa.gov.za/"));
-      circularOptions = await discoverDpsaCirculars();
+      const discovery = await discoverDpsaCirculars();
+      circularOptions = discovery.circulars;
       circularPicker.replaceChildren();
       if (!circularOptions.length) {
         circularPicker.add(new Option("No PDF circulars found", ""));
@@ -47791,7 +47822,8 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         circularPicker.add(new Option("Choose a circular\u2026", ""));
         circularOptions.forEach((circular, index) => circularPicker.add(new Option(circular.label, String(index))));
         circularPicker.disabled = false;
-        setImportStatus(`Found ${circularOptions.length} PDF circular${circularOptions.length === 1 ? "" : "s"}.`);
+        const partialWarning = discovery.warnings.length ? ` ${discovery.warnings.join(" ")}` : "";
+        setImportStatus(`Found the ${circularOptions.length} most recent PDF circular${circularOptions.length === 1 ? "" : "s"}.${partialWarning}`, discovery.warnings.length > 0);
       }
     } catch (error) {
       setImportStatus(error.message, true);

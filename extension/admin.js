@@ -706,7 +706,8 @@ document.querySelector("#discover-circulars").addEventListener("click", async ev
   setImportStatus("Checking the official DPSA circular page…");
   try {
     await requestDpsaPermission(new URL("https://www.dpsa.gov.za/"));
-    circularOptions = await discoverDpsaCirculars();
+    const discovery = await discoverDpsaCirculars();
+    circularOptions = discovery.circulars;
     circularPicker.replaceChildren();
     if (!circularOptions.length) {
       circularPicker.add(new Option("No PDF circulars found", ""));
@@ -715,7 +716,10 @@ document.querySelector("#discover-circulars").addEventListener("click", async ev
       circularPicker.add(new Option("Choose a circular…", ""));
       circularOptions.forEach((circular, index) => circularPicker.add(new Option(circular.label, String(index))));
       circularPicker.disabled = false;
-      setImportStatus(`Found ${circularOptions.length} PDF circular${circularOptions.length === 1 ? "" : "s"}.`);
+      const partialWarning = discovery.warnings.length
+        ? ` ${discovery.warnings.join(" ")}`
+        : "";
+      setImportStatus(`Found the ${circularOptions.length} most recent PDF circular${circularOptions.length === 1 ? "" : "s"}.${partialWarning}`, discovery.warnings.length > 0);
     }
   } catch (error) {
     setImportStatus(error.message, true);
