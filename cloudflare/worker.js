@@ -13,6 +13,7 @@ const MAX_JOBS = 2000;
 const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
+const ADS_TXT = "google.com, pub-3860151941190347, DIRECT, f08c47fec0942fa0";
 const GENERIC_EMPLOYERS = new Set(["south african public service", "hiring department not identified", "department not specified"]);
 const VERIFIED_CIRCULAR_FACTS = new Map([
   ["Circular 41 of 2026|41/20", {
@@ -203,8 +204,25 @@ function hiringOrganizationName(job) {
   return knownDepartments.find(([pattern]) => pattern.test(evidence))?.[1] ?? "";
 }
 
+function slugifyJobPart(value) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function jobSlug(job) {
+  const identity = [job.postNo, job.refNo].filter(value => String(value ?? "").trim());
+  return [displayJobTitle(job.title), ...identity]
+    .map(slugifyJobPart)
+    .filter(Boolean)
+    .join("-") || slugifyJobPart(job.id);
+}
+
 function jobPagePath(job) {
-  return `/jobs/${encodeURIComponent(String(job.id))}/`;
+  return `/${encodeURIComponent(jobSlug(job))}/`;
 }
 
 function locationDetails(job) {
@@ -238,6 +256,7 @@ function publicJob(job) {
     .test(String(enriched.centre ?? "").trim());
   return {
     ...enriched,
+    slug: jobSlug(enriched),
     ...(company ? { company } : {}),
     ...(location?.locality && centreIsGeneric ? { centre: location.locality } : {}),
     ...(location?.locality && /^(?:south africa|labour|department of labour)$/i.test(String(enriched.location ?? "").trim())
@@ -345,6 +364,10 @@ function vacancyPage(job, requestUrl) {
     ? `<p><a href="${escapeHtml(job.sourceUrl)}" rel="noopener noreferrer">Read the official vacancy advert or circular</a></p>`
     : "";
   const reference = [job.refNo && `Reference: ${job.refNo}`, job.postNo && `Post number: ${job.postNo}`].filter(Boolean).join(" · ");
+  const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
+  const jobMark = isCircularJob
+    ? `<img src="${SITE_URL}/south-african-coat-of-arms.png" alt="South African coat of arms" width="58" height="58" fetchpriority="high">`
+    : `<span class="job-mark-generic" aria-hidden="true">▦</span>`;
 
   return htmlResponse(`<!doctype html>
 <html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -352,39 +375,47 @@ function vacancyPage(job, requestUrl) {
 <meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="article"><meta property="og:site_name" content="DPSA Government Jobs">
 <meta property="og:title" content="${escapeHtml(pageTitle)}"><meta property="og:description" content="${escapeHtml(metaDescription)}">
-<meta property="og:url" content="${escapeHtml(pageUrl)}">${schemaMarkup}
-<style>body{font:16px/1.65 system-ui,sans-serif;max-width:860px;margin:0 auto;padding:24px;color:#17233b}a{color:#17499e}header,footer{padding:16px 0;border-bottom:1px solid #dce3ed}main{padding:24px 0}h1{line-height:1.2}h2{font-size:1.15rem;margin-bottom:.3rem}.meta{color:#475569}.apply{display:inline-block;background:#17499e;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none}section{margin:28px 0}footer{border-top:1px solid #dce3ed;border-bottom:0}</style></head>
-<body><header><a href="${SITE_URL}/">DPSA Government Jobs</a></header><main>
-<nav aria-label="Breadcrumb"><a href="${SITE_URL}/">Home</a> › <a href="${escapeHtml(new URL("/jobs/", requestUrl.origin).href)}">Vacancies</a> › ${escapeHtml(title)}</nav>
-<article><h1>${escapeHtml(title)}</h1><p class="intro">${employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`}</p>
-<p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
+<meta property="og:url" content="${escapeHtml(pageUrl)}"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>${schemaMarkup}
+<style>
+:root{color-scheme:light;font-family:Arial,Helvetica,sans-serif;color:#32373c;background:#f8fbff}
+*{box-sizing:border-box}body{margin:0;font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:#087ad2;text-underline-offset:3px}.shell{width:min(1120px,calc(100% - 40px));margin-inline:auto}
+.site-header{background:#17499e;color:#fff;box-shadow:0 4px 16px rgba(13,42,95,.12)}
+.nav{min-height:78px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.brand{display:inline-flex;align-items:center;gap:11px;color:#fff;text-decoration:none}
+.brand img{width:40px;height:40px;border:1px solid rgba(255,255,255,.32);border-radius:50%;object-fit:cover}
+.brand-copy{display:grid;line-height:1.15}.brand-title{font-size:15px;font-weight:800;letter-spacing:.05em}.brand-subtitle{color:#d7e5ff;font-size:10px}
+.nav-links{display:flex;gap:24px;font-size:13px;font-weight:700}.nav-links a{color:#f4f7ff;text-decoration:none}
+main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size:12px}
+.vacancy-card{display:grid;grid-template-columns:58px minmax(0,1fr);gap:18px;padding:26px;border:1px solid #e6eaf0;border-radius:12px;background:#fff;box-shadow:0 8px 26px rgba(26,52,94,.045)}
+.job-mark{display:grid;width:58px;height:58px;place-items:center;overflow:hidden;border:1px solid #e6eaf0;border-radius:11px;background:#fff}
+.job-mark img{width:100%;height:100%;object-fit:contain}.job-mark-generic{display:grid;width:100%;height:100%;place-items:center;border-color:transparent;color:#fff;background:#2193e9;font-size:28px}
+.job-content{min-width:0}.job-title{margin:0 0 14px;color:#17499e;font-size:clamp(24px,4vw,34px);line-height:1.2;letter-spacing:-.035em;overflow-wrap:anywhere}
+.intro{margin:0 0 18px;padding:13px 15px;border-left:3px solid #f2b632;border-radius:0 7px 7px 0;color:#536171;background:#f7f9fc}
+.meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;margin:0 0 20px}
+.meta{margin:0;color:#737d85;font-size:13px;overflow-wrap:anywhere}.meta strong{color:#32373c}
+.circular-info{margin:0 0 16px;color:#737d85;font-size:12px}.apply{display:inline-flex;min-height:43px;align-items:center;justify-content:center;padding:10px 17px;border-radius:7px;color:#fff;background:#17499e;font-size:13px;font-weight:700;text-decoration:none}
+.apply:hover{background:#13377f;color:#fff}.sections{grid-column:1/-1;border-top:1px solid #e6eaf0;margin-top:8px;padding-top:8px}
+.sections section{margin:20px 0}.sections h2{margin:0 0 7px;color:#17499e;font-size:18px;line-height:1.3}.sections p{margin:0;color:#536171;white-space:pre-line;overflow-wrap:anywhere}
+.important{margin:24px 0 0;padding-top:15px;border-top:1px solid #e6eaf0;color:#737d85;font-size:12px}
+.site-footer{padding:22px 0;border-top:1px solid #e6eaf0;color:#6b747c;background:#f4f8fd;font-size:12px}.site-footer p{margin:0}
+@media(max-width:600px){.shell{width:min(100% - 28px,1120px)}.nav{min-height:70px;gap:12px}.brand img{width:36px;height:36px}.nav-links{gap:12px;font-size:11px}main{padding-block:22px 38px}.vacancy-card{grid-template-columns:48px minmax(0,1fr);gap:13px;padding:17px}.job-mark{width:48px;height:48px;border-radius:9px}.meta-grid{grid-template-columns:1fr;gap:7px}.sections{margin-top:0}}
+</style></head>
+<body><header class="site-header"><nav class="nav shell" aria-label="Main navigation">
+<a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
+<div class="nav-links"><a href="${SITE_URL}/">Home</a><a href="${SITE_URL}/dpsa-vacancy-circulars/">Circulars</a><a href="${SITE_URL}/#listings">Vacancies</a></div>
+</nav></header><main class="shell">
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="${SITE_URL}/">Home</a> › ${escapeHtml(title)}</nav>
+<article class="vacancy-card"><div class="job-mark">${jobMark}</div><div class="job-content">
+<h1 class="job-title">${escapeHtml(title)}</h1><p class="intro">${employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`}</p>
+<div class="meta-grid"><p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
 ${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${escapeHtml(location)}</p>` : ""}
-<p class="meta"><strong>Employment type:</strong> ${escapeHtml(job.type)}</p>
-<p class="meta"><strong>Salary:</strong> ${escapeHtml(job.salaryText || "Not stated in advert")}</p>
-<p class="meta"><strong>Closing date:</strong> ${escapeHtml(deadline)}</p>
-${reference ? `<p class="meta">${escapeHtml(reference)}</p>` : ""}
-${circularInfo ? `<p class="meta">Published in ${escapeHtml(circularInfo)}${job.circularDate ? ` · ${escapeHtml(job.circularDate)}` : ""}</p>` : ""}
-${sourceLink}${sections}<p><strong>Important:</strong> Confirm the department, eligibility, closing date and submission instructions in the official advert.</p>
-${sourceLink ? `<p><a class="apply" href="${escapeHtml(job.sourceUrl)}" rel="noopener noreferrer">View official advert</a></p>` : ""}
-</article></main><footer><a href="${SITE_URL}/">DPSA Government Jobs</a> is an independent guide. Always verify vacancy details with the hiring department.</footer></body></html>`);
-}
-
-function jobsIndexPage(jobs, requestUrl) {
-  const activeJobs = jobs.filter(job => !isExpired(job));
-  const links = activeJobs.map(job => {
-    const title = displayJobTitle(job.title);
-    const employer = hiringOrganizationName(job) || "Hiring department: see official advert";
-    return `<li><a href="${escapeHtml(new URL(jobPagePath(job), requestUrl.origin).href)}">${escapeHtml(title)}</a> — ${escapeHtml(employer)}${job.closingDate ? ` · Closes ${escapeHtml(job.closingDate)}` : ""}</li>`;
-  }).join("");
-  const canonical = new URL("/jobs/", requestUrl.origin).href;
-  return htmlResponse(`<!doctype html><html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Current Government Vacancies in South Africa | DPSA Government Jobs</title>
-<meta name="description" content="Browse current South African public service vacancies, official advert links, requirements and closing dates.">
-<link rel="canonical" href="${escapeHtml(canonical)}"><meta name="robots" content="index, follow"></head><body>
-<header><a href="${SITE_URL}/">DPSA Government Jobs</a></header><main><h1>Current South African Government Vacancies</h1>
-<p>Vacancy details are summarised for convenience. Confirm all information with the official advert.</p>
-<ul>${links || "<li>No current vacancies are available. Please check back later.</li>"}</ul>
-<p><a href="${SITE_URL}/">Visit DPSA Government Jobs</a></p></main></body></html>`);
+<p class="meta"><strong>Employment type:</strong> ${escapeHtml(job.type)}</p><p class="meta"><strong>Salary:</strong> ${escapeHtml(job.salaryText || "Not stated in advert")}</p>
+<p class="meta"><strong>Closing date:</strong> ${escapeHtml(deadline)}</p>${reference ? `<p class="meta">${escapeHtml(reference)}</p>` : ""}</div>
+${circularInfo ? `<p class="circular-info">Published in ${escapeHtml(circularInfo)}${job.circularDate ? ` · ${escapeHtml(job.circularDate)}` : ""}</p>` : ""}
+${sourceLink}${sourceLink ? `<p><a class="apply" href="${escapeHtml(job.sourceUrl)}" rel="noopener noreferrer">View official advert</a></p>` : ""}
+</div><div class="sections">${sections}<p class="important"><strong>Important:</strong> Confirm the department, eligibility, closing date and submission instructions in the official advert.</p></div>
+</article></main><footer class="site-footer"><div class="shell"><p><a href="${SITE_URL}/">DPSA Government Jobs</a> is an independent guide. Always verify vacancy details with the hiring department.</p></div></footer></body></html>`);
 }
 
 function sitemapResponse(jobs, requestUrl) {
@@ -406,30 +437,72 @@ export default {
       return jsonResponse({ error: "Method not allowed." }, 405);
     }
     if (url.pathname === "/robots.txt" && request.method === "GET") {
-      return new Response(`User-agent: *\nAllow: /jobs/\nSitemap: ${url.origin}/sitemap.xml\n`, {
+      return new Response(`User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`, {
         headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=300" }
+      });
+    }
+    if (url.pathname === "/ads.txt" && request.method === "GET") {
+      return new Response(`${ADS_TXT}\n`, {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" }
       });
     }
 
     if (url.pathname === "/api/jobs" && request.method === "OPTIONS") return jsonResponse({}, 204);
 
     if (request.method === "GET") {
+      if (url.pathname === "/jobs" || url.pathname === "/jobs/") {
+        return new Response(null, {
+          status: 301,
+          headers: {
+            Location: `${SITE_URL}/#listings`,
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+
       const savedJobs = await env.JOBS.get(JOBS_KEY, "json");
       const jobs = savedJobs ?? defaultJobs;
       const publicJobs = jobs.map(publicJob);
       if (url.pathname === "/sitemap.xml") return sitemapResponse(publicJobs, url);
-      if (url.pathname === "/jobs" || url.pathname === "/jobs/") return jobsIndexPage(publicJobs, url);
-      const jobPath = url.pathname.match(/^\/jobs\/([^/]+)\/?$/);
-      if (jobPath) {
+      const legacyJobPath = url.pathname.match(/^\/jobs\/([^/]+)\/?$/);
+      if (legacyJobPath) {
+        let jobId;
+        try {
+          jobId = decodeURIComponent(legacyJobPath[1]);
+        } catch {
+          return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>Vacancy not found.</body></html>", 404, "noindex");
+        }
+        const job = publicJobs.find(candidate => candidate.id === jobId || candidate.slug === jobId);
+        if (!job) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>Vacancy not found.</body></html>", 404, "noindex");
+        if (isExpired(job)) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>This vacancy has closed. Check the official advert for current opportunities.</body></html>", 410, "noindex");
+        return new Response(null, {
+          status: 301,
+          headers: {
+            Location: new URL(jobPagePath(job), url.origin).href,
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+      const jobPath = url.pathname.match(/^\/([^/]+)\/?$/);
+      if (jobPath && !["api", "jobs"].includes(jobPath[1])) {
         let jobId;
         try {
           jobId = decodeURIComponent(jobPath[1]);
         } catch {
           return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>Vacancy not found.</body></html>", 404, "noindex");
         }
-        const job = publicJobs.find(candidate => candidate.id === jobId);
+        const job = publicJobs.find(candidate => candidate.slug === jobId || candidate.id === jobId);
         if (!job) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>Vacancy not found.</body></html>", 404, "noindex");
         if (isExpired(job)) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>This vacancy has closed. Check the official advert for current opportunities.</body></html>", 410, "noindex");
+        if (jobId !== job.slug) {
+          return new Response(null, {
+            status: 301,
+            headers: {
+              Location: new URL(jobPagePath(job), url.origin).href,
+              "Cache-Control": "public, max-age=3600"
+            }
+          });
+        }
         return vacancyPage(job, url);
       }
       if (url.pathname !== "/api/jobs") return jsonResponse({ error: "Not found." }, 404);

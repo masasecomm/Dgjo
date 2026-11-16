@@ -50,12 +50,17 @@ function createEnv(jobs, token = "test-token") {
 
 test("vacancy route renders unique metadata, full details and valid structured data", async () => {
   const job = makeJob();
-  const response = await worker.fetch(new Request(`https://jobs.example/jobs/${job.id}/`), createEnv([job]));
+  const slug = "assistant-director-example-1-1-example-1";
+  const response = await worker.fetch(new Request(`https://jobs.example/${slug}/`), createEnv([job]));
   const html = await response.text();
 
   assert.equal(response.status, 200);
   assert.match(html, /<title>Assistant Director: Example at Department of Health \| DPSA Government Jobs<\/title>/);
-  assert.match(html, /<link rel="canonical" href="https:\/\/jobs\.example\/jobs\/assistant-director-example\/">/);
+  assert.equal(html.split("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347").length - 1, 1);
+  assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example/${slug}/">`));
+  assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/south-african-coat-of-arms\.png" alt="South African coat of arms" width="58" height="58"/);
+  assert.match(html, /class="site-header"/);
+  assert.doesNotMatch(html, /<link rel="stylesheet"/);
   assert.match(html, /Read the official vacancy advert or circular/);
   assert.match(html, /Requirements/);
   assert.match(html, /Hiring department:<\/strong> Department of Health/);
@@ -69,9 +74,31 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.equal(structuredData.validThrough, "2099-12-31T16:00:00+02:00");
 });
 
+test("vacancy URLs combine the normalized title, post number and reference number", async () => {
+  const job = makeJob({
+    title: "ASSISTANT DIRECTOR: SECURITY MANAGEMENT",
+    postNo: "41/100",
+    refNo: "2026/165/OCJ"
+  });
+  const env = createEnv([job]);
+  const canonicalPath = "/assistant-director-security-management-41-100-2026-165-ocj/";
+  const canonicalResponse = await worker.fetch(new Request(`https://jobs.example${canonicalPath}`), env);
+  const html = await canonicalResponse.text();
+
+  assert.equal(canonicalResponse.status, 200);
+  assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example${canonicalPath}">`));
+
+  const legacyResponse = await worker.fetch(new Request(`https://jobs.example/jobs/${job.id}/`), env);
+  assert.equal(legacyResponse.status, 301);
+  assert.equal(legacyResponse.headers.get("Location"), `https://jobs.example${canonicalPath}`);
+  const oldSlugResponse = await worker.fetch(new Request(`https://jobs.example/jobs/${canonicalPath.slice(1, -1)}/`), env);
+  assert.equal(oldSlugResponse.status, 301);
+  assert.equal(oldSlugResponse.headers.get("Location"), `https://jobs.example${canonicalPath}`);
+});
+
 test("generic employer data is not presented as the hiring department or marked up as a JobPosting", async () => {
   const job = makeJob({ company: "South African Public Service", centre: "Labour", location: "Labour" });
-  const response = await worker.fetch(new Request(`https://jobs.example/jobs/${job.id}/`), createEnv([job]));
+  const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
   const html = await response.text();
 
   assert.equal(response.status, 200);
@@ -107,7 +134,7 @@ test("legacy DPSA records use verified facts and emit JobPosting markup when the
     enquiries: "Mr M Njamela, telephone (043) 702 7500."
   });
   const env = createEnv([job]);
-  const pageResponse = await worker.fetch(new Request(`https://jobs.example/jobs/${job.id}/`), env);
+  const pageResponse = await worker.fetch(new Request("https://jobs.example/client-service-officer-employer-services-41-20-hr4-4-11-26/"), env);
   const html = await pageResponse.text();
   const jsonLd = html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/);
 
@@ -132,7 +159,7 @@ test("legacy DPSA records use verified facts and emit JobPosting markup when the
 
 test("untrusted vacancy text is escaped in the page and structured data", async () => {
   const job = makeJob({ duties: "</script><script>alert('x')</script>" });
-  const response = await worker.fetch(new Request(`https://jobs.example/jobs/${job.id}/`), createEnv([job]));
+  const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
   const html = await response.text();
 
   assert.equal(response.status, 200);
@@ -144,6 +171,7 @@ test("sitemap excludes expired jobs and unknown job IDs return 404", async () =>
   const active = makeJob();
   const expired = makeJob({
     id: "closed-post",
+    title: "CLOSED POST",
     closingDate: "1 January 2020",
     posted: "Closing date: 1 January 2020"
   });
@@ -152,14 +180,18 @@ test("sitemap excludes expired jobs and unknown job IDs return 404", async () =>
   const sitemap = await sitemapResponse.text();
 
   assert.equal(sitemapResponse.status, 200);
-  assert.match(sitemap, /\/jobs\/assistant-director-example\//);
+  assert.match(sitemap, /\/assistant-director-example-1-1-example-1\//);
   assert.doesNotMatch(sitemap, /closed-post/);
 
-  const closedResponse = await worker.fetch(new Request("https://jobs.example/jobs/closed-post/"), env);
+  const closedResponse = await worker.fetch(new Request("https://jobs.example/closed-post-1-1-example-1/"), env);
   assert.equal(closedResponse.status, 410);
   assert.equal(closedResponse.headers.get("X-Robots-Tag"), "noindex");
-  const missingResponse = await worker.fetch(new Request("https://jobs.example/jobs/missing/"), env);
+  const missingResponse = await worker.fetch(new Request("https://jobs.example/missing-title-and-reference/"), env);
   assert.equal(missingResponse.status, 404);
+
+  const indexResponse = await worker.fetch(new Request("https://jobs.example/jobs/"), env);
+  assert.equal(indexResponse.status, 301);
+  assert.equal(indexResponse.headers.get("Location"), "https://dpsagovernmentjobs.co.za/#listings");
 });
 
 test("public API hides expired jobs while authenticated admin reads retain them", async () => {
@@ -180,5 +212,12 @@ test("robots endpoint advertises the live Worker sitemap", async () => {
   const response = await worker.fetch(new Request("https://jobs.example/robots.txt"), createEnv([]));
   const body = await response.text();
   assert.equal(response.status, 200);
-  assert.match(body, /Sitemap: https:\/\/jobs\.example\/sitemap\.xml/);
+  assert.match(body, /Allow: \/\nSitemap: https:\/\/jobs\.example\/sitemap\.xml/);
+});
+
+test("ads.txt authorizes the configured AdSense publisher", async () => {
+  const response = await worker.fetch(new Request("https://jobs.example/ads.txt"), createEnv([]));
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Content-Type"), "text/plain; charset=utf-8");
+  assert.equal(await response.text(), "google.com, pub-3860151941190347, DIRECT, f08c47fec0942fa0\n");
 });
