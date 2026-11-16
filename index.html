@@ -181,6 +181,28 @@
     const jobsList = document.querySelector("#job-list");
     const jobsStatus = document.querySelector("#job-list-status");
 
+    function splitColonSubpoints(sentence) {
+      const colon = sentence.indexOf(":");
+      if (colon < 0) return [sentence.trim()];
+      const points = [];
+      let start = colon + 1;
+      const brackets = [];
+      const pairs = { ")": "(", "]": "[", "}": "{" };
+      for (let index = start; index < sentence.length; index++) {
+        const character = sentence[index];
+        if ("([{".includes(character)) brackets.push(character);
+        else if (pairs[character] && brackets.at(-1) === pairs[character]) brackets.pop();
+        else if (!brackets.length && (character === "/" || character === ",")) {
+          points.push(sentence.slice(start, index).trim());
+          start = index + 1;
+        }
+      }
+      if (!points.length) return [sentence.trim()];
+      points.push(sentence.slice(start).trim());
+      const prefix = sentence.slice(0, colon + 1).trim();
+      return points.filter(Boolean).map(point => `${prefix} ${point}`);
+    }
+
     function splitVacancyPoints(value) {
       const lines = String(value ?? "").replace(/\r/g, "").split(/\n+/);
       const points = [];
@@ -200,17 +222,9 @@
             return `${token}${punctuation}`;
           }).trim();
           if (!line) continue;
-          const sentences = line.split(/(?<=[.!?])\s+(?=[A-Z0-9])/);
+          const sentences = line.split(/(?<=\.)\s+/);
           for (const sentence of sentences) {
-            const colon = sentence.indexOf(":");
-            const separators = colon >= 0 ? [...sentence.slice(colon + 1).matchAll(/[\/,]/g)] : [];
-            if (!separators.length) {
-              points.push(sentence.trim());
-              continue;
-            }
-            const prefix = sentence.slice(0, colon + 1).trim();
-            const subpoints = sentence.slice(colon + 1).split(/[\/,]/).map(point => point.trim()).filter(Boolean);
-            for (const point of subpoints) points.push(`${prefix} ${point}`);
+            points.push(...splitColonSubpoints(sentence));
           }
         }
       }
