@@ -220,12 +220,44 @@
           : null;
         if (sourceUrl) {
           verify.href = sourceUrl;
-          verify.textContent = "View original advert ↗";
+          verify.textContent = job.circularName ? "View official circular PDF ↗" : "View original advert ↗";
         } else {
           verify.href = "https://www.google.com/search?q=" + encodeURIComponent(`${job.title} ${job.company} job`);
           verify.textContent = "Search for this job ↗";
         }
-        card.append(title, company, location, details, verify);
+        card.append(title, company, location, details);
+
+        const vacancyFields = [
+          ["Reference number", job.refNo],
+          ["Post number", job.postNo],
+          ["Closing date", job.closingDate],
+          ["Appointment type", job.natureOfAppointment],
+          ["Job level", job.level],
+          ["Centre", job.centre],
+          ["Requirements", job.requirements],
+          ["Duties", job.duties],
+          ["Job purpose", job.jobPurpose],
+          ["Skills and competencies", job.skillsAndCompetencies],
+          ["How to apply", job.applications],
+          ["Enquiries", job.enquiries],
+          ["Notes", job.note]
+        ].filter(([, value]) => typeof value === "string" && value.trim());
+        if (vacancyFields.length) {
+          const vacancyDetails = document.createElement("details");
+          vacancyDetails.className = "vacancy-details";
+          const summary = document.createElement("summary");
+          summary.textContent = "Vacancy details";
+          vacancyDetails.append(summary);
+          for (const [label, value] of vacancyFields) {
+            const field = document.createElement("p");
+            const fieldLabel = document.createElement("strong");
+            fieldLabel.textContent = `${label}: `;
+            field.append(fieldLabel, document.createTextNode(value));
+            vacancyDetails.append(field);
+          }
+          card.append(vacancyDetails);
+        }
+        card.append(verify);
         jobsList.append(card);
       });
     }

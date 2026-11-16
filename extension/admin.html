@@ -22,7 +22,10 @@
         <h1>Job listings</h1>
         <p class="intro-copy">Manage public job opportunities in any location. Add the advert link and enter the job’s location as shown in the listing.</p>
       </div>
-      <button id="add-job" class="button button-dark" type="button"><span aria-hidden="true">＋</span> Add a job</button>
+      <div class="page-actions">
+        <button id="refresh-jobs" class="button button-light" type="button" disabled>Refresh jobs</button>
+        <button id="add-job" class="button button-dark" type="button"><span aria-hidden="true">＋</span> Add a job</button>
+      </div>
     </section>
 
     <section class="settings-card" aria-labelledby="connection-title">
@@ -46,6 +49,49 @@
         <div class="connected-actions">
           <button id="change-connection" class="text-button" type="button">Change connection</button>
           <button id="forget-credentials" class="text-button" type="button">Forget saved credentials</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="import-section" aria-labelledby="import-title">
+      <div class="import-heading">
+        <div>
+          <h2 id="import-title">Import DPSA circular PDFs</h2>
+          <p>Choose a PDF, paste its official DPSA link, or find circulars on the DPSA website. Review vacancies before publishing.</p>
+        </div>
+      </div>
+      <div class="import-tools">
+        <label class="field"><span>Select one or more PDF files</span><input id="pdf-files" type="file" accept="application/pdf,.pdf" multiple></label>
+        <div class="field">
+          <label class="field-label" for="pdf-url">Or paste an official DPSA PDF URL</label>
+          <div class="import-url-row"><input id="pdf-url" type="url" placeholder="https://www.dpsa.gov.za/…/circular.pdf"><button id="load-pdf-url" class="button button-light" type="button">Load PDF</button></div>
+        </div>
+        <div class="discover-row">
+          <button id="discover-circulars" class="button button-light" type="button">Find DPSA circulars</button>
+          <label class="visually-hidden" for="circular-picker">Choose a DPSA circular</label>
+          <select id="circular-picker" disabled><option value="">Find circulars to see the list</option></select>
+          <button id="load-circular" class="button button-light" type="button" disabled>Load selected</button>
+        </div>
+      </div>
+      <p id="import-status" class="import-status" role="status" aria-live="polite"></p>
+      <div id="import-results" hidden>
+        <div class="import-result-heading">
+          <div><h3 id="import-count">0 vacancies found</h3><p id="import-sources"></p></div>
+          <div class="import-result-actions">
+            <button id="export-excel" class="button button-light" type="button">Download Excel</button>
+            <button id="clear-import" class="button button-light" type="button">Clear import</button>
+            <button id="publish-import" class="button button-dark" type="button">Publish selected</button>
+          </div>
+        </div>
+        <div id="import-progress" class="import-progress" hidden>
+          <progress id="publish-progress" max="100" value="0"></progress>
+          <span id="publish-status"></span>
+        </div>
+        <div class="import-table-wrap">
+          <table class="import-table">
+            <thead><tr><th><input id="select-all-import" type="checkbox" aria-label="Select all vacancies"></th><th>Post / ref</th><th>Job title</th><th>Department</th><th>Location</th><th>Closing date</th><th>Review details</th></tr></thead>
+            <tbody id="import-table-body"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -80,7 +126,6 @@
       <div class="dialog-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> JOB DETAILS</p><h2 id="form-title">Add a job</h2></div><button id="cancel-edit" class="close-button" type="button" aria-label="Close dialog">×</button></div>
       <input id="job-id" type="hidden">
       <div class="form-grid">
-        <label class="field field-wide"><span>Job title</span><input id="title" maxlength="160" placeholder="e.g. Product Designer" required></label>
         <label class="field field-wide"><span>Official advert URL</span><input id="source-url" type="url" placeholder="https://… department advert or official circular" required></label>
         <label class="field field-wide"><span>Job title</span><input id="title" maxlength="160" placeholder="e.g. Administrative Clerk" required></label>
         <label class="field"><span>Department</span><input id="company" maxlength="160" placeholder="e.g. Department of Health" required></label>
@@ -98,6 +143,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="admin.js"></script>
+  <script src="admin.bundle.js"></script>
 </body>
 </html>

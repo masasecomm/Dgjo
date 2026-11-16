@@ -10,10 +10,21 @@ const TYPES = new Set([
   "Full-time", "Part-time", "Contract", "Internship"
 ]);
 const MAX_JOBS = 500;
+const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
+const OPTIONAL_TEXT_FIELDS = new Map([
+  ["circularName", 160], ["circularDate", 80], ["postNo", 80], ["refNo", 160],
+  ["province", 80], ["natureOfAppointment", 160], ["branch", 6000],
+  ["chiefDirectorate", 6000], ["directorate", 6000], ["cluster", 6000],
+  ["level", 160], ["centre", 6000], ["closingDate", 120],
+  ["requirements", 6000], ["duties", 6000], ["jobPurpose", 6000],
+  ["skillsAndCompetencies", 6000], ["enquiries", 6000], ["applications", 6000],
+  ["note", 6000]
+]);
 const JOB_FIELDS = new Set([
   "id", "title", "company", "location", "type", "category", "salary",
-  "salaryText", "posted", "logo", "color", "logoColor", "sourceUrl"
+  "salaryText", "posted", "logo", "color", "logoColor", "sourceUrl",
+  ...OPTIONAL_TEXT_FIELDS.keys()
 ]);
 
 function jsonResponse(body, status = 200) {
@@ -44,6 +55,9 @@ function validateJobs(value) {
     if (ids.has(job.id) || !CATEGORIES.has(job.category) || !TYPES.has(job.type)) return false;
     if (!Number.isFinite(job.salary) || job.salary < 0 || job.salary > 100000000) return false;
     if (!/^#[0-9a-f]{6}$/i.test(job.color) || !/^#[0-9a-f]{6}$/i.test(job.logoColor)) return false;
+    for (const [field, maxLength] of OPTIONAL_TEXT_FIELDS) {
+      if (job[field] !== undefined && (typeof job[field] !== "string" || job[field].length > maxLength)) return false;
+    }
     if (job.sourceUrl !== undefined) {
       if (typeof job.sourceUrl !== "string" || job.sourceUrl.length > 2048) return false;
       try {
@@ -97,7 +111,12 @@ export default {
       return jsonResponse({ error: "Job list is invalid or exceeds the 500-job limit." }, 400);
     }
 
-    await env.JOBS.put(JOBS_KEY, JSON.stringify(jobs));
+    const serializedJobs = JSON.stringify(jobs);
+    if (new TextEncoder().encode(serializedJobs).byteLength > MAX_JOBS_BYTES) {
+      return jsonResponse({ error: "Job list is too large to store. Shorten vacancy descriptions and try again." }, 413);
+    }
+
+    await env.JOBS.put(JOBS_KEY, serializedJobs);
     return jsonResponse({ success: true, count: jobs.length });
   }
 };

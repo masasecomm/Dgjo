@@ -67,6 +67,10 @@ h3 { margin-bottom: 10px; font-size: 20px; letter-spacing: -.45px; }
 .listing-card h3 { margin-bottom: 9px; }
 .listing-meta { margin: 0 0 7px; color: var(--muted); font-size: 14px; }
 .listing-card .text-link { margin-top: 15px; }
+.vacancy-details { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.vacancy-details summary { width: fit-content; color: var(--ink); cursor: pointer; font-weight: 650; }
+.vacancy-details p { margin: 8px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.vacancy-details strong { color: var(--ink); }
 .listing-empty { grid-column: 1 / -1; margin: 0; padding: 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); color: var(--muted); }
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 0; padding: 0; list-style: none; }
 .steps li { display: flex; align-items: flex-start; gap: 13px; }

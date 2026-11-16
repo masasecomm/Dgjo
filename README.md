@@ -12,7 +12,7 @@ From the `cloudflare` directory (use `npm.cmd` / `npx.cmd` in Windows PowerShell
 4. Create a long, unique admin key and set it as a Worker secret with `npx.cmd wrangler secret put ADMIN_TOKEN`. Enter the same key in the Chrome extension when connecting. Do not put this key in the repository or website code.
 5. Deploy with `npm.cmd run deploy`.
 
-The API URL is printed by Wrangler and ends in `/api/jobs`. `GET /api/jobs` returns the published listings. `PUT /api/jobs` replaces them and requires the admin key. Redeploy the Worker after updating this repository so it accepts the official advert URL field.
+The API URL is printed by Wrangler and ends in `/api/jobs`. `GET /api/jobs` returns the published listings. `PUT /api/jobs` replaces them and requires the admin key. Redeploy the Worker after updating this repository so it accepts imported vacancy details and validates the job-list size.
 
 ## Public website
 
@@ -38,6 +38,7 @@ The site loads the Google tag `GT-NMDDFKGP` and configures the Google Analytics 
 2. Select **Load unpacked** and choose this repository's `extension` folder.
 3. Click the DPSA Government Jobs Manager extension icon to open the full-page admin dashboard.
 4. Enter the Worker API URL and admin key, then select **Connect and save**. Approve Chrome's prompt to access the Worker.
-5. Add, edit, or delete listings. Include an HTTPS advert URL and “South Africa” in the location; only South African listings appear on the public homepage.
+5. Add, edit, or delete listings. Jobs from any location can appear on the public homepage.
+6. To import DPSA vacancies, first run `npm.cmd install` and `npm.cmd run build` inside `extension`. Reload the unpacked extension, then choose local PDFs or use **Find DPSA circulars**. Approve access to the official DPSA website when Chrome asks. Review or edit extracted vacancies before publishing selected jobs. Scanned PDFs without selectable text cannot be imported automatically. **Download Excel** exports the current review; **Clear import** only clears the review and does not remove published jobs.
 
-The extension remembers the Worker URL and admin key in Chrome's local extension storage on this browser profile. These credentials are not synced by the extension or sent to the website, but they are not separately encrypted by the extension; anyone with access to this Chrome profile or device may be able to access them. Use **Forget saved credentials** to remove them from this browser. The extension asks for site access only to the Worker origin you enter.
+The extension remembers the Worker URL and admin key in Chrome's local extension storage on this browser profile. These credentials are not synced by the extension or sent to the website, but they are not separately encrypted by the extension; anyone with access to this Chrome profile or device may be able to access them. Use **Forget saved credentials** to remove them from this browser. The extension asks for site access only to the Worker origin you enter and the DPSA website when importing circulars.

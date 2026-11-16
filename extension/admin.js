@@ -1,9 +1,19 @@
+import * as XLSX from "@e965/xlsx";
+import {
+  discoverDpsaCirculars,
+  downloadDpsaPdf,
+  extractPdfText,
+  parseDpsaCircular
+} from "./importer.js";
+
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
 const apiUrlInput = document.querySelector("#api-url");
 const tokenInput = document.querySelector("#admin-token");
+const sourceUrlInput = document.querySelector("#source-url");
 const connectionForm = document.querySelector("#connection-form");
 const connectButton = document.querySelector("#connect");
+const refreshButton = document.querySelector("#refresh-jobs");
 const forgetButton = document.querySelector("#forget-credentials");
 const connectionBadge = document.querySelector("#connection-badge");
 const connectedDetails = document.querySelector("#connected-details");
@@ -15,11 +25,26 @@ const jobSummary = document.querySelector("#job-summary");
 const dialog = document.querySelector("#job-dialog");
 const form = document.querySelector("#job-form");
 const toast = document.querySelector("#toast");
+const pdfFilesInput = document.querySelector("#pdf-files");
+const pdfUrlInput = document.querySelector("#pdf-url");
+const importStatus = document.querySelector("#import-status");
+const importResults = document.querySelector("#import-results");
+const importCount = document.querySelector("#import-count");
+const importSources = document.querySelector("#import-sources");
+const importTableBody = document.querySelector("#import-table-body");
+const selectAllImport = document.querySelector("#select-all-import");
+const circularPicker = document.querySelector("#circular-picker");
+const loadCircularButton = document.querySelector("#load-circular");
+const importProgress = document.querySelector("#import-progress");
+const publishProgress = document.querySelector("#publish-progress");
+const publishStatus = document.querySelector("#publish-status");
 let apiUrl;
 let adminToken;
 let jobs = [];
 let activeFilter = "All";
 let toastTimer;
+const importedVacancies = new Map();
+let circularOptions = [];
 
 function showToast(message, isError = false) {
   toast.textContent = message;
@@ -35,6 +60,8 @@ function setConnected(connected) {
   connectionBadge.innerHTML = `<span class="badge-dot"></span> ${connected ? "Connected" : "Not connected"}`;
   jobSearch.disabled = !connected;
   sortJobs.disabled = !connected;
+  refreshButton.disabled = !connected;
+  updatePublishButton();
 }
 
 function validateApiUrl(value) {
@@ -95,6 +122,7 @@ async function connect(urlValue, tokenValue, askPermission) {
     connectionForm.classList.remove("connection-error");
     connectionForm.hidden = true;
     connectedDetails.hidden = false;
+    forgetButton.hidden = false;
     connectedUrl.textContent = url.origin;
     setConnected(true);
     renderJobs();
@@ -212,6 +240,283 @@ function renderJobs() {
   });
 }
 
+function setImportStatus(message, isError = false) {
+  importStatus.textContent = message;
+  importStatus.classList.toggle("error", isError);
+}
+
+function requestDpsaPermission(url) {
+  return chrome.permissions.request({ origins: [`${url.origin}/*`] }).then(granted => {
+    if (!granted) throw new Error("Allow access to the DPSA website to load its circulars.");
+  });
+}
+
+function renderImportedVacancies() {
+  const vacancies = [...importedVacancies.values()];
+  importResults.hidden = vacancies.length === 0;
+  importCount.textContent = `${vacancies.length} ${vacancies.length === 1 ? "vacancy" : "vacancies"} found`;
+  importSources.textContent = vacancies.length > 200
+    ? `Showing the first 200 here. Excel export and publishing include all ${vacancies.length}.`
+    : `${new Set(vacancies.map(job => job.circularName)).size} circular${new Set(vacancies.map(job => job.circularName)).size === 1 ? "" : "s"} loaded`;
+  importTableBody.replaceChildren();
+
+  for (const vacancy of vacancies.slice(0, 200)) {
+    const row = document.createElement("tr");
+    const selectCell = document.createElement("td");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = vacancy.selected;
+    checkbox.setAttribute("aria-label", `Select ${vacancy.title}`);
+    checkbox.addEventListener("change", () => {
+      vacancy.selected = checkbox.checked;
+      selectAllImport.checked = vacancies.every(item => item.selected);
+      selectAllImport.indeterminate = !selectAllImport.checked && vacancies.some(item => item.selected);
+      updatePublishButton();
+    });
+    selectCell.append(checkbox);
+
+    const identity = document.createElement("td");
+    identity.textContent = [vacancy.postNo && `Post ${vacancy.postNo}`, vacancy.refNo && `Ref ${vacancy.refNo}`].filter(Boolean).join(" / ") || "Not stated";
+    row.append(selectCell, identity);
+    appendEditableCell(row, vacancy, "title", "Job title");
+    appendEditableCell(row, vacancy, "company", "Department");
+    appendEditableCell(row, vacancy, "location", "Location");
+    appendEditableCell(row, vacancy, "closingDate", "Closing date");
+
+    const detailsCell = document.createElement("td");
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "Edit details";
+    details.append(summary);
+    const detailFields = [
+      ["requirements", "Requirements"],
+      ["duties", "Duties"],
+      ["jobPurpose", "Job purpose"],
+      ["skillsAndCompetencies", "Skills and competencies"],
+      ["natureOfAppointment", "Appointment type"],
+      ["salaryText", "Salary / stipend"],
+      ["sourceUrl", "Official advert or circular URL"],
+      ["level", "Level"],
+      ["branch", "Branch"],
+      ["directorate", "Directorate"],
+      ["chiefDirectorate", "Chief directorate"],
+      ["cluster", "Cluster"],
+      ["centre", "Centre"],
+      ["enquiries", "Enquiries"],
+      ["applications", "How to apply"],
+      ["note", "Notes"]
+    ];
+    for (const [key, label] of detailFields) {
+      const field = document.createElement("label");
+      field.className = "import-detail-field";
+      const fieldLabel = document.createElement("span");
+      fieldLabel.textContent = label;
+      const input = document.createElement(["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note"].includes(key) ? "textarea" : "input");
+      if (key === "sourceUrl") input.type = "url";
+      input.value = vacancy[key] ?? "";
+      input.maxLength = key === "sourceUrl" ? 2048 : ["requirements", "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications", "note"].includes(key) ? 6000 : 160;
+      input.addEventListener("input", () => {
+        vacancy[key] = input.value.trim();
+      });
+      field.append(fieldLabel, input);
+      details.append(field);
+    }
+    detailsCell.append(details);
+    row.append(detailsCell);
+    importTableBody.append(row);
+  }
+  selectAllImport.checked = vacancies.length > 0 && vacancies.every(item => item.selected);
+  selectAllImport.indeterminate = !selectAllImport.checked && vacancies.some(item => item.selected);
+  updatePublishButton();
+}
+
+function appendEditableCell(row, vacancy, key, label) {
+  const cell = document.createElement("td");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = vacancy[key] ?? "";
+  input.maxLength = key === "title" || key === "company" || key === "location" ? 160 : 120;
+  input.setAttribute("aria-label", label);
+  input.addEventListener("input", () => {
+    vacancy[key] = input.value.trim();
+  });
+  cell.append(input);
+  row.append(cell);
+}
+
+function updatePublishButton() {
+  const selectedCount = [...importedVacancies.values()].filter(job => job.selected).length;
+  const button = document.querySelector("#publish-import");
+  button.disabled = !adminToken || selectedCount === 0;
+  button.textContent = selectedCount ? `Publish selected (${selectedCount})` : "Publish selected";
+}
+
+async function importPdfFile(file, sourceUrl = "") {
+  const text = await extractPdfText(file);
+  if (!text.replace(/__PAGE_\d+__/g, "").trim()) {
+    throw new Error("No selectable text was found. This may be a scanned PDF; image-only PDFs need OCR and cannot be imported automatically.");
+  }
+  const { vacancies } = parseDpsaCircular(text, { fileName: file.name, sourceUrl });
+  if (!vacancies.length) {
+    throw new Error("No DPSA post headings were found. Check that this is a text-based DPSA vacancy circular.");
+  }
+  let added = 0;
+  for (const vacancy of vacancies) {
+    if (!importedVacancies.has(vacancy.id)) added++;
+    importedVacancies.set(vacancy.id, { ...vacancy, selected: false });
+  }
+  renderImportedVacancies();
+  return { found: vacancies.length, added };
+}
+
+async function importFiles(files) {
+  if (!files.length) return;
+  setImportStatus(`Reading ${files.length} PDF${files.length === 1 ? "" : "s"}…`);
+  const results = [];
+  let successfulFiles = 0;
+  let failedFiles = 0;
+  for (const file of files) {
+    try {
+      const result = await importPdfFile(file);
+      results.push(`${file.name}: ${result.found} vacancies`);
+      successfulFiles++;
+    } catch (error) {
+      results.push(`${file.name}: ${error.message}`);
+      failedFiles++;
+    }
+  }
+  setImportStatus(results.join(" · "), failedFiles > 0 && successfulFiles === 0);
+}
+
+async function importDpsaUrl(url) {
+  const parsedUrl = new URL(url);
+  if (parsedUrl.protocol !== "https:" || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(parsedUrl.hostname) || !parsedUrl.pathname.toLowerCase().endsWith(".pdf")) {
+    throw new Error("For safety, PDF links must be HTTPS PDFs hosted on dpsa.gov.za.");
+  }
+  await requestDpsaPermission(parsedUrl);
+  const { file, url: sourceUrl } = await downloadDpsaPdf(parsedUrl.href);
+  return importPdfFile(file, sourceUrl);
+}
+
+function truncate(value, limit) {
+  return String(value ?? "").trim().slice(0, limit);
+}
+
+function createPublishedVacancy(vacancy) {
+  const title = truncate(vacancy.title, 160);
+  const company = truncate(vacancy.company, 160) || "South African Public Service";
+  const location = truncate(vacancy.location, 160) || "South Africa";
+  const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
+  const closingDate = truncate(vacancy.closingDate, 120);
+  const maxDetailLength = 6000;
+  const existingDetails = {
+    circularName: truncate(vacancy.circularName, 160),
+    circularDate: truncate(vacancy.circularDate, 80),
+    postNo: truncate(vacancy.postNo, 80),
+    refNo: truncate(vacancy.refNo, 160),
+    province: truncate(vacancy.province, 80),
+    natureOfAppointment: truncate(vacancy.natureOfAppointment, 160),
+    branch: truncate(vacancy.branch, maxDetailLength),
+    chiefDirectorate: truncate(vacancy.chiefDirectorate, maxDetailLength),
+    directorate: truncate(vacancy.directorate, maxDetailLength),
+    cluster: truncate(vacancy.cluster, maxDetailLength),
+    level: truncate(vacancy.level, 160),
+    centre: truncate(vacancy.centre, maxDetailLength),
+    closingDate,
+    requirements: truncate(vacancy.requirements, maxDetailLength),
+    duties: truncate(vacancy.duties, maxDetailLength),
+    jobPurpose: truncate(vacancy.jobPurpose, maxDetailLength),
+    skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
+    enquiries: truncate(vacancy.enquiries, maxDetailLength),
+    applications: truncate(vacancy.applications, maxDetailLength),
+    note: truncate(vacancy.note, maxDetailLength)
+  };
+  const sourceUrl = truncate(vacancy.sourceUrl, 2048);
+  return {
+    id: truncate(vacancy.id, 160),
+    ...(sourceUrl ? { sourceUrl } : {}),
+    title,
+    company,
+    location,
+    category: vacancy.category,
+    type: vacancy.type,
+    salary: Number.isFinite(vacancy.salary) ? vacancy.salary : 0,
+    salaryText,
+    posted: closingDate ? `Closing date: ${closingDate}` : "Closing date: check official advert",
+    logo: company.slice(0, 1).toLowerCase(),
+    color: "#eaf1e2",
+    logoColor: "#64803f",
+    ...existingDetails
+  };
+}
+
+function vacancyMatchKey(job) {
+  const postIdentity = [job.postNo, job.refNo].filter(Boolean).join("|").toLowerCase();
+  if (postIdentity) return `${job.sourceUrl ?? ""}|${postIdentity}`;
+  return `${job.title}|${job.company}`.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+async function publishImportedVacancies() {
+  if (!apiUrl || !adminToken) {
+    showToast("Connect to your Worker before publishing imported jobs.", true);
+    return;
+  }
+  const selected = [...importedVacancies.values()].filter(vacancy => vacancy.selected);
+  if (!selected.length) {
+    showToast("Select at least one vacancy to publish.", true);
+    return;
+  }
+  const incomplete = selected.find(vacancy => !vacancy.title.trim() || !vacancy.company.trim() || !vacancy.location.trim());
+  if (incomplete) {
+    showToast(`Complete the title, department, and location for “${incomplete.title || "the selected vacancy"}” before publishing.`, true);
+    return;
+  }
+  const invalidSource = selected.find(vacancy => {
+    if (!vacancy.sourceUrl) return false;
+    try {
+      return new URL(vacancy.sourceUrl).protocol !== "https:";
+    } catch {
+      return true;
+    }
+  });
+  if (invalidSource) {
+    showToast(`Use a valid HTTPS official advert or circular URL for “${invalidSource.title}”.`, true);
+    return;
+  }
+  if (!confirm(`Publish ${selected.length} selected vacancies to your website? Existing jobs will be kept.`)) return;
+  if (jobs.length > 500) {
+    showToast("The Worker currently has more than 500 jobs. Remove some listings before importing.", true);
+    return;
+  }
+
+  const byKey = new Map(jobs.map(job => [vacancyMatchKey(job), job]));
+  const imported = selected.map(createPublishedVacancy);
+  for (const vacancy of imported) byKey.set(vacancyMatchKey(vacancy), vacancy);
+  const nextJobs = [...byKey.values()];
+  if (nextJobs.length > 500) {
+    showToast(`This import would exceed the 500-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
+    return;
+  }
+
+  const button = document.querySelector("#publish-import");
+  button.disabled = true;
+  importProgress.hidden = false;
+  publishProgress.value = 20;
+  publishStatus.textContent = `Publishing ${selected.length} vacancies…`;
+  try {
+    await publishJobs(nextJobs);
+    publishProgress.value = 100;
+    publishStatus.textContent = `Published ${selected.length} vacancies. Existing listings were retained.`;
+    showToast(`${selected.length} vacancies published.`);
+  } catch (error) {
+    publishProgress.value = 0;
+    publishStatus.textContent = `Publish failed: ${error.message}`;
+    showToast(`Could not publish imported vacancies: ${error.message}`, true);
+  } finally {
+    updatePublishButton();
+  }
+}
+
 async function publishJobs(nextJobs) {
   const response = await fetch(apiUrl, {
     method: "PUT",
@@ -239,7 +544,8 @@ async function publishJobs(nextJobs) {
 function openEditor(job = null) {
   form.reset();
   document.querySelector("#job-id").value = job?.id ?? "";
-  document.querySelector("#source-url").value = job?.sourceUrl ?? "";
+  sourceUrlInput.value = job?.sourceUrl ?? "";
+  sourceUrlInput.required = job ? Boolean(job.sourceUrl) : true;
   document.querySelector("#title").value = job?.title ?? "";
   document.querySelector("#company").value = job?.company ?? "";
   document.querySelector("#location").value = job?.location ?? "";
@@ -290,6 +596,22 @@ document.querySelector("#add-job").addEventListener("click", () => {
   if (adminToken) openEditor();
   else showToast("Connect to your Worker before adding a job.", true);
 });
+refreshButton.addEventListener("click", async () => {
+  if (!apiUrl || !adminToken) {
+    showToast("Connect to your Worker before refreshing jobs.", true);
+    return;
+  }
+  refreshButton.disabled = true;
+  try {
+    jobs = await readJobs(apiUrl, adminToken);
+    renderJobs();
+    showToast("Job list refreshed.");
+  } catch (error) {
+    showToast(`Could not refresh jobs: ${error.message}`, true);
+  } finally {
+    refreshButton.disabled = false;
+  }
+});
 document.querySelector("#cancel-edit").addEventListener("click", () => dialog.close());
 document.querySelector("#cancel-form").addEventListener("click", () => dialog.close());
 dialog.addEventListener("click", event => {
@@ -307,9 +629,10 @@ form.addEventListener("submit", async event => {
   event.preventDefault();
   const id = document.querySelector("#job-id").value || crypto.randomUUID();
   const title = document.querySelector("#title").value.trim();
+  const sourceUrl = sourceUrlInput.value.trim();
   const job = {
     id,
-    sourceUrl: document.querySelector("#source-url").value.trim(),
+    ...(sourceUrl ? { sourceUrl } : {}),
     title,
     company: document.querySelector("#company").value.trim(),
     location: document.querySelector("#location").value.trim(),
@@ -350,3 +673,134 @@ async function initialize() {
 }
 
 initialize().catch(error => showToast(`Could not load saved settings: ${error.message}`, true));
+
+pdfFilesInput.addEventListener("change", async () => {
+  await importFiles([...pdfFilesInput.files]);
+  pdfFilesInput.value = "";
+});
+
+document.querySelector("#load-pdf-url").addEventListener("click", async event => {
+  const button = event.currentTarget;
+  const url = pdfUrlInput.value.trim();
+  if (!url) {
+    setImportStatus("Paste an official DPSA PDF URL first.", true);
+    return;
+  }
+  button.disabled = true;
+  setImportStatus("Loading the DPSA PDF…");
+  try {
+    const result = await importDpsaUrl(url);
+    setImportStatus(`Loaded ${result.found} vacancies from the DPSA PDF.`);
+  } catch (error) {
+    setImportStatus(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#discover-circulars").addEventListener("click", async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  circularPicker.disabled = true;
+  loadCircularButton.disabled = true;
+  setImportStatus("Checking the official DPSA circular page…");
+  try {
+    await requestDpsaPermission(new URL("https://www.dpsa.gov.za/"));
+    circularOptions = await discoverDpsaCirculars();
+    circularPicker.replaceChildren();
+    if (!circularOptions.length) {
+      circularPicker.add(new Option("No PDF circulars found", ""));
+      setImportStatus("No PDF circular links were found on the DPSA page.");
+    } else {
+      circularPicker.add(new Option("Choose a circular…", ""));
+      circularOptions.forEach((circular, index) => circularPicker.add(new Option(circular.label, String(index))));
+      circularPicker.disabled = false;
+      setImportStatus(`Found ${circularOptions.length} PDF circular${circularOptions.length === 1 ? "" : "s"}.`);
+    }
+  } catch (error) {
+    setImportStatus(error.message, true);
+    circularPicker.replaceChildren(new Option("Could not load circulars", ""));
+  } finally {
+    button.disabled = false;
+  }
+});
+
+circularPicker.addEventListener("change", () => {
+  loadCircularButton.disabled = !circularPicker.value;
+});
+
+loadCircularButton.addEventListener("click", async () => {
+  const circular = circularOptions[Number(circularPicker.value)];
+  if (!circular) return;
+  loadCircularButton.disabled = true;
+  setImportStatus(`Loading ${circular.label}…`);
+  try {
+    const result = await importDpsaUrl(circular.url);
+    setImportStatus(`Loaded ${result.found} vacancies from ${circular.label}.`);
+  } catch (error) {
+    setImportStatus(error.message, true);
+  } finally {
+    loadCircularButton.disabled = !circularPicker.value;
+  }
+});
+
+selectAllImport.addEventListener("change", () => {
+  for (const vacancy of importedVacancies.values()) vacancy.selected = selectAllImport.checked;
+  renderImportedVacancies();
+});
+
+document.querySelector("#export-excel").addEventListener("click", () => {
+  if (!importedVacancies.size) {
+    showToast("Import a DPSA circular before exporting.", true);
+    return;
+  }
+  try {
+    const rows = [...importedVacancies.values()].map(({ selected, ...vacancy }) => ({
+    Selected: selected ? "Yes" : "No",
+    "Circular": vacancy.circularName,
+    "Circular date": vacancy.circularDate,
+    "Post number": vacancy.postNo,
+    "Reference number": vacancy.refNo,
+    "Job title": vacancy.title,
+    Department: vacancy.company,
+    Location: vacancy.location,
+    Province: vacancy.province,
+    "Employment type": vacancy.type,
+    "Nature of appointment": vacancy.natureOfAppointment,
+    "Salary / stipend": vacancy.salaryText,
+    "Closing date": vacancy.closingDate,
+    "Job level": vacancy.level,
+    Branch: vacancy.branch,
+    Directorate: vacancy.directorate,
+    "Chief directorate": vacancy.chiefDirectorate,
+    Cluster: vacancy.cluster,
+    Centre: vacancy.centre,
+    Requirements: vacancy.requirements,
+    Duties: vacancy.duties,
+    "Job purpose": vacancy.jobPurpose,
+    "Skills and competencies": vacancy.skillsAndCompetencies,
+    Enquiries: vacancy.enquiries,
+    Applications: vacancy.applications,
+    Notes: vacancy.note,
+    "Official circular URL": vacancy.sourceUrl
+    }));
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "DPSA vacancies");
+    XLSX.writeFile(workbook, "dpsa-vacancies.xlsx");
+  } catch (error) {
+    showToast(`Could not create the Excel file: ${error.message}`, true);
+  }
+});
+
+document.querySelector("#clear-import").addEventListener("click", () => {
+  if (importedVacancies.size && !confirm("Clear all imported vacancies from this review? Published jobs will not be removed.")) return;
+  importedVacancies.clear();
+  importProgress.hidden = true;
+  publishProgress.value = 0;
+  publishStatus.textContent = "";
+  setImportStatus("Import cleared.");
+  renderImportedVacancies();
+});
+
+document.querySelector("#publish-import").addEventListener("click", publishImportedVacancies);

@@ -1,0 +1,15 @@
+{
+  "name": "dpsa-government-jobs-admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^4.10.38",
+    "@e965/xlsx": "0.20.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
