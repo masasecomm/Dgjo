@@ -49,7 +49,10 @@ function createEnv(jobs, token = "test-token") {
 }
 
 test("vacancy route renders unique metadata, full details and valid structured data", async () => {
-  const job = makeJob();
+  const job = makeJob({
+    requirements: "- A relevant qualification.\n- At least three years of experience.",
+    duties: "- Manage the service.\n- Support staff and prepare reports."
+  });
   const slug = "assistant-director-example-1-1-example-1";
   const response = await worker.fetch(new Request(`https://jobs.example/${slug}/`), createEnv([job]));
   const html = await response.text();
@@ -63,6 +66,9 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.doesNotMatch(html, /<link rel="stylesheet"/);
   assert.match(html, /Read the official vacancy advert or circular/);
   assert.match(html, /Requirements/);
+  assert.match(html, /<ul><li>A relevant qualification\.<\/li><li>At least three years of experience\.<\/li><\/ul>/);
+  assert.match(html, /id="how-to-apply"/);
+  assert.match(html, /<ul><li>Manage the service\.<\/li><li>Support staff and prepare reports\.<\/li><\/ul>/);
   assert.match(html, /Hiring department:<\/strong> Department of Health/);
   const jsonLd = html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/);
   assert.ok(jsonLd);
@@ -72,6 +78,21 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.equal(structuredData.jobLocation.address.addressLocality, "Polokwane");
   assert.equal(structuredData.jobLocation.address.addressRegion, "Limpopo");
   assert.equal(structuredData.validThrough, "2099-12-31T16:00:00+02:00");
+  assert.match(structuredData.description, /<ul><li>A relevant qualification/);
+});
+
+test("legacy salary descriptions exclude unrelated prose after the salary and level", async () => {
+  const job = makeJob({
+    salaryText: "R487 197 – R573 897 per annum (Level 09). The successful candidate will be required to sign a performance agreement."
+  });
+  const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+  const apiResponse = await worker.fetch(new Request("https://jobs.example/api/jobs"), createEnv([job]));
+  const [publicJob] = await apiResponse.json();
+
+  assert.match(html, /R487 197 – R573 897 per annum \(Level 09\)/);
+  assert.doesNotMatch(html, /Salary:<\/strong>[^<]*performance agreement/);
+  assert.equal(publicJob.salaryText, "R487 197 – R573 897 per annum (Level 09)");
 });
 
 test("vacancy URLs combine the normalized title, post number and reference number", async () => {

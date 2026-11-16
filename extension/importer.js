@@ -1,4 +1,4 @@
-import { formatVacancyText } from "../vacancy-format.js";
+import { cleanSalaryText, formatVacancyText } from "../vacancy-format.js";
 
 const MAX_PDF_BYTES = 40 * 1024 * 1024;
 const MAX_PDF_PAGES = 500;
@@ -129,7 +129,7 @@ function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers,
   const department = explicitDepartment || departmentContext;
   const province = cleanText(text.match(/\b(?:EASTERN CAPE|FREE STATE|GAUTENG|KWAZULU[- ]?NATAL|LIMPOPO|MPUMALANGA|NORTHERN CAPE|NORTH WEST|WESTERN CAPE)\b/i)?.[0] ?? "");
   const location = values.centre || province || "South Africa";
-  const salaryText = values.salary || values.stipend || "Not stated in advert";
+  const salaryText = cleanSalaryText(values.salary || values.stipend) || "Not stated in advert";
   const closingDate = values.closingDate.split(/\n/)[0].trim();
   const refNo = values.refNo.split(/\n/)[0].trim();
   const normalizedTitle = title.replace(/\s+/g, " ").trim();

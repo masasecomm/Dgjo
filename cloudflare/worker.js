@@ -1,4 +1,5 @@
 import defaultJobs from "../jobs.json" with { type: "json" };
+import { cleanSalaryText, splitVacancyPoints } from "../vacancy-format.js";
 
 const JOBS_KEY = "published-jobs";
 const CATEGORIES = new Set([
@@ -256,6 +257,7 @@ function publicJob(job) {
     .test(String(enriched.centre ?? "").trim());
   return {
     ...enriched,
+    salaryText: cleanSalaryText(enriched.salaryText),
     slug: jobSlug(enriched),
     ...(company ? { company } : {}),
     ...(location?.locality && centreIsGeneric ? { centre: location.locality } : {}),
@@ -287,6 +289,16 @@ function detailSections(job) {
   ].filter(([, value]) => typeof value === "string" && value.trim());
 }
 
+function vacancySectionMarkup(label, value) {
+  if (["Requirements", "Duties", "Additional information"].includes(label)) {
+    const renderPoints = points => `<ul>${points.map(point =>
+      `<li>${escapeHtml(point.text)}${point.children?.length ? renderPoints(point.children) : ""}</li>`
+    ).join("")}</ul>`;
+    return renderPoints(splitVacancyPoints(value));
+  }
+  return `<p>${escapeHtml(value).replace(/\r?\n/g, "<br>")}</p>`;
+}
+
 function schemaForJob(job, pageUrl) {
   const datePosted = parseSouthAfricanDate(job.circularDate || "", false);
   const validThrough = getClosingDate(job);
@@ -294,7 +306,7 @@ function schemaForJob(job, pageUrl) {
   const location = locationDetails(job);
   const descriptionText = detailSections(job).map(([, value]) => value).join("\n\n").trim();
   const description = detailSections(job).map(([label, value]) =>
-    `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value).replace(/\r?\n/g, "<br>")}</p>`
+    `<p><strong>${escapeHtml(label)}:</strong></p>${vacancySectionMarkup(label, value)}`
   ).join("");
   if (!hiringOrganization || !datePosted || !location || descriptionText.length < 100 || !job.sourceUrl) return null;
 
@@ -355,7 +367,7 @@ function vacancyPage(job, requestUrl) {
   const pageTitle = `${title}${employer ? ` at ${employer}` : ""} | DPSA Government Jobs`;
   const metaDescription = `${title}${employer ? ` at ${employer}` : ""}${location ? ` in ${location}` : ""}. ${description || "Check the official advert for requirements and application details."}`.slice(0, 155);
   const sections = detailSections(job).map(([label, value]) =>
-    `<section><h2>${escapeHtml(label)}</h2><p>${escapeHtml(value).replace(/\r?\n/g, "<br>")}</p></section>`
+    `<section${label === "How to apply" ? ' id="how-to-apply"' : ""}><h2>${escapeHtml(label)}</h2>${vacancySectionMarkup(label, value)}</section>`
   ).join("");
   const schema = schemaForJob(job, pageUrl);
   const schemaMarkup = schema ? `<script type="application/ld+json">${jsonLdScript(schema)}</script>` : "";

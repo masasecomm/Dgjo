@@ -47017,6 +47017,12 @@
     ]);
     return formatPoints(splitVacancyPoints(value)).join("\n");
   }
+  function cleanSalaryText(value) {
+    const text = String(value ?? "").replace(/\s+/g, " ").trim();
+    const salary = text.match(/R\s*[\d][\d,\s]*(?:\.\d+)?(?:\s*(?:[–—-]|to)\s*R?\s*[\d][\d,\s]*(?:\.\d+)?)?\s*(?:per\s+(?:annum|year|month|week)|p\.?\s*a\.?)(?:\s*\((?:Level|Grade)\s*[\w-]+[^)]*\))?/i);
+    if (salary) return salary[0].replace(/\s+/g, " ").replace(/[.,;:]+$/, "").trim();
+    return text.split(/(?<=[.!?])\s+/)[0]?.trim() ?? "";
+  }
 
   // importer.js
   var MAX_PDF_BYTES = 40 * 1024 * 1024;
@@ -47127,7 +47133,7 @@
     const department = explicitDepartment || departmentContext;
     const province = cleanText(text.match(/\b(?:EASTERN CAPE|FREE STATE|GAUTENG|KWAZULU[- ]?NATAL|LIMPOPO|MPUMALANGA|NORTHERN CAPE|NORTH WEST|WESTERN CAPE)\b/i)?.[0] ?? "");
     const location = values.centre || province || "South Africa";
-    const salaryText = values.salary || values.stipend || "Not stated in advert";
+    const salaryText = cleanSalaryText(values.salary || values.stipend) || "Not stated in advert";
     const closingDate = values.closingDate.split(/\n/)[0].trim();
     const refNo = values.refNo.split(/\n/)[0].trim();
     const normalizedTitle = title.replace(/\s+/g, " ").trim();

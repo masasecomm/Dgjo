@@ -49,3 +49,12 @@ DUTIES: Provide screening services and process applications for UIF benefits.`, 
 
   assert.equal(vacancies[0].centre, "Labour Centre: KuGompo City");
 });
+
+test("salary extraction excludes following candidate conditions", () => {
+  const { vacancies } = parseDpsaCircular(`POST 1: ASSISTANT DIRECTOR
+SALARY: R487 197 – R573 897 per annum (Level 09). The successful candidate will be required to sign a performance agreement.
+REQUIREMENTS: A relevant qualification.`, { fileName: "Circular 41 of 2026.pdf" });
+
+  assert.equal(vacancies[0].salaryText, "R487 197 – R573 897 per annum (Level 09)");
+  assert.equal(vacancies[0].salary, 573897);
+});

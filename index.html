@@ -76,7 +76,6 @@
             </label>
             <button type="submit">Find Jobs <span aria-hidden="true">→</span></button>
           </form>
-          <p class="home-hero-trust"><span aria-hidden="true">✓</span> Independent guide · Always verify vacancies with the official department advert</p>
         </div>
       </div>
     </section>
@@ -397,6 +396,11 @@
           badge.textContent = label;
           bottom.append(badge);
         }
+        const applyButton = document.createElement("a");
+        applyButton.className = "listing-card-apply";
+        applyButton.href = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/#how-to-apply`;
+        applyButton.textContent = "Apply";
+        bottom.append(applyButton);
         content.append(titleRow, metadata, bottom);
         card.append(mark, content);
         jobsList.append(card);

@@ -119,3 +119,10 @@ export function formatVacancyText(value) {
   ]);
   return formatPoints(splitVacancyPoints(value)).join("\n");
 }
+
+export function cleanSalaryText(value) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  const salary = text.match(/R\s*[\d][\d,\s]*(?:\.\d+)?(?:\s*(?:[–—-]|to)\s*R?\s*[\d][\d,\s]*(?:\.\d+)?)?\s*(?:per\s+(?:annum|year|month|week)|p\.?\s*a\.?)(?:\s*\((?:Level|Grade)\s*[\w-]+[^)]*\))?/i);
+  if (salary) return salary[0].replace(/\s+/g, " ").replace(/[.,;:]+$/, "").trim();
+  return text.split(/(?<=[.!?])\s+/)[0]?.trim() ?? "";
+}
