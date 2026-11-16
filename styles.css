@@ -68,13 +68,6 @@ h3 { margin-bottom: 10px; font-size: 20px; letter-spacing: -.45px; }
 .listing-card h3 { margin-bottom: 9px; }
 .listing-meta { margin: 0 0 7px; color: var(--muted); font-size: 14px; }
 .listing-card .text-link { margin-top: 15px; }
-.vacancy-details { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.65; }
-.vacancy-details summary { width: fit-content; color: var(--ink); cursor: pointer; font-weight: 650; }
-.vacancy-details p, .vacancy-details > div { margin: 8px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
-.vacancy-bullets { margin: 6px 0 0; padding-left: 20px; }
-.vacancy-bullets li { margin: 0 0 5px; }
-.vacancy-details a { color: #426d38; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
-.vacancy-details strong { color: var(--ink); }
 .listing-empty { grid-column: 1 / -1; margin: 0; padding: 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); color: var(--muted); }
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 0; padding: 0; list-style: none; }
 .steps li { display: flex; align-items: flex-start; gap: 13px; }
@@ -267,7 +260,6 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .listing-card-title h3 { min-width: 0; margin: 0; font-size: 19px; font-weight: 700; line-height: 1.3; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .listing-card-title h3 a { color: #32373c; text-decoration: none; }
 .listing-card-title h3 a:hover { color: #17499e; }
-.listing-card-status { color: #a45b00; font-size: 11px; font-weight: 700; }
 .listing-card-meta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px 20px; color: #737d85; font-size: 13px; }
 .listing-meta-item { display: inline-flex; min-width: 0; align-items: center; gap: 7px; overflow-wrap: anywhere; }
 .listing-meta-item svg { width: 19px; height: 19px; flex: 0 0 auto; fill: none; stroke: #828a90; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
@@ -275,9 +267,7 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .listing-department-link:hover { color: #087ad2; text-decoration: underline; }
 .listing-card-bottom { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .listing-card-type { display: inline-flex; min-height: 30px; align-items: center; padding: 4px 20px; border-radius: 999px; color: #17499e; background: #e0ebfb; font-size: 12px; }
-.listing-card-content > .text-link { color: #087ad2; font-size: 12px; text-decoration: none; }
-.listing-card-content > .text-link:hover { text-decoration: underline; }
-.vacancy-details { margin-top: 2px; }
+.listing-card-expiry { color: #a45b00; background: #fff1d2; }
 .listing-empty { grid-column: 1 / -1; border-color: #c9d6e9; background: #f8fbff; }
 
 .site-footer { border-top-color: #e6eaf0; background: #f4f8fd; }

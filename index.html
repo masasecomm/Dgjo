@@ -185,8 +185,6 @@
     </div>
   </footer>
   <script type="module">
-    import { splitVacancyPoints } from "/vacancy-format.js";
-
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
     const jobsPageOrigin = "https://jobs.dpsagovernmentjobs.co.za";
     const jobsList = document.querySelector("#job-list");
@@ -211,57 +209,6 @@
       day: "numeric"
     }).formatToParts(new Date()).map(part => [part.type, Number(part.value)]));
     const todayInSouthAfrica = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day);
-
-    function appendTextWithLinks(container, value) {
-      const text = String(value ?? "");
-      const urlPattern = /https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?:mailto:|tel:)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-      let offset = 0;
-      for (const match of text.matchAll(urlPattern)) {
-        const start = match.index;
-        let candidate = match[0];
-        let trailing = "";
-        while (/[.,;:!?)}\]]$/.test(candidate)) {
-          trailing = candidate.slice(-1) + trailing;
-          candidate = candidate.slice(0, -1);
-        }
-        if (start > offset) container.append(document.createTextNode(text.slice(offset, start)));
-        let href = candidate;
-        if (/^www\./i.test(candidate)) href = `https://${candidate}`;
-        if (/^[A-Z0-9._%+-]+@/i.test(candidate)) href = `mailto:${candidate}`;
-        try {
-          const parsed = new URL(href);
-          if (!["https:", "http:", "mailto:", "tel:"].includes(parsed.protocol)) throw new Error("Unsupported link protocol");
-          const link = document.createElement("a");
-          link.href = parsed.href;
-          if (["https:", "http:"].includes(parsed.protocol)) {
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-          }
-          link.textContent = candidate;
-          container.append(link, document.createTextNode(trailing));
-        } catch {
-          container.append(document.createTextNode(match[0]));
-        }
-        offset = start + match[0].length;
-      }
-      if (offset < text.length) container.append(document.createTextNode(text.slice(offset)));
-    }
-
-    function appendBulletPoints(container, points) {
-      const list = document.createElement("ul");
-      list.className = "vacancy-bullets";
-      for (const point of points) {
-        const item = document.createElement("li");
-        appendTextWithLinks(item, point.text);
-        if (point.children?.length) appendBulletPoints(item, point.children);
-        list.append(item);
-      }
-      container.append(list);
-    }
-
-    function appendBulletList(container, value) {
-      appendBulletPoints(container, splitVacancyPoints(value));
-    }
 
     function populateSearchFilters(jobs) {
       const provinces = [...new Set(jobs.map(job => String(job.province ?? "").trim()).filter(Boolean))]
@@ -398,20 +345,14 @@
         content.className = "listing-card-content";
         const displayTitle = displayJobTitle(job.title);
         const title = document.createElement("h3");
-        const detailsLink = document.createElement("a");
-        detailsLink.href = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/`;
-        detailsLink.textContent = displayTitle;
-        title.append(detailsLink);
+        const jobLink = document.createElement("a");
+        jobLink.href = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/`;
+        jobLink.textContent = displayTitle;
+        title.append(jobLink);
         const titleRow = document.createElement("div");
         titleRow.className = "listing-card-title";
         titleRow.append(title);
         const expiry = expiryLabel(job.closingDate);
-        if (expiry) {
-          const status = document.createElement("span");
-          status.className = "listing-card-status";
-          status.textContent = expiry;
-          titleRow.append(status);
-        }
 
         const metadata = document.createElement("div");
         metadata.className = "listing-card-meta";
@@ -449,83 +390,14 @@
         const bottom = document.createElement("div");
         bottom.className = "listing-card-bottom";
         const employmentType = String(job.natureOfAppointment ?? "").trim() || String(job.type ?? "").trim();
-        if (employmentType) {
-          const typeBadge = document.createElement("span");
-          typeBadge.className = "listing-card-type";
-          typeBadge.textContent = employmentType;
-          bottom.append(typeBadge);
+        for (const [label, className] of [[employmentType, "listing-card-type"], [expiry, "listing-card-type listing-card-expiry"]]) {
+          if (!label) continue;
+          const badge = document.createElement("span");
+          badge.className = className;
+          badge.textContent = label;
+          bottom.append(badge);
         }
-        const verify = document.createElement("a");
-        verify.className = "text-link";
-        const sourceUrl = typeof job.sourceUrl === "string" && /^https:\/\//i.test(job.sourceUrl)
-          ? job.sourceUrl
-          : null;
-        if (sourceUrl) {
-          verify.href = sourceUrl;
-          verify.textContent = job.circularName ? "View official circular PDF ↗" : "View original advert ↗";
-        } else {
-          verify.href = "https://www.google.com/search?q=" + encodeURIComponent(`${job.title} ${job.company} job`);
-          verify.textContent = "Search for this job ↗";
-        }
-        bottom.append(verify);
         content.append(titleRow, metadata, bottom);
-
-        const vacancyFields = [
-          ["Reference number", job.refNo],
-          ["Post number", job.postNo],
-          ["Closing date", job.closingDate],
-          ["Appointment type", job.natureOfAppointment],
-          ["Job level", job.level],
-          ["Centre", job.centre],
-          ["Requirements", job.requirements],
-          ["Duties", job.duties],
-          ["Job purpose", job.jobPurpose],
-          ["Skills and competencies", job.skillsAndCompetencies],
-          ["How to apply", job.applications],
-          ["Enquiries", job.enquiries],
-          ["Notes", job.note]
-        ].filter(([, value]) => typeof value === "string" && value.trim());
-        if (vacancyFields.length || (Array.isArray(job.links) && job.links.length)) {
-          const vacancyDetails = document.createElement("details");
-          vacancyDetails.className = "vacancy-details";
-          const summary = document.createElement("summary");
-          summary.textContent = "Vacancy details";
-          vacancyDetails.append(summary);
-          for (const [label, value] of vacancyFields) {
-            const isBulletField = ["Requirements", "Duties", "Notes"].includes(label);
-            const field = document.createElement(isBulletField ? "div" : "p");
-            const fieldLabel = document.createElement("strong");
-            fieldLabel.textContent = `${label}: `;
-            field.append(fieldLabel);
-            if (isBulletField) {
-              appendBulletList(field, value);
-            } else {
-              appendTextWithLinks(field, value);
-            }
-            vacancyDetails.append(field);
-          }
-          if (Array.isArray(job.links) && job.links.length) {
-            const linkList = document.createElement("p");
-            const linkLabel = document.createElement("strong");
-            linkLabel.textContent = "Related links: ";
-            linkList.append(linkLabel);
-            let linkCount = 0;
-            job.links.forEach(item => {
-              if (!item || typeof item.url !== "string" || !/^(?:https?:\/\/|mailto:|tel:)/i.test(item.url)) return;
-              if (linkCount++) linkList.append(document.createTextNode(" · "));
-              const link = document.createElement("a");
-              link.href = item.url;
-              if (/^https?:\/\//i.test(item.url)) {
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-              }
-              link.textContent = item.label || item.url;
-              linkList.append(link);
-            });
-            vacancyDetails.append(linkList);
-          }
-          content.append(vacancyDetails);
-        }
         card.append(mark, content);
         jobsList.append(card);
       });
