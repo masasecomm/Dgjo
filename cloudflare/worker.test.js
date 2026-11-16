@@ -60,6 +60,9 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.equal(response.status, 200);
   assert.match(html, /<title>Assistant Director: Example at Department of Health \| DPSA Government Jobs<\/title>/);
   assert.equal(html.split("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347").length - 1, 1);
+  const adLoaderIndex = html.indexOf('<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');
+  assert.ok(html.indexOf('<link rel="preconnect" href="https://pagead2.googlesyndication.com"') < adLoaderIndex);
+  assert.ok(adLoaderIndex < html.indexOf("https://fonts.googleapis.com/css2?family=Jost"));
   assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example/${slug}/">`));
   assert.match(html, /<strong>Reference:<\/strong> EXAMPLE\/1/);
   assert.match(html, /<strong>Post number:<\/strong> 1\/1/);
@@ -83,6 +86,11 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /class="site-header"/);
   assert.doesNotMatch(html, /<link rel="stylesheet"/);
   assert.match(html, /Requirements/);
+  const adIndex = html.indexOf('<aside class="content-ad" aria-label="Advertisement">');
+  const requirementsIndex = html.indexOf("<h2>Requirements</h2>");
+  assert.ok(adIndex >= 0 && adIndex < requirementsIndex);
+  assert.equal(html.split('data-ad-slot="3081508385"').length - 1, 1);
+  assert.match(html, /data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385"><\/ins><script>\(adsbygoogle = window\.adsbygoogle \|\| \[\]\)\.push\(\{\}\);<\/script>/);
   assert.match(html, /<ul><li>A relevant qualification\.<\/li><li>At least three years of experience\.<\/li><\/ul>/);
   assert.match(html, /id="how-to-apply"/);
   assert.match(html, /<ul><li>Manage the service\.<\/li><li>Support staff and prepare reports\.<\/li><\/ul>/);

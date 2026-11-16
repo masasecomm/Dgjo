@@ -366,8 +366,9 @@ function vacancyPage(job, requestUrl) {
   const description = detailSections(job).map(([, value]) => value).join(" ").replace(/\s+/g, " ").trim();
   const pageTitle = `${title}${employer ? ` at ${employer}` : ""} | DPSA Government Jobs`;
   const metaDescription = `${title}${employer ? ` at ${employer}` : ""}${location ? ` in ${location}` : ""}. ${description || "Check the official advert for requirements and application details."}`.slice(0, 155);
+  const adUnitMarkup = `<aside class="content-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:inline-block;width:300px;height:600px" data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>`;
   const sections = detailSections(job).map(([label, value]) =>
-    `<section${label === "How to apply" ? ' id="how-to-apply"' : ""}><h2>${escapeHtml(label)}</h2>${vacancySectionMarkup(label, value)}</section>`
+    `${label === "Requirements" ? adUnitMarkup : ""}<section${label === "How to apply" ? ' id="how-to-apply"' : ""}><h2>${escapeHtml(label)}</h2>${vacancySectionMarkup(label, value)}</section>`
   ).join("");
   const schema = schemaForJob(job, pageUrl);
   const schemaMarkup = schema ? `<script type="application/ld+json">${jsonLdScript(schema)}</script>` : "";
@@ -406,6 +407,9 @@ function vacancyPage(job, requestUrl) {
 
   return htmlResponse(`<!doctype html>
 <html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+<link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
 <title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(metaDescription)}">
 <meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="article"><meta property="og:site_name" content="DPSA Government Jobs">
@@ -414,7 +418,7 @@ function vacancyPage(job, requestUrl) {
 <meta property="og:image:alt" content="DPSA Government Jobs vacancy">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(pageTitle)}">
 <meta name="twitter:description" content="${escapeHtml(metaDescription)}"><meta name="twitter:image" content="${escapeHtml(shareImageUrl)}">
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>${schemaMarkup}
+${schemaMarkup}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:light;font-family:"Jost",Arial,Helvetica,sans-serif;color:#32373c;background:#f8fbff}
@@ -439,6 +443,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .sections section{margin:20px 0}.sections h2{margin:0 0 7px;color:#17499e;font-size:20px;line-height:1.3}.sections p,.sections li{color:#536171;font-size:16px;white-space:pre-line;overflow-wrap:anywhere}
 .important{margin:24px 0 0;padding-top:15px;border-top:1px solid #e6eaf0;color:#737d85;font-size:12px}
 .official-circular{margin:24px 0;color:#536171;font-size:16px}.site-footer{padding:22px 0;border-top:1px solid #e6eaf0;color:#6b747c;background:#f4f8fd;font-size:12px}.site-footer p{margin:0}
+.content-ad{display:flex;justify-content:center;margin:24px 0}.content-ad .adsbygoogle{max-width:100%}
 .sections .share-post{margin:24px 0;padding-top:16px;border-top:1px solid #e6eaf0}
 .share-post h2{margin:0 0 12px;font-size:18px}
 .post-share-links{display:flex;flex-wrap:wrap;gap:10px}

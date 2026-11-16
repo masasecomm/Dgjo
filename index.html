@@ -98,10 +98,13 @@
         <a class="province-filter is-active" href="#listings" data-province="">All Provinces</a>
       </nav>
       <p class="independent-note" id="job-list-status" role="status" hidden></p>
-      <p class="job-count" id="job-count" role="status">Loading current vacancies…</p>
+      <p class="job-count" id="job-count" role="status"><!-- JOB_COUNT_START -->Loading current vacancies…<!-- JOB_COUNT_END --></p>
       <div class="listing-grid" id="job-list" aria-live="polite">
+        <!-- JOB_LISTINGS_START -->
         <p class="listing-empty">Loading South African job listings…</p>
+        <!-- JOB_LISTINGS_END -->
       </div>
+      <!-- JOB_DATA -->
     </section>
 
     <section class="section" aria-labelledby="circulars-heading">
@@ -449,17 +452,40 @@
           if (!response.ok) throw new Error(`Backup job list returned HTTP ${response.status}.`);
           const jobs = await response.json();
           if (!Array.isArray(jobs)) throw new Error("Backup job list returned an invalid list.");
-          allJobs = jobs;
-          populateSearchFilters(jobs);
-          filterJobListings();
-          jobsStatus.textContent = `Live listings could not be loaded: ${apiError.message} Showing saved backup listings instead.`;
+          if (jobs.length || !allJobs.length) {
+            allJobs = jobs;
+            populateSearchFilters(jobs);
+            filterJobListings();
+          }
+          jobsStatus.textContent = jobs.length
+            ? `Live listings could not be loaded: ${apiError.message} Showing saved backup listings instead.`
+            : `Live listings could not be loaded: ${apiError.message} Showing the latest saved page listings.`;
           jobsStatus.hidden = false;
         } catch (backupError) {
+          if (jobsList.querySelector(".listing-card")) {
+            jobsStatus.textContent = `Live listings could not be loaded: ${apiError.message} Showing the latest saved page listings.`;
+            jobsStatus.hidden = false;
+            return;
+          }
           const error = document.createElement("p");
           error.className = "listing-empty";
           error.textContent = `Live listings could not be loaded: ${apiError.message} Backup listings could not be loaded: ${backupError.message} Check the official DPSA vacancy circulars for current opportunities.`;
           jobsList.replaceChildren(error);
         }
+      }
+    }
+
+    const initialJobData = document.querySelector("#initial-job-data");
+    if (initialJobData) {
+      try {
+        const jobs = JSON.parse(initialJobData.textContent);
+        if (!Array.isArray(jobs)) throw new Error("Saved job snapshot is not a list.");
+        allJobs = jobs;
+        populateSearchFilters(jobs);
+        filterJobListings();
+      } catch (error) {
+        jobsStatus.textContent = `Saved job listings could not be loaded: ${error.message}`;
+        jobsStatus.hidden = false;
       }
     }
 
