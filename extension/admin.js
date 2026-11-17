@@ -11,10 +11,11 @@ import {
   mergeVacancyLinks,
   vacancyMatchKey
 } from "./publication.js";
+import { MAX_ACTIVE_CIRCULARS, retainLatestCircularJobs } from "../circulars.js";
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
-const MAX_PUBLISHED_JOBS = 2000;
+const MAX_PUBLISHED_JOBS = 6000;
 const MAX_JOB_LINKS = 100;
 const apiUrlInput = document.querySelector("#api-url");
 const tokenInput = document.querySelector("#admin-token");
@@ -598,11 +599,6 @@ async function publishImportedVacancies(publishAll = false) {
   const targetDescription = publishAll
     ? `all ${selected.length} imported vacancies from ${activeCircularName || "this import"}`
     : `${selected.length} selected vacancies`;
-  if (!confirm(`${action} ${targetDescription} to your website? Existing jobs will be kept.`)) return;
-  if (jobs.length > MAX_PUBLISHED_JOBS) {
-    showToast(`The Worker currently has more than ${MAX_PUBLISHED_JOBS} jobs. Remove some listings before importing.`, true);
-    return;
-  }
 
   const byKey = new Map(jobs.map(job => [vacancyMatchKey(job), job]));
   const imported = selected.map(createPublishedVacancy);
@@ -627,10 +623,20 @@ async function publishImportedVacancies(publishAll = false) {
     byKey.set(key, vacancy);
   }
   const nextJobs = [...byKey.values()];
-  if (nextJobs.length > MAX_PUBLISHED_JOBS) {
-    showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
+  const retained = retainLatestCircularJobs(nextJobs);
+  const selectedKeys = new Set(imported.map(vacancyMatchKey));
+  if (!retained.jobs.some(job => selectedKeys.has(vacancyMatchKey(job)))) {
+    showToast(`This circular is older than the ${MAX_ACTIVE_CIRCULARS} circulars kept on the website, so its posts cannot be published.`, true);
     return;
   }
+  if (retained.jobs.length > MAX_PUBLISHED_JOBS) {
+    showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${retained.jobs.length}). Select fewer vacancies or remove existing jobs.`, true);
+    return;
+  }
+  const deletionWarning = retained.removedCircularNames.length
+    ? ` Existing jobs outside ${retained.removedCircularNames.join(", ")} will be kept; those circulars and all their posts will be permanently deleted to keep only the latest ${MAX_ACTIVE_CIRCULARS}.`
+    : " Existing jobs will be kept.";
+  if (!confirm(`${action} ${targetDescription} to your website?${deletionWarning}`)) return;
 
   publishInProgress = true;
   updatePublishButton();
@@ -638,10 +644,13 @@ async function publishImportedVacancies(publishAll = false) {
   publishProgress.value = 20;
   publishStatus.textContent = `Publishing ${selected.length} vacancies…`;
   try {
-    await publishJobs(nextJobs);
+    const result = await publishJobs(retained.jobs);
     publishProgress.value = 100;
-    publishStatus.textContent = `Published ${selected.length} vacancies. Existing listings were retained.`;
-    showToast(`${selected.length} vacancies published.`);
+    const expiryNotice = result.removedExpiredCount
+      ? ` Removed ${result.removedExpiredCount} expired posts.`
+      : "";
+    publishStatus.textContent = `Published ${selected.length} vacancies.${expiryNotice}`;
+    showToast(`${selected.length} vacancies published.${expiryNotice}`);
   } catch (error) {
     publishProgress.value = 0;
     publishStatus.textContent = `Publish failed: ${error.message}`;
@@ -672,10 +681,19 @@ async function publishJobs(nextJobs) {
     }
     throw new Error(message);
   }
-  jobs = nextJobs;
+  const result = await response.json();
+  if (!result || result.success !== true || !Array.isArray(result.removedJobIds)) {
+    throw new Error("The Worker returned an invalid publish result.");
+  }
+  const removedIds = new Set(result.removedJobIds);
+  jobs = nextJobs.filter(job => !removedIds.has(job.id));
   renderJobs();
   renderImportedVacancies();
-  showToast("Changes published. Your website is up to date.");
+  const removedCirculars = Array.isArray(result.removedCircularNames) ? result.removedCircularNames : [];
+  showToast(removedCirculars.length
+    ? `Changes published. Removed ${removedCirculars.join(", ")} and their posts.`
+    : "Changes published. Your website is up to date.");
+  return result;
 }
 
 function openEditor(job = null) {

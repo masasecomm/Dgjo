@@ -4,6 +4,9 @@
 	"main": "worker.js",
 	"compatibility_date": "2026-11-10",
 	"workers_dev": true,
+	"triggers": {
+		"crons": ["0 * * * *"]
+	},
 	"routes": [
 		{
 			"pattern": "jobs.dpsagovernmentjobs.co.za",

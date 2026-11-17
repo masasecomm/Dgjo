@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 import {
+  buildSite,
   renderCircularArchiveLinks,
   renderCircularArchivePage,
   renderCircularNavigationItems,
@@ -13,7 +15,7 @@ import {
   renderSitemapWithCircularArchives,
   groupJobsByProvince
 } from "./build-site.mjs";
-import { groupJobsByCircular } from "../circulars.js";
+import { groupJobsByCircular, MAX_ACTIVE_CIRCULARS, retainLatestCircularJobs } from "../circulars.js";
 import { isFeedRequest, legacyCircularRedirectTarget } from "../redirects.js";
 import {
   estimateAnnualIncomeTax,
@@ -193,6 +195,67 @@ test("renders circular archive links and adds their routes to the sitemap", () =
   assert.match(sitemap, /<lastmod>2026-11-17<\/lastmod>/);
 });
 
+test("rebuilds the sitemap without stale circular or province archive routes", () => {
+  const source = `<urlset>
+  <url>
+    <loc>https://dpsagovernmentjobs.co.za/</loc>
+    <lastmod>2026-11-16</lastmod>
+  </url>
+  <url>
+    <loc>https://dpsagovernmentjobs.co.za/dpsa-vacancy-circulars/circular-1-of-2026/</loc>
+    <lastmod>2026-11-16</lastmod>
+  </url>
+  <url>
+    <loc>https://dpsagovernmentjobs.co.za/government-vacancies/gauteng/</loc>
+    <lastmod>2026-11-16</lastmod>
+  </url>
+</urlset>`;
+  const sitemap = renderSitemapWithCircularArchives(source, [{
+    name: "Circular 5 of 2026",
+    path: "/dpsa-vacancy-circulars/circular-5-of-2026/",
+    jobs: [{}]
+  }], "2026-11-17");
+
+  assert.match(sitemap, /<loc>https:\/\/dpsagovernmentjobs\.co\.za\/<\/loc>/);
+  assert.doesNotMatch(sitemap, /circular-1-of-2026|government-vacancies\/gauteng/);
+  assert.equal((sitemap.match(/circular-5-of-2026/g) ?? []).length, 1);
+});
+
+test("removes stale generated circular and province pages on rebuild", async () => {
+  const output = await mkdtemp(path.join(process.cwd(), ".build-test-"));
+  const previousOutput = process.env.SITE_OUTPUT_DIR;
+  const previousFetch = globalThis.fetch;
+  const staleCircular = path.join(output, "dpsa-vacancy-circulars", "circular-41-of-2026");
+  const staleProvince = path.join(output, "government-vacancies", "north-west");
+  await mkdir(staleCircular, { recursive: true });
+  await mkdir(staleProvince, { recursive: true });
+  await writeFile(path.join(staleCircular, "index.html"), "stale");
+  await writeFile(path.join(staleProvince, "index.html"), "stale");
+  process.env.SITE_OUTPUT_DIR = output;
+  globalThis.fetch = async () => new Response(JSON.stringify([{
+    id: "current-job",
+    slug: "current-job",
+    title: "Current vacancy",
+    company: "Department",
+    circularName: "Circular 42 of 2026",
+    province: "Gauteng"
+  }]), { headers: { "Content-Type": "application/json" } });
+
+  try {
+    await buildSite();
+    await assert.rejects(access(staleCircular), error => error.code === "ENOENT");
+    await assert.rejects(access(staleProvince), error => error.code === "ENOENT");
+    const sitemap = await readFile(path.join(output, "sitemap.xml"), "utf8");
+    assert.doesNotMatch(sitemap, /circular-41-of-2026|government-vacancies\/north-west/);
+    assert.match(sitemap, /circular-42-of-2026/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousOutput === undefined) delete process.env.SITE_OUTPUT_DIR;
+    else process.env.SITE_OUTPUT_DIR = previousOutput;
+    await rm(output, { recursive: true, force: true });
+  }
+});
+
 test("renders navigation links only for circulars that have published jobs", () => {
   const links = renderCircularNavigationItems([
     { name: "Circular 1 of 2026", path: "/dpsa-vacancy-circulars/circular-1-of-2026/", jobs: [{}] },
@@ -261,6 +324,22 @@ test("groups formatting variants of a circular into one archive", () => {
   assert.equal(circularOne.jobs.length, 2);
   assert.equal(circularOne.path, "/dpsa-vacancy-circulars/circular-1-of-2026/");
   assert.deepEqual(groups.map(group => group.name), ["Circular 1 of 2026", "Circular 2 of 2026"]);
+});
+
+test("retains only the four newest circulars and keeps uncategorized jobs", () => {
+  const jobs = [
+    { id: "uncategorized" },
+    ...Array.from({ length: 5 }, (_, index) => ({
+      id: `circular-${index + 1}`,
+      circularName: `Circular ${index + 1} of 2026`
+    }))
+  ];
+  const result = retainLatestCircularJobs(jobs);
+
+  assert.equal(MAX_ACTIVE_CIRCULARS, 4);
+  assert.deepEqual(result.removedCircularNames, ["Circular 1 of 2026"]);
+  assert.deepEqual(result.removedJobIds, ["circular-1"]);
+  assert.deepEqual(result.jobs.map(job => job.id), ["uncategorized", "circular-2", "circular-3", "circular-4", "circular-5"]);
 });
 
 test("shows vacancies from earlier circulars first while preserving order within each circular", () => {

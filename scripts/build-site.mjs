@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -449,15 +449,30 @@ export function renderSitemapWithCircularArchives(
   lastmod = new Date().toISOString().slice(0, 10),
   provinceGroups = []
 ) {
+  const generatedArchivePath = /^https:\/\/dpsagovernmentjobs\.co\.za\/(?:dpsa-vacancy-circulars\/circular-[a-z0-9-]+|government-vacancies\/[a-z0-9-]+)\/?$/;
+  const currentSource = source.replace(/^[ \t]*<url>[\s\S]*?^[ \t]*<\/url>[ \t]*(?:\r?\n|$)/gm, entry => {
+    const location = entry.match(/<loc>([^<]+)<\/loc>/)?.[1];
+    return location && generatedArchivePath.test(location) ? "" : entry;
+  });
   const closingTag = "</urlset>";
-  const closingIndex = source.lastIndexOf(closingTag);
+  const closingIndex = currentSource.lastIndexOf(closingTag);
   if (closingIndex < 0) throw new Error("Sitemap is missing its urlset closing tag.");
   const paths = [...circularGroups, ...provinceGroups].map(group => group.path);
   const entries = [...new Set(paths)].map(path =>
     `  <url>\n    <loc>${SITE_URL}${escapeHtml(path)}</loc>\n    <lastmod>${escapeHtml(lastmod)}</lastmod>\n  </url>`
   ).join("\n");
-  if (!entries) return source;
-  return `${source.slice(0, closingIndex).trimEnd()}\n${entries}\n${source.slice(closingIndex)}`;
+  if (!entries) return currentSource;
+  return `${currentSource.slice(0, closingIndex).trimEnd()}\n${entries}\n${currentSource.slice(closingIndex)}`;
+}
+
+async function removeStaleGeneratedPages(directory, retainedSlugs, matchesGeneratedSlug) {
+  await mkdir(directory, { recursive: true });
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory() && matchesGeneratedSlug(entry.name) && !retainedSlugs.has(entry.name)) {
+      await rm(path.join(directory, entry.name), { recursive: true, force: true });
+    }
+  }
 }
 
 function replaceMarkedContent(source, startMarker, endMarker, replacement) {
@@ -552,6 +567,10 @@ export async function buildSite() {
     await writeFile(pagePath, replaceUniqueMarker(page, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
   }
 
+  const circularArchiveRoot = path.join(output, "dpsa-vacancy-circulars");
+  const currentCircularSlugs = new Set(circularGroups.map(group => group.path.split("/").filter(Boolean).at(-1)));
+  await removeStaleGeneratedPages(circularArchiveRoot, currentCircularSlugs, slug => /^circular-[a-z0-9-]+$/i.test(slug));
+
   for (const group of circularGroups) {
     const slug = group.path.split("/").filter(Boolean).at(-1);
     const archiveDirectory = path.join(output, "dpsa-vacancy-circulars", slug);
@@ -559,6 +578,11 @@ export async function buildSite() {
     const page = renderCircularArchivePage(group.name, group.jobs);
     await writeFile(path.join(archiveDirectory, "index.html"), replaceUniqueMarker(page, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
   }
+
+  const provinceArchiveRoot = path.join(output, "government-vacancies");
+  const currentProvinceSlugs = new Set(provinceGroups.map(group => group.path.split("/").filter(Boolean).at(-1)));
+  const provinceSlugs = new Set(SOUTH_AFRICAN_PROVINCES.map(name => provincePath(name).split("/").filter(Boolean).at(-1)));
+  await removeStaleGeneratedPages(provinceArchiveRoot, currentProvinceSlugs, slug => provinceSlugs.has(slug));
 
   for (const group of provinceGroups) {
     const slug = group.path.split("/").filter(Boolean).at(-1);

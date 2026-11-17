@@ -46967,7 +46967,7 @@
     for (const block of blocks) {
       const target = block.depth && points.length ? points.at(-1).children ??= [] : points;
       const blockText = block.depth ? block.text.replace(/,\s*$/, "") : block.text;
-      const line = blockText.replace(/^\s*(?:REQUIREMENTS?|DUTIES|NOTES?)\s*:\s*/i, "").replace(/https?:\/\/\S+|www\.\S+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, (match) => {
+      const line = blockText.replace(/^\s*(?:REQ(?:UIRE|UIR)MENTS?|DUTIES|NOTES?)\s*:\s*/i, "").replace(/https?:\/\/\S+|www\.\S+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, (match) => {
         let link = match;
         let punctuation = "";
         while (/[.,;:!?)}\]]$/.test(link)) {
@@ -47040,7 +47040,7 @@
     ["natureOfAppointment", /\bNATURE\s+OF\s+APPOINTMENT\b\s*[:.\u2013\u2014-]\s*/gi],
     ["centre", /\bCENTRE\b\s*[:.\u2013\u2014-]\s*/gi],
     ["closingDate", /\bCLOSING\s+DATE(?:\s+FOR\s+APPLICATIONS)?\b\s*[:.\u2013\u2014-]\s*/gi],
-    ["requirements", /\bREQUIREMENTS\b\s*[:.\u2013\u2014-]\s*/gi],
+    ["requirements", /\bREQ(?:UIRE|UIR)MENTS?\b\s*[:.\u2013\u2014-]\s*/gi],
     ["duties", /\bDUTIES\b\s*[:.\u2013\u2014-]\s*/gi],
     ["jobPurpose", /\b(?:JOB\s+PURPOSE|PURPOSE\s+OF\s+THE\s+POST)\b\s*[:.\u2013\u2014-]\s*/gi],
     ["skillsAndCompetencies", /\bSKILLS?\s+(?:AND|&)\s+COMPETENC(?:Y|IES)\b\s*[:.\u2013\u2014-]\s*/gi],
@@ -47376,10 +47376,63 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     };
   }
 
+  // ../circulars.js
+  function canonicalCircularName(value) {
+    const name = String(value ?? "").trim().replace(/\s+/g, " ");
+    const match = name.match(/\bcircular\s+(\d{1,3})\s+(?:of|\/)\s*(20\d{2})\b/i);
+    return match ? `Circular ${Number(match[1])} of ${match[2]}` : name;
+  }
+  function circularArchivePath(value) {
+    const slug = canonicalCircularName(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return slug ? `/dpsa-vacancy-circulars/${slug}/` : "";
+  }
+  function circularOrder(value) {
+    const match = canonicalCircularName(value).match(/^Circular (\d+) of (20\d{2})$/);
+    return match ? { number: Number(match[1]), year: Number(match[2]) } : null;
+  }
+  function compareCircularNames(leftValue, rightValue) {
+    const left = circularOrder(leftValue);
+    const right = circularOrder(rightValue);
+    if (left && right) return left.year - right.year || left.number - right.number;
+    if (left) return -1;
+    if (right) return 1;
+    return 0;
+  }
+  function groupJobsByCircular(jobs2) {
+    const groups = /* @__PURE__ */ new Map();
+    for (const job of jobs2) {
+      const name = canonicalCircularName(job?.circularName);
+      const path = circularArchivePath(name);
+      if (!name || !path) continue;
+      if (!groups.has(path)) groups.set(path, { name, path, jobs: [] });
+      groups.get(path).jobs.push(job);
+    }
+    return [...groups.values()].sort((a, b) => compareCircularNames(a.name, b.name));
+  }
+  var MAX_ACTIVE_CIRCULARS = 4;
+  function retainLatestCircularJobs(jobs2, limit = MAX_ACTIVE_CIRCULARS) {
+    if (!Number.isInteger(limit) || limit < 0) {
+      throw new RangeError("Circular retention limit must be a non-negative integer.");
+    }
+    const groups = groupJobsByCircular(jobs2);
+    const firstRetainedIndex = Math.max(0, groups.length - limit);
+    const removedGroups = groups.slice(0, firstRetainedIndex);
+    const retainedPaths = new Set(groups.slice(firstRetainedIndex).map((group) => group.path));
+    const removedPaths = new Set(removedGroups.map((group) => group.path));
+    return {
+      jobs: jobs2.filter((job) => {
+        const path = circularArchivePath(job?.circularName);
+        return !path || retainedPaths.has(path);
+      }),
+      removedCircularNames: removedGroups.map((group) => group.name),
+      removedJobIds: jobs2.filter((job) => removedPaths.has(circularArchivePath(job?.circularName))).map((job) => job.id)
+    };
+  }
+
   // admin.js
   var DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
   var SETTINGS_KEY = "goodworkAdminSettings";
-  var MAX_PUBLISHED_JOBS = 2e3;
+  var MAX_PUBLISHED_JOBS = 6e3;
   var MAX_JOB_LINKS = 100;
   var apiUrlInput = document.querySelector("#api-url");
   var tokenInput = document.querySelector("#admin-token");
@@ -47905,11 +47958,6 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     const isRepublish = circularAlreadyPublished || matchingPublishedCount > 0;
     const action = isRepublish ? "Republish" : "Publish";
     const targetDescription = publishAll ? `all ${selected.length} imported vacancies from ${activeCircularName || "this import"}` : `${selected.length} selected vacancies`;
-    if (!confirm(`${action} ${targetDescription} to your website? Existing jobs will be kept.`)) return;
-    if (jobs.length > MAX_PUBLISHED_JOBS) {
-      showToast(`The Worker currently has more than ${MAX_PUBLISHED_JOBS} jobs. Remove some listings before importing.`, true);
-      return;
-    }
     const byKey = new Map(jobs.map((job) => [vacancyMatchKey(job), job]));
     const imported = selected.map(createPublishedVacancy);
     for (const vacancy of imported) {
@@ -47932,20 +47980,29 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       byKey.set(key, vacancy);
     }
     const nextJobs = [...byKey.values()];
-    if (nextJobs.length > MAX_PUBLISHED_JOBS) {
-      showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
+    const retained = retainLatestCircularJobs(nextJobs);
+    const selectedKeys = new Set(imported.map(vacancyMatchKey));
+    if (!retained.jobs.some((job) => selectedKeys.has(vacancyMatchKey(job)))) {
+      showToast(`This circular is older than the ${MAX_ACTIVE_CIRCULARS} circulars kept on the website, so its posts cannot be published.`, true);
       return;
     }
+    if (retained.jobs.length > MAX_PUBLISHED_JOBS) {
+      showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${retained.jobs.length}). Select fewer vacancies or remove existing jobs.`, true);
+      return;
+    }
+    const deletionWarning = retained.removedCircularNames.length ? ` Existing jobs outside ${retained.removedCircularNames.join(", ")} will be kept; those circulars and all their posts will be permanently deleted to keep only the latest ${MAX_ACTIVE_CIRCULARS}.` : " Existing jobs will be kept.";
+    if (!confirm(`${action} ${targetDescription} to your website?${deletionWarning}`)) return;
     publishInProgress = true;
     updatePublishButton();
     importProgress.hidden = false;
     publishProgress.value = 20;
     publishStatus.textContent = `Publishing ${selected.length} vacancies\u2026`;
     try {
-      await publishJobs(nextJobs);
+      const result = await publishJobs(retained.jobs);
       publishProgress.value = 100;
-      publishStatus.textContent = `Published ${selected.length} vacancies. Existing listings were retained.`;
-      showToast(`${selected.length} vacancies published.`);
+      const expiryNotice = result.removedExpiredCount ? ` Removed ${result.removedExpiredCount} expired posts.` : "";
+      publishStatus.textContent = `Published ${selected.length} vacancies.${expiryNotice}`;
+      showToast(`${selected.length} vacancies published.${expiryNotice}`);
     } catch (error) {
       publishProgress.value = 0;
       publishStatus.textContent = `Publish failed: ${error.message}`;
@@ -47968,16 +48025,23 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     if (!response.ok) {
       let message = `Could not publish jobs (HTTP ${response.status}).`;
       try {
-        const result = await response.json();
-        if (typeof result.error === "string") message = result.error;
+        const result2 = await response.json();
+        if (typeof result2.error === "string") message = result2.error;
       } catch {
       }
       throw new Error(message);
     }
-    jobs = nextJobs;
+    const result = await response.json();
+    if (!result || result.success !== true || !Array.isArray(result.removedJobIds)) {
+      throw new Error("The Worker returned an invalid publish result.");
+    }
+    const removedIds = new Set(result.removedJobIds);
+    jobs = nextJobs.filter((job) => !removedIds.has(job.id));
     renderJobs();
     renderImportedVacancies();
-    showToast("Changes published. Your website is up to date.");
+    const removedCirculars = Array.isArray(result.removedCircularNames) ? result.removedCircularNames : [];
+    showToast(removedCirculars.length ? `Changes published. Removed ${removedCirculars.join(", ")} and their posts.` : "Changes published. Your website is up to date.");
+    return result;
   }
   function openEditor(job = null) {
     form.reset();

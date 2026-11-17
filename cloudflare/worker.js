@@ -7,7 +7,14 @@ import {
   recoverVacancyRequirements,
   splitVacancyPoints
 } from "../vacancy-format.js";
-import { canonicalCircularName, circularArchivePath, compareCircularNames, groupJobsByCircular } from "../circulars.js";
+import {
+  canonicalCircularName,
+  circularArchivePath,
+  compareCircularNames,
+  groupJobsByCircular,
+  MAX_ACTIVE_CIRCULARS,
+  retainLatestCircularJobs
+} from "../circulars.js";
 import { isFeedRequest, legacyCircularRedirectTarget } from "../redirects.js";
 import { normalizeProvince, PROVINCE_CRESTS } from "../provinces.js";
 import {
@@ -31,7 +38,7 @@ const TYPES = new Set([
   "Permanent", "Fixed-term", "Temporary",
   "Full-time", "Part-time", "Contract", "Internship"
 ]);
-const MAX_JOBS = 2000;
+const MAX_JOBS = 6000;
 const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
@@ -254,6 +261,30 @@ function getClosingDate(job) {
 function isExpired(job, now = Date.now()) {
   const closingDate = getClosingDate(job);
   return closingDate !== null && Date.parse(closingDate) < now;
+}
+
+function prunePublishedJobs(jobs, now = Date.now()) {
+  const expiredJobs = [];
+  const activeJobs = [];
+  for (const job of jobs) {
+    (isExpired(job, now) ? expiredJobs : activeJobs).push(job);
+  }
+  const retained = retainLatestCircularJobs(activeJobs, MAX_ACTIVE_CIRCULARS);
+  return {
+    ...retained,
+    removedJobIds: [...expiredJobs.map(job => job.id), ...retained.removedJobIds],
+    removedExpiredCount: expiredJobs.length
+  };
+}
+
+async function loadPublishedJobs(env) {
+  const savedJobs = await env.JOBS.get(JOBS_KEY, "json");
+  const sourceJobs = savedJobs ?? defaultJobs;
+  const cleaned = prunePublishedJobs(sourceJobs);
+  if (savedJobs && cleaned.jobs.length !== sourceJobs.length) {
+    await env.JOBS.put(JOBS_KEY, JSON.stringify(cleaned.jobs));
+  }
+  return cleaned.jobs;
 }
 
 function hiringOrganizationName(job) {
@@ -873,6 +904,10 @@ function sitemapResponse(jobs, requestUrl) {
 }
 
 export default {
+  async scheduled(_controller, env) {
+    await loadPublishedJobs(env);
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS") {
@@ -906,8 +941,7 @@ export default {
         });
       }
 
-      const savedJobs = await env.JOBS.get(JOBS_KEY, "json");
-      const jobs = savedJobs ?? defaultJobs;
+      const jobs = await loadPublishedJobs(env);
       const publicJobs = jobs.map(publicJob);
       if (url.pathname === "/sitemap.xml") return sitemapResponse(publicJobs, url);
       const legacyJobPath = url.pathname.match(/^\/jobs\/([^/]+)\/?$/);
@@ -989,12 +1023,19 @@ export default {
       return jsonResponse({ error: `Job list is invalid or exceeds the ${MAX_JOBS}-job limit.` }, 400);
     }
 
-    const serializedJobs = JSON.stringify(jobs);
+    const cleanedJobs = prunePublishedJobs(jobs);
+    const serializedJobs = JSON.stringify(cleanedJobs.jobs);
     if (new TextEncoder().encode(serializedJobs).byteLength > MAX_JOBS_BYTES) {
       return jsonResponse({ error: "Job list is too large to store. Shorten vacancy descriptions and try again." }, 413);
     }
 
     await env.JOBS.put(JOBS_KEY, serializedJobs);
-    return jsonResponse({ success: true, count: jobs.length });
+    return jsonResponse({
+      success: true,
+      count: cleanedJobs.jobs.length,
+      removedExpiredCount: cleanedJobs.removedExpiredCount,
+      removedCircularNames: cleanedJobs.removedCircularNames,
+      removedJobIds: cleanedJobs.removedJobIds
+    });
   }
 };

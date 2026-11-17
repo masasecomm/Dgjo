@@ -35,13 +35,15 @@ function makeJob(overrides = {}) {
 }
 
 function createEnv(jobs, token = "test-token") {
+  let savedJobs = structuredClone(jobs);
   return {
     ADMIN_TOKEN: token,
     JOBS: {
       async get() {
-        return structuredClone(jobs);
+        return structuredClone(savedJobs);
       },
-      async put() {
+      async put(_key, value) {
+        savedJobs = JSON.parse(value);
         return undefined;
       }
     }
@@ -448,7 +450,7 @@ test("untrusted vacancy text is escaped in the page and structured data", async 
   assert.match(html, /&lt;\/script&gt;&lt;script&gt;alert/);
 });
 
-test("sitemap excludes expired jobs and unknown job IDs redirect home", async () => {
+test("sitemap and storage exclude expired jobs and removed or unknown job IDs redirect home", async () => {
   const active = makeJob();
   const expired = makeJob({
     id: "closed-post",
@@ -463,10 +465,11 @@ test("sitemap excludes expired jobs and unknown job IDs redirect home", async ()
   assert.equal(sitemapResponse.status, 200);
   assert.match(sitemap, /\/assistant-director-example-1-1-example-1\//);
   assert.doesNotMatch(sitemap, /closed-post/);
+  assert.deepEqual((await env.JOBS.get()).map(job => job.id), [active.id]);
 
   const closedResponse = await worker.fetch(new Request("https://jobs.example/closed-post-1-1-example-1/"), env);
-  assert.equal(closedResponse.status, 410);
-  assert.equal(closedResponse.headers.get("X-Robots-Tag"), "noindex");
+  assert.equal(closedResponse.status, 302);
+  assert.equal(closedResponse.headers.get("Location"), "https://dpsagovernmentjobs.co.za/");
   const missingResponse = await worker.fetch(new Request("https://jobs.example/missing-title-and-reference/"), env);
   assert.equal(missingResponse.status, 302);
   assert.equal(missingResponse.headers.get("Location"), "https://dpsagovernmentjobs.co.za/");
@@ -521,7 +524,7 @@ test("keeps sitemap and API error responses out of page redirects", async () => 
   assert.equal(missingApiRoute.headers.get("Content-Type"), "application/json; charset=utf-8");
 });
 
-test("public API hides expired jobs while authenticated admin reads retain them", async () => {
+test("expired jobs are deleted from storage and hidden from public and admin APIs", async () => {
   const active = makeJob();
   const expired = makeJob({ id: "closed-post", closingDate: "1 January 2020" });
   const env = createEnv([active, expired]);
@@ -529,10 +532,65 @@ test("public API hides expired jobs while authenticated admin reads retain them"
   const publicResponse = await worker.fetch(new Request("https://jobs.example/api/jobs"), env);
   assert.deepEqual((await publicResponse.json()).map(job => job.id), [active.id]);
 
+  assert.deepEqual((await env.JOBS.get()).map(job => job.id), [active.id]);
   const adminResponse = await worker.fetch(new Request("https://jobs.example/api/jobs", {
     headers: { Authorization: "Bearer test-token" }
   }), env);
-  assert.deepEqual((await adminResponse.json()).map(job => job.id), [active.id, expired.id]);
+  assert.deepEqual((await adminResponse.json()).map(job => job.id), [active.id]);
+});
+
+test("scheduled cleanup deletes expired posts without waiting for a visitor", async () => {
+  const active = makeJob();
+  const expired = makeJob({ id: "expired-scheduled", closingDate: "1 January 2020" });
+  const env = createEnv([active, expired]);
+
+  await worker.scheduled({ scheduledTime: Date.now() }, env);
+
+  assert.deepEqual((await env.JOBS.get()).map(job => job.id), [active.id]);
+});
+
+test("publishing a fifth circular permanently removes the oldest circular and its jobs", async () => {
+  const jobs = Array.from({ length: 5 }, (_, index) => makeJob({
+    id: `circular-${index + 1}`,
+    title: `Circular ${index + 1} vacancy`,
+    circularName: `Circular ${index + 1} of 2026`
+  }));
+  const env = createEnv([]);
+  const response = await worker.fetch(new Request("https://jobs.example/api/jobs", {
+    method: "PUT",
+    headers: {
+      Authorization: "Bearer test-token",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(jobs)
+  }), env);
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.count, 4);
+  assert.deepEqual(result.removedCircularNames, ["Circular 1 of 2026"]);
+  assert.deepEqual(result.removedJobIds, ["circular-1"]);
+  assert.deepEqual((await env.JOBS.get()).map(job => job.circularName), jobs.slice(1).map(job => job.circularName));
+});
+
+test("accepts a published list containing up to 6000 jobs", async () => {
+  const jobs = Array.from({ length: 6000 }, (_, index) => makeJob({
+    id: `job-${index + 1}`,
+    title: `Job ${index + 1}`,
+    circularName: "Circular 1 of 2099"
+  }));
+  const response = await worker.fetch(new Request("https://jobs.example/api/jobs", {
+    method: "PUT",
+    headers: {
+      Authorization: "Bearer test-token",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(jobs)
+  }), createEnv([]));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.count, 6000);
 });
 
 test("robots endpoint advertises the live Worker sitemap", async () => {

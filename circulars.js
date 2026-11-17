@@ -73,3 +73,25 @@ export function groupJobsByCircular(jobs) {
   }
   return [...groups.values()].sort((a, b) => compareCircularNames(a.name, b.name));
 }
+
+export const MAX_ACTIVE_CIRCULARS = 4;
+
+export function retainLatestCircularJobs(jobs, limit = MAX_ACTIVE_CIRCULARS) {
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new RangeError("Circular retention limit must be a non-negative integer.");
+  }
+  const groups = groupJobsByCircular(jobs);
+  const firstRetainedIndex = Math.max(0, groups.length - limit);
+  const removedGroups = groups.slice(0, firstRetainedIndex);
+  const retainedPaths = new Set(groups.slice(firstRetainedIndex).map(group => group.path));
+  const removedPaths = new Set(removedGroups.map(group => group.path));
+
+  return {
+    jobs: jobs.filter(job => {
+      const path = circularArchivePath(job?.circularName);
+      return !path || retainedPaths.has(path);
+    }),
+    removedCircularNames: removedGroups.map(group => group.name),
+    removedJobIds: jobs.filter(job => removedPaths.has(circularArchivePath(job?.circularName))).map(job => job.id)
+  };
+}
