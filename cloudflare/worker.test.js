@@ -75,6 +75,26 @@ function alertSignupRequest(overrides = {}) {
       province: "Limpopo",
       department: "Department of Health",
       consent: true,
+      sheetConsent: true,
+      ...overrides
+    })
+  });
+}
+
+function cvMatchRequest(overrides = {}) {
+  return new Request("https://jobs.example/api/cv-matches", {
+    method: "POST",
+    headers: {
+      Origin: "https://dpsagovernmentjobs.co.za",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name: "Test Applicant",
+      email: "applicant@example.com",
+      province: "Limpopo",
+      department: "Department of Health",
+      cvText: "Registered nurse with clinical experience and patient care skills. Nursing practice, assessment, hospital work and health records.",
+      sheetConsent: true,
       ...overrides
     })
   });
@@ -88,6 +108,8 @@ test("job alert subscriptions require explicit consent and a permitted site orig
   const configured = createEnv([makeJob()]);
   configured.RESEND_API_KEY = "test-resend-key";
   configured.ALERTS_FROM_EMAIL = "alerts@example.com";
+  configured.SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/test/exec";
+  configured.SHEETS_WEBHOOK_SECRET = "test-sheet-secret";
   const missingConsent = await worker.fetch(alertSignupRequest({ consent: false }), configured);
   assert.equal(missingConsent.status, 400);
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -130,18 +152,29 @@ test("job alert subscriptions require explicit consent and a permitted site orig
 
 test("confirmed alert subscribers receive only new jobs matching their preferences and can unsubscribe", async t => {
   const sentEmails = [];
+  const sheetRecords = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
-    assert.equal(url, "https://api.resend.com/emails");
-    sentEmails.push(JSON.parse(init.body));
-    return new Response(JSON.stringify({ id: `email-${sentEmails.length}` }), { status: 200 });
+    if (url === "https://api.resend.com/emails") {
+      sentEmails.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ id: `email-${sentEmails.length}` }), { status: 200 });
+    }
+    assert.equal(url, "https://script.google.com/macros/s/test/exec");
+    const record = JSON.parse(init.body);
+    assert.equal(record.secret, "test-sheet-secret");
+    sheetRecords.push(record);
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
   });
   const env = createEnv([makeJob()]);
   env.RESEND_API_KEY = "test-resend-key";
   env.ALERTS_FROM_EMAIL = "DPSA Alerts <alerts@example.com>";
+  env.SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/test/exec";
+  env.SHEETS_WEBHOOK_SECRET = "test-sheet-secret";
 
   const signup = await worker.fetch(alertSignupRequest(), env);
   assert.equal(signup.status, 202);
   assert.equal(sentEmails.length, 1);
+  assert.equal(sheetRecords[0].recordType, "email_alert");
+  assert.equal(sheetRecords[0].status, "pending");
   const confirmationToken = sentEmails[0].text.match(/api\/alerts\/confirm\?token=([a-f0-9]{64})/)[1];
   const confirmation = await worker.fetch(new Request(
     `https://jobs.example/api/alerts/confirm?token=${confirmationToken}`
@@ -164,6 +197,7 @@ test("confirmed alert subscribers receive only new jobs matching their preferenc
   assert.equal(subscriber.province, "Limpopo");
   assert.equal(subscriber.department, "Department of Health");
   assert.ok(subscriber.consentedAt);
+  assert.equal(sheetRecords[1].status, "confirmed");
 
   const matchingJob = makeJob({
     id: "new-health-post",
@@ -202,6 +236,33 @@ test("confirmed alert subscribers receive only new jobs matching their preferenc
   ), env);
   assert.equal(unsubscribed.status, 200);
   assert.equal(await env.JOBS.get(subscriberKey, "json"), null);
+  assert.equal(sheetRecords[2].status, "unsubscribed");
+});
+
+test("CV match records require consent and send CV text only to the configured sheet webhook", async t => {
+  const sentRecords = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    assert.equal(url, "https://script.google.com/macros/s/test/exec");
+    sentRecords.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  });
+  const env = createEnv([makeJob()]);
+  env.SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/test/exec";
+  env.SHEETS_WEBHOOK_SECRET = "test-sheet-secret";
+
+  const missingConsent = await worker.fetch(cvMatchRequest({ sheetConsent: false }), env);
+  assert.equal(missingConsent.status, 400);
+  assert.equal(sentRecords.length, 0);
+
+  const response = await worker.fetch(cvMatchRequest(), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).success, true);
+  assert.equal(sentRecords.length, 1);
+  assert.equal(sentRecords[0].recordType, "cv_match");
+  assert.match(sentRecords[0].cvText, /Registered nurse/);
+  assert.equal(sentRecords[0].email, "applicant@example.com");
+  assert.equal(sentRecords[0].secret, "test-sheet-secret");
+  assert.deepEqual((await env.JOBS.list({ prefix: "cv-matches:" })).keys, []);
 });
 
 test("vacancy route renders unique metadata, full details and valid structured data", async () => {

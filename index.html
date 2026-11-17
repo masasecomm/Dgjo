@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261117-cv">
+  <link rel="stylesheet" href="styles.css?v=20261117-cv-form">
   <title>Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
@@ -91,7 +91,7 @@
           <div>
             <p class="eyebrow">Personalised job search</p>
             <h2 id="cv-job-matcher-heading">Find government jobs that fit your CV</h2>
-            <p class="section-intro">Upload a CV to compare its job-related skills and experience with current vacancies. Choose a province and department, or search all.</p>
+            <p class="section-intro">Upload a CV to compare its job-related skills and experience with current vacancies across all provinces and departments.</p>
           </div>
         </div>
         <form id="cv-match-form" class="cv-match-form">
@@ -99,22 +99,18 @@
             <label>Full names
               <input id="cv-match-name" name="name" type="text" autocomplete="name" maxlength="120" required>
             </label>
-            <label>Email address
-              <input id="cv-match-email" name="email" type="email" autocomplete="email" maxlength="254" required>
-            </label>
             <label>CV file
               <input id="cv-match-file" name="cv" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" required>
               <span class="cv-field-hint">PDF, Word (.docx) or text file, up to 10 MB. Scanned PDFs are not supported.</span>
             </label>
-            <label>Preferred province
-              <select id="cv-match-province" name="province"><option value="all">All provinces and National</option></select>
-            </label>
-            <label>Preferred department
-              <select id="cv-match-department" name="department"><option value="all">All departments</option></select>
-            </label>
+            <div class="cv-match-submit-row">
+              <label class="cv-match-email-label">
+                <input id="cv-match-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="Your e-mail" aria-label="Email address" required>
+              </label>
+              <button class="button" type="submit">Match my CV <span aria-hidden="true">→</span></button>
+            </div>
           </div>
-          <button class="button" type="submit">Match my CV to current vacancies <span aria-hidden="true">→</span></button>
-          <p class="cv-privacy-note">Your CV is read in this browser and is never uploaded or saved by this site. Your name and email stay in this browser for CV matching. Results show keyword overlap, not eligibility or a prediction of hiring. Always check the full requirements and closing date in the official advert.</p>
+          <label class="data-consent"><input id="cv-match-sheet-consent" name="sheetConsent" type="checkbox" required> I agree to send my name, email and the text extracted from my CV to the DPSAWebsite Google Sheet. These records are not automatically deleted.</label>
           <p id="cv-match-status" class="cv-match-status" role="status" aria-live="polite"></p>
         </form>
         <section id="cv-match-results" class="cv-match-results" aria-labelledby="cv-match-results-heading" hidden>
@@ -140,10 +136,11 @@
               <select id="job-alert-department" name="department"><option value="all">All departments</option></select>
             </label>
             <label class="job-alert-consent"><input id="job-alert-consent" name="consent" type="checkbox" required> I agree to receive job-alert emails for these preferences. I can unsubscribe at any time.</label>
+            <label class="job-alert-consent"><input id="job-alert-sheet-consent" name="sheetConsent" type="checkbox" required> I agree to have my name, email, province and department recorded in the DPSAWebsite Google Sheet. The record is not automatically deleted if I unsubscribe.</label>
             <button class="button" type="submit">Subscribe to job alerts</button>
             <p id="job-alert-status" class="cv-match-status" role="status" aria-live="polite"></p>
           </form>
-          <p class="cv-privacy-note">We store your name, email and alert preferences only after you submit this form. Alerts start after you confirm your email, and every alert includes an unsubscribe link.</p>
+          <p class="cv-privacy-note">Alert details are recorded in the DPSAWebsite Google Sheet after you submit. Alerts start after you confirm your email. Unsubscribing stops emails and changes the sheet status to “unsubscribed”; it does not delete the record.</p>
         </section>
       </div>
     </section>
@@ -296,6 +293,7 @@
 
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
     const alertsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/alerts/subscribe";
+    const cvMatchesApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/cv-matches";
     const jobsPageOrigin = "https://jobs.dpsagovernmentjobs.co.za";
     const jobsList = document.querySelector("#job-list");
     const jobsStatus = document.querySelector("#job-list-status");
@@ -311,8 +309,7 @@
     const cvMatchName = document.querySelector("#cv-match-name");
     const cvMatchEmail = document.querySelector("#cv-match-email");
     const cvMatchFile = document.querySelector("#cv-match-file");
-    const cvMatchProvince = document.querySelector("#cv-match-province");
-    const cvMatchDepartment = document.querySelector("#cv-match-department");
+    const cvMatchSheetConsent = document.querySelector("#cv-match-sheet-consent");
     const cvMatchStatus = document.querySelector("#cv-match-status");
     const cvMatchResults = document.querySelector("#cv-match-results");
     const cvMatchList = document.querySelector("#cv-match-list");
@@ -362,10 +359,8 @@
       jobProvince.replaceChildren(new Option("All Provinces", ""), ...provinces.map(name => new Option(name, name)));
       jobDepartment.replaceChildren(new Option("All Departments", ""), ...departments.map(name => new Option(name, name)));
       const allProvinceOption = () => new Option("All provinces and National", "all");
-      cvMatchProvince.replaceChildren(allProvinceOption(), ...provinces.map(name => new Option(name, name)));
       jobAlertProvince.replaceChildren(allProvinceOption(), ...provinces.map(name => new Option(name, name)));
       const allDepartmentOption = () => new Option("All departments", "all");
-      cvMatchDepartment.replaceChildren(allDepartmentOption(), ...alertDepartments.map(name => new Option(name, name)));
       jobAlertDepartment.replaceChildren(allDepartmentOption(), ...alertDepartments.map(name => new Option(name, name)));
       if (selectedProvince) jobProvince.value = selectedProvince;
       if (departments.includes(selectedDepartment)) jobDepartment.value = selectedDepartment;
@@ -708,7 +703,7 @@
       if (!cvMatches.length) {
         const empty = document.createElement("li");
         empty.className = "listing-empty";
-        empty.textContent = "No current vacancies had enough job-related keyword overlap with this CV and your selected preferences.";
+        empty.textContent = "No current vacancies had enough job-related keyword overlap with this CV.";
         cvMatchList.append(empty);
       }
       const visibleCount = Math.min(cvMatches.length, CV_MATCHES_PER_PAGE);
@@ -738,16 +733,30 @@
         const file = cvMatchFile.files?.[0];
         const cvText = await readCvText(file);
         const candidateText = removePersonalDetails(cvText, cvMatchName.value, cvMatchEmail.value);
-        const matches = rankJobsForCv(candidateText, allJobs, {
-          province: cvMatchProvince.value,
-          department: cvMatchDepartment.value
-        });
+        const matches = rankJobsForCv(candidateText, allJobs);
         renderCvMatches(matches);
+        const response = await fetch(cvMatchesApiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: cvMatchName.value,
+            email: cvMatchEmail.value,
+            cvText,
+            sheetConsent: cvMatchSheetConsent.checked
+          })
+        });
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          throw new Error(`The CV record service returned an invalid response (HTTP ${response.status}).`);
+        }
+        if (!response.ok) throw new Error(result.error || `The CV record could not be saved (HTTP ${response.status}).`);
         setFormStatus(
           cvMatchStatus,
           matches.length
-            ? `Found ${matches.length} current ${matches.length === 1 ? "vacancy" : "vacancies"} with relevant keyword overlap. Your CV was not uploaded.`
-            : "No current vacancies matched these preferences closely enough. Your CV was not uploaded."
+            ? `Found ${matches.length} current ${matches.length === 1 ? "vacancy" : "vacancies"} with relevant keyword overlap. Your CV text and details were recorded in the DPSAWebsite sheet.`
+            : "No current vacancies matched closely enough. Your CV text and details were recorded in the DPSAWebsite sheet."
         );
         cvMatchFile.value = "";
       } catch (error) {
@@ -770,7 +779,8 @@
             email: document.querySelector("#job-alert-email").value,
             province: jobAlertProvince.value,
             department: jobAlertDepartment.value,
-            consent: document.querySelector("#job-alert-consent").checked
+            consent: document.querySelector("#job-alert-consent").checked,
+            sheetConsent: document.querySelector("#job-alert-sheet-consent").checked
           })
         });
         let result;

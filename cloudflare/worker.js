@@ -34,6 +34,7 @@ const ALERTS_SUBSCRIBER_PREFIX = "job-alerts:subscriber:";
 const ALERTS_VERIFY_PREFIX = "job-alerts:verify:";
 const ALERTS_UNSUBSCRIBE_PREFIX = "job-alerts:unsubscribe:";
 const ALERTS_RATE_PREFIX = "job-alerts:signup-rate:";
+const CV_MATCH_RATE_PREFIX = "cv-matches:rate:";
 const CATEGORIES = new Set([
   "Administration", "Education", "Finance", "Health", "Law Enforcement", "Other",
   "Design", "Engineering", "Marketing", "Product"
@@ -131,15 +132,76 @@ async function hashAlertValue(value) {
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function alertSignupRateLimited(request, env) {
+async function alertSignupRateLimited(request, env, prefix = ALERTS_RATE_PREFIX) {
   const address = request.headers.get("CF-Connecting-IP");
   if (!address) return false;
   const hour = Math.floor(Date.now() / 3600000);
-  const key = `${ALERTS_RATE_PREFIX}${hour}:${await hashAlertValue(address)}`;
+  const key = `${prefix}${hour}:${await hashAlertValue(address)}`;
   const attempts = Number(await env.JOBS.get(key));
   if (attempts >= 5) return true;
   await env.JOBS.put(key, String(attempts + 1), { expirationTtl: 3600 });
   return false;
+}
+
+async function recordCvMatch(request, env) {
+  const origin = request.headers.get("Origin") ?? "";
+  if (!ALERTS_ALLOWED_ORIGINS.has(origin)) {
+    return alertsJsonResponse({ error: "This CV matching request is not allowed." }, 403, origin);
+  }
+  if (!env.SHEETS_WEBHOOK_URL || !env.SHEETS_WEBHOOK_SECRET) {
+    return alertsJsonResponse({ error: "CV matching is temporarily unavailable." }, 503, origin);
+  }
+  if (await alertSignupRateLimited(request, env, CV_MATCH_RATE_PREFIX)) {
+    return alertsJsonResponse({ error: "Too many CV matching requests. Please try again later." }, 429, origin);
+  }
+
+  let input;
+  try {
+    const body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > 500000) {
+      return alertsJsonResponse({ error: "The CV text is too large to record." }, 413, origin);
+    }
+    input = JSON.parse(body);
+  } catch {
+    return alertsJsonResponse({ error: "Request body must be valid JSON." }, 400, origin);
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+      Object.keys(input).some(field => !["name", "email", "province", "department", "cvText", "sheetConsent"].includes(field))) {
+    return alertsJsonResponse({ error: "CV matching details are invalid." }, 400, origin);
+  }
+
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
+  const requestedProvince = typeof input.province === "string" ? input.province.trim() : "all";
+  const province = requestedProvince === "all" ? "all" : normalizeProvince(requestedProvince);
+  const department = typeof input.department === "string" ? input.department.trim() : "";
+  const cvText = typeof input.cvText === "string" ? input.cvText.trim() : "";
+  if (!name || name.length > 120 || !validAlertEmail(email) || !province ||
+      department.length > 160 || cvText.length < 60 || cvText.length > 120000 ||
+      typeof input.sheetConsent !== "boolean" || !input.sheetConsent) {
+    return alertsJsonResponse({ error: "Enter valid contact and preference details, provide readable CV text, and confirm spreadsheet consent." }, 400, origin);
+  }
+
+  const consentedAt = new Date().toISOString();
+  try {
+    await writeSheetRecord(env, {
+      action: "append",
+      recordType: "cv_match",
+      recordId: `cv:${randomAlertToken()}`,
+      name,
+      email,
+      province,
+      department: department || "all",
+      status: "recorded",
+      cvText,
+      consentedAt,
+      updatedAt: consentedAt
+    });
+  } catch (error) {
+    console.error("Could not record a CV match in Google Sheets.", error);
+    return alertsJsonResponse({ error: "We could not record your CV details. Please try again later." }, 502, origin);
+  }
+  return alertsJsonResponse({ success: true }, 200, origin);
 }
 
 function validAlertToken(value) {
@@ -167,6 +229,25 @@ async function sendResendEmail(env, message) {
     console.error(`Resend email request failed with HTTP ${response.status}.`);
     throw new Error(`Resend email request failed with HTTP ${response.status}.`);
   }
+}
+
+async function writeSheetRecord(env, record) {
+  if (!env.SHEETS_WEBHOOK_URL || !env.SHEETS_WEBHOOK_SECRET) {
+    throw new Error("Google Sheets recording is not configured.");
+  }
+  const response = await fetch(env.SHEETS_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...record, secret: env.SHEETS_WEBHOOK_SECRET })
+  });
+  if (!response.ok) throw new Error(`Google Sheets webhook failed with HTTP ${response.status}.`);
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error("Google Sheets webhook returned an invalid response.");
+  }
+  if (result?.success !== true) throw new Error("Google Sheets webhook did not confirm the record.");
 }
 
 function alertPreferenceMatches(subscriber, job) {
@@ -253,6 +334,9 @@ async function subscribeToJobAlerts(request, env) {
   if (!env.RESEND_API_KEY || !env.ALERTS_FROM_EMAIL) {
     return alertsJsonResponse({ error: "Email alerts are temporarily unavailable." }, 503, origin);
   }
+  if (!env.SHEETS_WEBHOOK_URL || !env.SHEETS_WEBHOOK_SECRET) {
+    return alertsJsonResponse({ error: "Email alert registration is temporarily unavailable." }, 503, origin);
+  }
 
   const contentLength = Number(request.headers.get("Content-Length"));
   if (Number.isFinite(contentLength) && contentLength > 4096) {
@@ -270,7 +354,7 @@ async function subscribeToJobAlerts(request, env) {
     return alertsJsonResponse({ error: "Request body must be valid JSON." }, 400, origin);
   }
   if (!input || typeof input !== "object" || Array.isArray(input) ||
-      Object.keys(input).some(field => !["name", "email", "province", "department", "consent"].includes(field))) {
+      Object.keys(input).some(field => !["name", "email", "province", "department", "consent", "sheetConsent"].includes(field))) {
     return alertsJsonResponse({ error: "Signup details are invalid." }, 400, origin);
   }
 
@@ -280,8 +364,9 @@ async function subscribeToJobAlerts(request, env) {
   const province = requestedProvince === "all" ? "all" : normalizeProvince(requestedProvince);
   const requestedDepartment = typeof input.department === "string" ? input.department.trim() : "all";
   if (!name || name.length > 120 || !validAlertEmail(email) || !province ||
-      typeof input.consent !== "boolean" || !input.consent) {
-    return alertsJsonResponse({ error: "Enter your name, a valid email address, and confirm email alert consent." }, 400, origin);
+      typeof input.consent !== "boolean" || !input.consent ||
+      typeof input.sheetConsent !== "boolean" || !input.sheetConsent) {
+    return alertsJsonResponse({ error: "Enter your name and valid email address, and confirm both email-alert and spreadsheet consent." }, 400, origin);
   }
 
   const jobs = await loadPublishedJobs(env);
@@ -299,6 +384,23 @@ async function subscribeToJobAlerts(request, env) {
   const existingSignupMessage = "Signup received. If confirmation is needed, check your inbox; confirmed alerts are already active. Unsubscribe first to change confirmed preferences.";
   if (existing?.status === "confirmed" ||
       (existing?.status === "pending" && Date.now() - existing.lastConfirmationSentAt < ALERTS_RESEND_COOLDOWN)) {
+    try {
+      await writeSheetRecord(env, {
+        action: "upsert",
+        recordType: "email_alert",
+        recordId: `alert:${emailHash}`,
+        name: existing.name,
+        email: existing.email,
+        province: existing.province,
+        department: existing.department,
+        status: existing.status,
+        consentedAt: existing.consentedAt,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Could not sync an existing email-alert signup to Google Sheets.", error);
+      return alertsJsonResponse({ error: "We could not update your signup record. Please try again later." }, 502, origin);
+    }
     return alertsJsonResponse({ success: true, message: existingSignupMessage }, 202, origin);
   }
 
@@ -323,6 +425,28 @@ async function subscribeToJobAlerts(request, env) {
   await env.JOBS.put(subscriberKey, JSON.stringify(subscriber), { expirationTtl: ALERTS_CONFIRMATION_TTL });
   await env.JOBS.put(verificationKey, emailHash, { expirationTtl: ALERTS_CONFIRMATION_TTL });
   await env.JOBS.put(unsubscribeKey, emailHash, { expirationTtl: ALERTS_CONFIRMATION_TTL });
+  try {
+    await writeSheetRecord(env, {
+      action: "upsert",
+      recordType: "email_alert",
+      recordId: `alert:${emailHash}`,
+      name,
+      email,
+      province,
+      department,
+      status: "pending",
+      consentedAt: subscriber.consentedAt,
+      updatedAt: subscriber.consentedAt
+    });
+  } catch (error) {
+    console.error("Could not record an email-alert signup in Google Sheets.", error);
+    await Promise.all([
+      env.JOBS.delete(subscriberKey),
+      env.JOBS.delete(verificationKey),
+      env.JOBS.delete(unsubscribeKey)
+    ]);
+    return alertsJsonResponse({ error: "We could not record your signup. Please try again later." }, 502, origin);
+  }
 
   const confirmationUrl = new URL(`/api/alerts/confirm?token=${verificationToken}`, WORKER_SITE_URL).href;
   try {
@@ -333,6 +457,22 @@ async function subscribeToJobAlerts(request, env) {
       html: `<p>Hello ${escapeHtml(name)},</p><p>Confirm your email address to receive new government vacancy alerts:</p><p><a href="${escapeHtml(confirmationUrl)}">Confirm my email address</a></p><p>If you did not request these alerts, you can ignore this email.</p>`
     });
   } catch {
+    try {
+      await writeSheetRecord(env, {
+        action: "upsert",
+        recordType: "email_alert",
+        recordId: `alert:${emailHash}`,
+        name,
+        email,
+        province,
+        department,
+        status: "confirmation_failed",
+        consentedAt: subscriber.consentedAt,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Could not record the email-alert confirmation failure in Google Sheets.", error);
+    }
     await Promise.all([
       env.JOBS.delete(subscriberKey),
       env.JOBS.delete(verificationKey),
@@ -362,6 +502,23 @@ async function confirmJobAlerts(token, env) {
   await env.JOBS.put(subscriberKey, JSON.stringify(subscriber));
   await env.JOBS.put(`${ALERTS_UNSUBSCRIBE_PREFIX}${subscriber.unsubscribeToken}`, emailHash);
   await env.JOBS.delete(verificationKey);
+  try {
+    await writeSheetRecord(env, {
+      action: "upsert",
+      recordType: "email_alert",
+      recordId: `alert:${emailHash}`,
+      name: subscriber.name,
+      email: subscriber.email,
+      province: subscriber.province,
+      department: subscriber.department,
+      status: "confirmed",
+      consentedAt: subscriber.consentedAt,
+      updatedAt: subscriber.confirmedAt
+    });
+  } catch (error) {
+    console.error("Could not update the email-alert confirmation in Google Sheets.", error);
+    return alertPage("Email alerts confirmed", "Your email is confirmed and alerts are active, but the spreadsheet status could not be updated.");
+  }
   return alertPage("Email alerts confirmed", "Your email is confirmed. We will notify you when matching new government vacancies are published.");
 }
 
@@ -387,8 +544,28 @@ async function unsubscribeFromJobAlerts(token, env) {
   const unsubscribeKey = `${ALERTS_UNSUBSCRIBE_PREFIX}${token}`;
   const emailHash = await env.JOBS.get(unsubscribeKey);
   if (!emailHash) return alertPage("Unsubscribe link expired", "This unsubscribe link is invalid or has expired.");
+  const subscriber = await env.JOBS.get(`${ALERTS_SUBSCRIBER_PREFIX}${emailHash}`, "json");
   await env.JOBS.delete(`${ALERTS_SUBSCRIBER_PREFIX}${emailHash}`);
   await env.JOBS.delete(unsubscribeKey);
+  if (subscriber) {
+    try {
+      await writeSheetRecord(env, {
+        action: "upsert",
+        recordType: "email_alert",
+        recordId: `alert:${emailHash}`,
+        name: subscriber.name,
+        email: subscriber.email,
+        province: subscriber.province,
+        department: subscriber.department,
+        status: "unsubscribed",
+        consentedAt: subscriber.consentedAt,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Could not update the email-alert unsubscribe status in Google Sheets.", error);
+      return alertPage("You are unsubscribed", "You will no longer receive new-job alerts. The spreadsheet status could not be updated; its record has not been deleted.");
+    }
+  }
   return alertPage("You are unsubscribed", "You will no longer receive new-job alerts at this email address.");
 }
 
@@ -1216,20 +1393,22 @@ export default {
     const isAlertSignup = url.pathname === "/api/alerts/subscribe";
     const isAlertConfirmation = url.pathname === "/api/alerts/confirm";
     const isAlertUnsubscribe = url.pathname === "/api/alerts/unsubscribe";
+    const isCvMatchRecord = url.pathname === "/api/cv-matches";
     if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS" &&
-        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe))) {
+        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord))) {
       return jsonResponse({ error: "Method not allowed." }, 405);
     }
     if (request.method === "GET" && !url.pathname.startsWith("/api/") &&
         (isFeedRequest(url) || isAdminPath(url.pathname))) {
       return homeRedirect();
     }
-    if (request.method === "OPTIONS" && isAlertSignup) {
+    if (request.method === "OPTIONS" && (isAlertSignup || isCvMatchRecord)) {
       const origin = request.headers.get("Origin") ?? "";
-      if (!ALERTS_ALLOWED_ORIGINS.has(origin)) return alertsJsonResponse({ error: "This signup request is not allowed." }, 403, origin);
+      if (!ALERTS_ALLOWED_ORIGINS.has(origin)) return alertsJsonResponse({ error: "This request is not allowed." }, 403, origin);
       return alertsJsonResponse({}, 204, origin);
     }
     if (request.method === "POST" && isAlertSignup) return subscribeToJobAlerts(request, env);
+    if (request.method === "POST" && isCvMatchRecord) return recordCvMatch(request, env);
     if (request.method === "GET" && isAlertConfirmation) {
       return showAlertConfirmation(url.searchParams.get("token"), env, "confirm");
     }

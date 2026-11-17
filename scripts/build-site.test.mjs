@@ -402,7 +402,21 @@ test("publishes the supplied salary table with a readable level guide and PDF ac
 
 test("refreshes the homepage stylesheet cache for the CV matcher design", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-cv">/);
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-cv-form">/);
+});
+
+test("discloses and gates CV and alert data sharing to the Google Sheet", async () => {
+  const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const cvForm = page.slice(page.indexOf('<form id="cv-match-form"'), page.indexOf("</form>", page.indexOf('<form id="cv-match-form"')));
+  assert.match(page, /id="cv-match-sheet-consent"[^>]*type="checkbox" required/);
+  assert.match(page, /text extracted from my CV to the DPSAWebsite Google Sheet/i);
+  assert.doesNotMatch(cvForm, /Preferred province|Preferred department|cv-match-province|cv-match-department/);
+  assert.match(cvForm, /class="cv-match-submit-row"/);
+  assert.match(cvForm, /placeholder="Your e-mail"/);
+  assert.doesNotMatch(cvForm, /Your CV is read in this browser and is never uploaded or saved by this site/);
+  assert.match(page, /id="job-alert-sheet-consent"[^>]*type="checkbox" required/);
+  assert.match(page, /unsubscribing stops emails and changes the sheet status to “unsubscribed”/i);
+  assert.match(page, /api\/cv-matches/);
 });
 
 test("loads the AdSense script on every public static HTML page", async () => {
