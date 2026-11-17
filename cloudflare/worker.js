@@ -30,6 +30,10 @@ import {
 } from "../salary-scales.js";
 
 const JOBS_KEY = "published-jobs";
+const ALERTS_SUBSCRIBER_PREFIX = "job-alerts:subscriber:";
+const ALERTS_VERIFY_PREFIX = "job-alerts:verify:";
+const ALERTS_UNSUBSCRIBE_PREFIX = "job-alerts:unsubscribe:";
+const ALERTS_RATE_PREFIX = "job-alerts:signup-rate:";
 const CATEGORIES = new Set([
   "Administration", "Education", "Finance", "Health", "Law Enforcement", "Other",
   "Design", "Engineering", "Marketing", "Product"
@@ -42,6 +46,10 @@ const MAX_JOBS = 6000;
 const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
+const WORKER_SITE_URL = "https://jobs.dpsagovernmentjobs.co.za";
+const ALERTS_ALLOWED_ORIGINS = new Set([SITE_URL, "https://www.dpsagovernmentjobs.co.za"]);
+const ALERTS_CONFIRMATION_TTL = 24 * 60 * 60;
+const ALERTS_RESEND_COOLDOWN = 15 * 60 * 1000;
 const ADS_TXT = "google.com, pub-3860151941190347, DIRECT, f08c47fec0942fa0";
 const GENERIC_EMPLOYERS = new Set(["south african public service", "hiring department not identified", "department not specified"]);
 const VERIFIED_CIRCULAR_FACTS = new Map([
@@ -89,6 +97,299 @@ function jsonResponse(body, status = 200) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+function alertsJsonResponse(body, status = 200, origin = "") {
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Cache-Control": "no-store",
+    "Vary": "Origin"
+  };
+  if (ALERTS_ALLOWED_ORIGINS.has(origin)) headers["Access-Control-Allow-Origin"] = origin;
+  return new Response(status === 204 ? null : JSON.stringify(body), { status, headers });
+}
+
+function alertPage(title, message) {
+  return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title><body style="font:16px/1.6 Arial,sans-serif;max-width:640px;margin:12vh auto;padding:24px;color:#26364b"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><p><a href="${SITE_URL}/">Return to DPSA Government Jobs</a></p></body></html>`, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff"
+    }
+  });
+}
+
+function randomAlertToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return [...bytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function hashAlertValue(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value.toLowerCase()));
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function alertSignupRateLimited(request, env) {
+  const address = request.headers.get("CF-Connecting-IP");
+  if (!address) return false;
+  const hour = Math.floor(Date.now() / 3600000);
+  const key = `${ALERTS_RATE_PREFIX}${hour}:${await hashAlertValue(address)}`;
+  const attempts = Number(await env.JOBS.get(key));
+  if (attempts >= 5) return true;
+  await env.JOBS.put(key, String(attempts + 1), { expirationTtl: 3600 });
+  return false;
+}
+
+function validAlertToken(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function validAlertEmail(value) {
+  return typeof value === "string" && value.length <= 254 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+async function sendResendEmail(env, message) {
+  if (!env.RESEND_API_KEY || !env.ALERTS_FROM_EMAIL) {
+    throw new Error("Email alerts require RESEND_API_KEY and ALERTS_FROM_EMAIL.");
+  }
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ from: env.ALERTS_FROM_EMAIL, ...message })
+  });
+  if (!response.ok) {
+    console.error(`Resend email request failed with HTTP ${response.status}.`);
+    throw new Error(`Resend email request failed with HTTP ${response.status}.`);
+  }
+}
+
+function alertPreferenceMatches(subscriber, job) {
+  const province = normalizeProvince(job.province) || "National";
+  if (subscriber.province !== "all" && subscriber.province !== province) return false;
+  if (subscriber.department === "all") return true;
+  return String(job.company ?? "").trim().toLowerCase() === subscriber.department.toLowerCase();
+}
+
+async function sendNewJobAlerts(env, jobs) {
+  if (!jobs.length) return;
+  const subscriberKeys = [];
+  let cursor;
+  do {
+    const page = await env.JOBS.list({ prefix: ALERTS_SUBSCRIBER_PREFIX, cursor, limit: 500 });
+    subscriberKeys.push(...page.keys);
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  if (!subscriberKeys.length) return;
+  if (!env.RESEND_API_KEY || !env.ALERTS_FROM_EMAIL) {
+    console.error("New job alerts were not sent because Resend is not configured.");
+    return;
+  }
+
+  for (let index = 0; index < subscriberKeys.length; index += 5) {
+    const keys = subscriberKeys.slice(index, index + 5);
+    await Promise.all(keys.map(async ({ name }) => {
+      const subscriber = await env.JOBS.get(name, "json");
+      if (!subscriber || subscriber.status !== "confirmed") return;
+      const matchingJobs = jobs.filter(job => alertPreferenceMatches(subscriber, job));
+      if (!matchingJobs.length) return;
+
+      const unsubscribeToken = await env.JOBS.get(`${ALERTS_UNSUBSCRIBE_PREFIX}${subscriber.unsubscribeToken}`);
+      if (!unsubscribeToken) return;
+      const unsubscribeUrl = new URL(`/api/alerts/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribeToken)}`, WORKER_SITE_URL).href;
+      const displayedJobs = matchingJobs.slice(0, 20);
+      const jobLines = displayedJobs.map(job => {
+        const title = displayJobTitle(job.title);
+        const link = new URL(jobPagePath(job), WORKER_SITE_URL).href;
+        const details = [
+          String(job.company ?? "").trim(),
+          normalizeProvince(job.province) || "National",
+          String(job.closingDate ?? "").trim() && `Closing date: ${String(job.closingDate).trim()}`
+        ].filter(Boolean);
+        return { title, link, details };
+      });
+      const subject = `${matchingJobs.length} new ${matchingJobs.length === 1 ? "vacancy matches" : "vacancies match"} your alert`;
+      const text = [
+        `Hello ${subscriber.name},`,
+        "",
+        "New government vacancies match your job alert preferences:",
+        ...jobLines.flatMap(job => [`${job.title} — ${job.link}`, ...job.details.map(detail => `  ${detail}`), ""]),
+        matchingJobs.length > displayedJobs.length ? `And ${matchingJobs.length - displayedJobs.length} more matching vacancies.` : "",
+        "",
+        `Unsubscribe: ${unsubscribeUrl}`
+      ].filter(Boolean).join("\n");
+      const html = `<p>Hello ${escapeHtml(subscriber.name)},</p><p>New government vacancies match your job alert preferences:</p><ul>${jobLines.map(job => `<li><a href="${escapeHtml(job.link)}">${escapeHtml(job.title)}</a><br>${job.details.map(detail => escapeHtml(detail)).join(" · ")}</li>`).join("")}</ul>${matchingJobs.length > displayedJobs.length ? `<p>And ${matchingJobs.length - displayedJobs.length} more matching vacancies.</p>` : ""}<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from job alerts</a></p>`;
+      try {
+        await sendResendEmail(env, {
+          to: [subscriber.email],
+          subject,
+          text,
+          html,
+          headers: {
+            "List-Unsubscribe": `<${unsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+          }
+        });
+      } catch (error) {
+        console.error("Could not send a new-job alert.", error);
+      }
+    }));
+  }
+}
+
+async function subscribeToJobAlerts(request, env) {
+  const origin = request.headers.get("Origin") ?? "";
+  if (!ALERTS_ALLOWED_ORIGINS.has(origin)) {
+    return alertsJsonResponse({ error: "This signup request is not allowed." }, 403, origin);
+  }
+  if (await alertSignupRateLimited(request, env)) {
+    return alertsJsonResponse({ error: "Too many signup attempts. Please try again later." }, 429, origin);
+  }
+  if (!env.RESEND_API_KEY || !env.ALERTS_FROM_EMAIL) {
+    return alertsJsonResponse({ error: "Email alerts are temporarily unavailable." }, 503, origin);
+  }
+
+  const contentLength = Number(request.headers.get("Content-Length"));
+  if (Number.isFinite(contentLength) && contentLength > 4096) {
+    return alertsJsonResponse({ error: "Signup details are too large." }, 413, origin);
+  }
+
+  let input;
+  try {
+    const body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > 4096) {
+      return alertsJsonResponse({ error: "Signup details are too large." }, 413, origin);
+    }
+    input = JSON.parse(body);
+  } catch {
+    return alertsJsonResponse({ error: "Request body must be valid JSON." }, 400, origin);
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+      Object.keys(input).some(field => !["name", "email", "province", "department", "consent"].includes(field))) {
+    return alertsJsonResponse({ error: "Signup details are invalid." }, 400, origin);
+  }
+
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
+  const requestedProvince = typeof input.province === "string" ? input.province.trim() : "all";
+  const province = requestedProvince === "all" ? "all" : normalizeProvince(requestedProvince);
+  const requestedDepartment = typeof input.department === "string" ? input.department.trim() : "all";
+  if (!name || name.length > 120 || !validAlertEmail(email) || !province ||
+      typeof input.consent !== "boolean" || !input.consent) {
+    return alertsJsonResponse({ error: "Enter your name, a valid email address, and confirm email alert consent." }, 400, origin);
+  }
+
+  const jobs = await loadPublishedJobs(env);
+  let department = "all";
+  if (requestedDepartment !== "all") {
+    department = jobs.find(job => String(job.company ?? "").trim().toLowerCase() === requestedDepartment.toLowerCase())?.company?.trim() ?? "";
+    if (!department || GENERIC_EMPLOYERS.has(department.toLowerCase())) {
+      return alertsJsonResponse({ error: "Choose a department from the current vacancy list or select all departments." }, 400, origin);
+    }
+  }
+
+  const emailHash = await hashAlertValue(email);
+  const subscriberKey = `${ALERTS_SUBSCRIBER_PREFIX}${emailHash}`;
+  const existing = await env.JOBS.get(subscriberKey, "json");
+  const existingSignupMessage = "Signup received. If confirmation is needed, check your inbox; confirmed alerts are already active. Unsubscribe first to change confirmed preferences.";
+  if (existing?.status === "confirmed" ||
+      (existing?.status === "pending" && Date.now() - existing.lastConfirmationSentAt < ALERTS_RESEND_COOLDOWN)) {
+    return alertsJsonResponse({ success: true, message: existingSignupMessage }, 202, origin);
+  }
+
+  const verificationToken = randomAlertToken();
+  const unsubscribeToken = existing?.unsubscribeToken ?? randomAlertToken();
+  const verificationKey = `${ALERTS_VERIFY_PREFIX}${verificationToken}`;
+  const unsubscribeKey = `${ALERTS_UNSUBSCRIBE_PREFIX}${unsubscribeToken}`;
+  if (existing?.verificationToken) {
+    await env.JOBS.delete(`${ALERTS_VERIFY_PREFIX}${existing.verificationToken}`);
+  }
+  const subscriber = {
+    name,
+    email,
+    province,
+    department,
+    status: "pending",
+    unsubscribeToken,
+    verificationToken,
+    consentedAt: new Date().toISOString(),
+    lastConfirmationSentAt: Date.now()
+  };
+  await env.JOBS.put(subscriberKey, JSON.stringify(subscriber), { expirationTtl: ALERTS_CONFIRMATION_TTL });
+  await env.JOBS.put(verificationKey, emailHash, { expirationTtl: ALERTS_CONFIRMATION_TTL });
+  await env.JOBS.put(unsubscribeKey, emailHash, { expirationTtl: ALERTS_CONFIRMATION_TTL });
+
+  const confirmationUrl = new URL(`/api/alerts/confirm?token=${verificationToken}`, WORKER_SITE_URL).href;
+  try {
+    await sendResendEmail(env, {
+      to: [email],
+      subject: "Confirm your DPSA Government Jobs alerts",
+      text: `Hello ${name},\n\nConfirm your email address to receive new government vacancy alerts:\n${confirmationUrl}\n\nIf you did not request these alerts, you can ignore this email.`,
+      html: `<p>Hello ${escapeHtml(name)},</p><p>Confirm your email address to receive new government vacancy alerts:</p><p><a href="${escapeHtml(confirmationUrl)}">Confirm my email address</a></p><p>If you did not request these alerts, you can ignore this email.</p>`
+    });
+  } catch {
+    await Promise.all([
+      env.JOBS.delete(subscriberKey),
+      env.JOBS.delete(verificationKey),
+      env.JOBS.delete(unsubscribeKey)
+    ]);
+    return alertsJsonResponse({ error: "We could not send a confirmation email. Please try again later." }, 502, origin);
+  }
+
+  return alertsJsonResponse({ success: true, message: "Check your inbox for a confirmation link. Alerts start after you confirm your email." }, 202, origin);
+}
+
+async function confirmJobAlerts(token, env) {
+  if (!validAlertToken(token)) return alertPage("Invalid confirmation link", "This email confirmation link is invalid or has expired.");
+  const verificationKey = `${ALERTS_VERIFY_PREFIX}${token}`;
+  const emailHash = await env.JOBS.get(verificationKey);
+  if (!emailHash) return alertPage("Confirmation link expired", "This email confirmation link is invalid or has expired.");
+  const subscriberKey = `${ALERTS_SUBSCRIBER_PREFIX}${emailHash}`;
+  const subscriber = await env.JOBS.get(subscriberKey, "json");
+  if (!subscriber || subscriber.status !== "pending") {
+    await env.JOBS.delete(verificationKey);
+    return alertPage("Confirmation link expired", "This email confirmation link is invalid or has expired.");
+  }
+  subscriber.status = "confirmed";
+  subscriber.confirmedAt = new Date().toISOString();
+  delete subscriber.lastConfirmationSentAt;
+  delete subscriber.verificationToken;
+  await env.JOBS.put(subscriberKey, JSON.stringify(subscriber));
+  await env.JOBS.put(`${ALERTS_UNSUBSCRIBE_PREFIX}${subscriber.unsubscribeToken}`, emailHash);
+  await env.JOBS.delete(verificationKey);
+  return alertPage("Email alerts confirmed", "Your email is confirmed. We will notify you when matching new government vacancies are published.");
+}
+
+async function showAlertConfirmation(token, env, action) {
+  if (!validAlertToken(token)) return alertPage("Invalid link", "This email alert link is invalid or has expired.");
+  const key = action === "confirm"
+    ? `${ALERTS_VERIFY_PREFIX}${token}`
+    : `${ALERTS_UNSUBSCRIBE_PREFIX}${token}`;
+  if (!await env.JOBS.get(key)) return alertPage("Link expired", "This email alert link is invalid or has expired.");
+  const heading = action === "confirm" ? "Confirm your email alerts" : "Unsubscribe from email alerts";
+  const button = action === "confirm" ? "Confirm email address" : "Unsubscribe";
+  return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${heading}</title><body style="font:16px/1.6 Arial,sans-serif;max-width:640px;margin:12vh auto;padding:24px;color:#26364b"><h1>${heading}</h1><p>${action === "confirm" ? "Select confirm to start receiving new vacancy alerts." : "Select unsubscribe to stop receiving new vacancy alerts."}</p><form method="post" action="/api/alerts/${action}"><input type="hidden" name="token" value="${escapeHtml(token)}"><button type="submit">${button}</button></form></body></html>`, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff"
+    }
+  });
+}
+
+async function unsubscribeFromJobAlerts(token, env) {
+  if (!validAlertToken(token)) return alertPage("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.");
+  const unsubscribeKey = `${ALERTS_UNSUBSCRIBE_PREFIX}${token}`;
+  const emailHash = await env.JOBS.get(unsubscribeKey);
+  if (!emailHash) return alertPage("Unsubscribe link expired", "This unsubscribe link is invalid or has expired.");
+  await env.JOBS.delete(`${ALERTS_SUBSCRIBER_PREFIX}${emailHash}`);
+  await env.JOBS.delete(unsubscribeKey);
+  return alertPage("You are unsubscribed", "You will no longer receive new-job alerts at this email address.");
 }
 
 function homeRedirect(path = "/") {
@@ -746,6 +1047,8 @@ function vacancyPage(job, requestUrl, jobs) {
   const circularName = canonicalCircularName(job.circularName);
   const circularPath = circularArchivePath(circularName);
   const circularNavigation = groupJobsByCircular(jobs.filter(candidate => !isExpired(candidate)))
+    .slice(-MAX_ACTIVE_CIRCULARS)
+    .reverse()
     .map(group => `<a href="${SITE_URL}${group.path}">${escapeHtml(group.name)}<span>${group.jobs.length} ${group.jobs.length === 1 ? "job" : "jobs"}</span></a>`)
     .join("");
   const publicationDetails = [
@@ -908,14 +1211,50 @@ export default {
     await loadPublishedJobs(env);
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     const url = new URL(request.url);
-    if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS") {
+    const isAlertSignup = url.pathname === "/api/alerts/subscribe";
+    const isAlertConfirmation = url.pathname === "/api/alerts/confirm";
+    const isAlertUnsubscribe = url.pathname === "/api/alerts/unsubscribe";
+    if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS" &&
+        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe))) {
       return jsonResponse({ error: "Method not allowed." }, 405);
     }
     if (request.method === "GET" && !url.pathname.startsWith("/api/") &&
         (isFeedRequest(url) || isAdminPath(url.pathname))) {
       return homeRedirect();
+    }
+    if (request.method === "OPTIONS" && isAlertSignup) {
+      const origin = request.headers.get("Origin") ?? "";
+      if (!ALERTS_ALLOWED_ORIGINS.has(origin)) return alertsJsonResponse({ error: "This signup request is not allowed." }, 403, origin);
+      return alertsJsonResponse({}, 204, origin);
+    }
+    if (request.method === "POST" && isAlertSignup) return subscribeToJobAlerts(request, env);
+    if (request.method === "GET" && isAlertConfirmation) {
+      return showAlertConfirmation(url.searchParams.get("token"), env, "confirm");
+    }
+    if (request.method === "POST" && isAlertConfirmation) {
+      try {
+        const form = await request.formData();
+        return confirmJobAlerts(String(form.get("token") ?? ""), env);
+      } catch {
+        return alertPage("Invalid confirmation request", "Use the confirmation button in your email to activate alerts.");
+      }
+    }
+    if (request.method === "GET" && isAlertUnsubscribe) {
+      return showAlertConfirmation(url.searchParams.get("token"), env, "unsubscribe");
+    }
+    if (request.method === "POST" && isAlertUnsubscribe) {
+      let token = url.searchParams.get("token") ?? "";
+      if (!token && request.headers.get("Content-Type")?.includes("application/x-www-form-urlencoded")) {
+        try {
+          const form = await request.formData();
+          token = String(form.get("token") ?? "");
+        } catch {
+          return alertPage("Invalid unsubscribe request", "Use the unsubscribe link in your alert email.");
+        }
+      }
+      return unsubscribeFromJobAlerts(token, env);
     }
     if (url.pathname === "/robots.txt" && request.method === "GET") {
       return new Response(`User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`, {
@@ -1023,6 +1362,8 @@ export default {
       return jsonResponse({ error: `Job list is invalid or exceeds the ${MAX_JOBS}-job limit.` }, 400);
     }
 
+    const previousJobs = await loadPublishedJobs(env);
+    const previousIds = new Set(previousJobs.map(job => job.id));
     const cleanedJobs = prunePublishedJobs(jobs);
     const serializedJobs = JSON.stringify(cleanedJobs.jobs);
     if (new TextEncoder().encode(serializedJobs).byteLength > MAX_JOBS_BYTES) {
@@ -1030,6 +1371,17 @@ export default {
     }
 
     await env.JOBS.put(JOBS_KEY, serializedJobs);
+    const newJobs = cleanedJobs.jobs.filter(job => !previousIds.has(job.id));
+    if (newJobs.length) {
+      const sendAlerts = () => sendNewJobAlerts(env, newJobs);
+      if (context?.waitUntil) {
+        context.waitUntil(sendAlerts().catch(error => {
+          console.error("Could not process new-job alert delivery.", error);
+        }));
+      } else {
+        await sendAlerts();
+      }
+    }
     return jsonResponse({
       success: true,
       count: cleanedJobs.jobs.length,

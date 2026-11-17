@@ -1,15 +1,24 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   canonicalCircularName,
   circularArchiveAnchor,
   circularArchivePath,
+  compareCircularNames,
   groupJobsByCircular,
+  MAX_ACTIVE_CIRCULARS,
   sortJobsByCircular,
   SEARCH_CONSOLE_ARCHIVED_CIRCULARS
 } from "../circulars.js";
-import { normalizeProvince, PROVINCE_CRESTS, SOUTH_AFRICAN_PROVINCES } from "../provinces.js";
+import {
+  normalizeJobRegion,
+  normalizeProvince,
+  NATIONAL_REGION,
+  PROVINCE_CRESTS,
+  SOUTH_AFRICAN_PROVINCES
+} from "../provinces.js";
 import {
   extractJobLevel,
   isNationalTreasuryScalesReference,
@@ -20,6 +29,8 @@ import {
 import { cleanVacancyLocation, cleanVacancyTitle } from "../vacancy-format.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const extensionRequire = createRequire(new URL("../extension/package.json", import.meta.url));
+const { build: buildBrowserBundle } = extensionRequire("esbuild");
 const API_URL = process.env.JOBS_API_URL || "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
 const JOBS_PAGE_ORIGIN = "https://jobs.dpsagovernmentjobs.co.za";
@@ -145,11 +156,12 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
     const slug = encodeURIComponent(String(job.slug || job.id));
     const jobUrl = `${JOBS_PAGE_ORIGIN}/${slug}/`;
     const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
-    const province = normalizeProvince(job.province);
+    const province = normalizeJobRegion(job.province);
     const crestPath = PROVINCE_CRESTS[province] ?? "/south-african-coat-of-arms.png";
-    const scope = isCircularJob ? (province ? "Provincial" : "National") : "";
+    const isProvincial = Boolean(PROVINCE_CRESTS[province]);
+    const scope = isCircularJob ? (isProvincial ? "Provincial" : "National") : "";
     const mark = isCircularJob
-      ? `<img src="${escapeHtml(crestPath)}" alt="${escapeHtml(province ? `${province} provincial coat of arms` : "South African national coat of arms")}" width="64" height="64" loading="lazy" decoding="async">`
+      ? `<img src="${escapeHtml(crestPath)}" alt="${escapeHtml(isProvincial ? `${province} provincial coat of arms` : "South African national coat of arms")}" width="64" height="64" loading="lazy" decoding="async">`
       : '<span class="listing-card-mark-generic" aria-hidden="true">▦</span>';
     const hasDepartment = !/^(?:south african public service|hiring department not identified|department not specified)$/i.test(job.company.trim());
     const department = hasDepartment
@@ -201,8 +213,11 @@ export function renderCircularArchiveLinks(circularGroups) {
 }
 
 export function renderCircularNavigationItems(circularGroups) {
-  return circularGroups
+  return [...circularGroups]
     .filter(group => Array.isArray(group.jobs) && group.jobs.length > 0)
+    .sort((left, right) => compareCircularNames(left.name, right.name))
+    .slice(-MAX_ACTIVE_CIRCULARS)
+    .reverse()
     .map(group =>
       `<a href="${escapeHtml(group.path)}">${escapeHtml(group.name)}<span class="nav-dropdown-count">${group.jobs.length} ${group.jobs.length === 1 ? "job" : "jobs"}</span></a>`
     )
@@ -228,7 +243,7 @@ export function groupJobsByProvince(jobs) {
     jobs: []
   }]));
   for (const job of jobs) {
-    const province = normalizeProvince(job?.province);
+    const province = normalizeJobRegion(job?.province);
     if (groups.has(province)) groups.get(province).jobs.push(job);
   }
   return [...groups.values()].filter(group => group.jobs.length > 0);
@@ -247,14 +262,21 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   const archivePath = provincePath(province);
   const canonicalUrl = `${SITE_URL}${archivePath}`;
   const isGauteng = province === "Gauteng";
+  const isNational = province === NATIONAL_REGION;
   const title = isGauteng
     ? "Government Vacancies in Gauteng | Current DPSA Jobs"
+    : isNational
+      ? "National Government Vacancies | Current DPSA Jobs"
     : `DPSA Vacancies in ${province} | Government Jobs`;
   const description = isGauteng
     ? "Browse current DPSA circular jobs in Gauteng. Looking for GPG vacancies? Check each advert; this is not a complete list of all GPG or municipal recruitment."
+    : isNational
+      ? "Browse current national DPSA public service vacancies that are not assigned to a specific province. Check each official advert for location, requirements and application details."
     : `Browse current DPSA public service vacancies located in ${province}. Check each official advert for requirements, application instructions and closing dates.`;
   const intro = isGauteng
     ? "Looking for GPG vacancies? These are current DPSA circular jobs whose advertised work location is Gauteng. This page is not a complete list of all Gauteng Provincial Government or municipal recruitment; verify every role in the department's official advert."
+    : isNational
+      ? "These current public service vacancies are national posts or are not assigned to a specific province. Check each official advert for the exact work location and application requirements."
     : `Browse current South African public service vacancies located in ${province}. Each listing links to job details; confirm its requirements, application method and closing date in the official department advert.`;
   const itemList = {
     "@type": "ItemList",
@@ -314,14 +336,14 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
     <div class="site-post">
     <section class="page-hero"><div class="shell">
       <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> South African public service vacancies</p>
-      <h1>${isGauteng ? "Gauteng Government Vacancies" : `Government vacancies in ${escapeHtml(province)}`}</h1>
+      <h1>${isGauteng ? "Gauteng Government Vacancies" : isNational ? "National Government Vacancies" : `Government vacancies in ${escapeHtml(province)}`}</h1>
       <p class="lead">${escapeHtml(intro)}</p>
       <a class="button" href="https://www.dpsa.gov.za/newsroom/psvc/" rel="noopener noreferrer">Check the official DPSA circulars</a>
     </div></section>
     <section class="content-section"><div class="shell">
       <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> › Government vacancies › ${escapeHtml(province)}</nav>
-      <h2>Current government jobs in ${escapeHtml(province)}</h2>
-      <p>${jobs.length} current ${jobs.length === 1 ? "vacancy is" : "vacancies are"} listed for this province. Confirm that the advertised location and deadline meet your needs before applying.</p>
+      <h2>${isNational ? "Current national government vacancies" : `Current government jobs in ${escapeHtml(province)}`}</h2>
+      <p>${jobs.length} current ${jobs.length === 1 ? "vacancy is" : "vacancies are"} listed for ${isNational ? "the national category" : `this province`}. Confirm that the advertised location and deadline meet your needs before applying.</p>
       <div class="listing-grid">${renderJobListings(jobs)}</div>
       <h2>Before you apply</h2>
       <ol>
@@ -525,6 +547,25 @@ export async function buildSite() {
 
   const output = path.resolve(process.env.SITE_OUTPUT_DIR || path.join(ROOT, "dist"));
   await mkdir(output, { recursive: true });
+  await buildBrowserBundle({
+    entryPoints: {
+      "cv-pdf-reader": path.join(ROOT, "scripts", "cv-pdf-reader.js"),
+      "cv-docx-reader": path.join(ROOT, "scripts", "cv-docx-reader.js")
+    },
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: "es2022",
+    nodePaths: [path.join(ROOT, "extension", "node_modules")],
+    outdir: output
+  });
+  await cp(
+    path.join(ROOT, "extension", "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.min.mjs"),
+    path.join(output, "pdf.worker.min.mjs"),
+    { force: true }
+  );
+  await mkdir(path.join(output, "scripts"), { recursive: true });
+  await cp(path.join(ROOT, "scripts", "cv-matcher.js"), path.join(output, "scripts", "cv-matcher.js"), { force: true });
   await writeFile(path.join(output, "index.html"), index);
   const files = [
     "404.html", "CNAME", "ads.txt", "jobs.json", "robots.txt", "sitemap.xml",

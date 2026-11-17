@@ -35,20 +35,174 @@ function makeJob(overrides = {}) {
 }
 
 function createEnv(jobs, token = "test-token") {
-  let savedJobs = structuredClone(jobs);
+  const values = new Map([["published-jobs", JSON.stringify(jobs)]]);
   return {
     ADMIN_TOKEN: token,
     JOBS: {
-      async get() {
-        return structuredClone(savedJobs);
+      async get(key = "published-jobs", type) {
+        const value = values.get(key);
+        if (value === undefined) return null;
+        if (type === "json" || key === "published-jobs") return structuredClone(JSON.parse(value));
+        return value;
       },
-      async put(_key, value) {
-        savedJobs = JSON.parse(value);
+      async put(key, value) {
+        values.set(key, String(value));
         return undefined;
+      },
+      async delete(key) {
+        values.delete(key);
+      },
+      async list({ prefix }) {
+        return {
+          keys: [...values.keys()].filter(key => key.startsWith(prefix)).map(name => ({ name })),
+          list_complete: true
+        };
       }
     }
   };
 }
+
+function alertSignupRequest(overrides = {}) {
+  return new Request("https://jobs.example/api/alerts/subscribe", {
+    method: "POST",
+    headers: {
+      Origin: "https://dpsagovernmentjobs.co.za",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name: "Test Applicant",
+      email: "applicant@example.com",
+      province: "Limpopo",
+      department: "Department of Health",
+      consent: true,
+      ...overrides
+    })
+  });
+}
+
+test("job alert subscriptions require explicit consent and a permitted site origin", async () => {
+  const unconfigured = createEnv([makeJob()]);
+  const unavailable = await worker.fetch(alertSignupRequest(), unconfigured);
+  assert.equal(unavailable.status, 503);
+
+  const configured = createEnv([makeJob()]);
+  configured.RESEND_API_KEY = "test-resend-key";
+  configured.ALERTS_FROM_EMAIL = "alerts@example.com";
+  const missingConsent = await worker.fetch(alertSignupRequest({ consent: false }), configured);
+  assert.equal(missingConsent.status, 400);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const limitedRequest = new Request("https://jobs.example/api/alerts/subscribe", {
+      method: "POST",
+      headers: {
+        Origin: "https://dpsagovernmentjobs.co.za",
+        "CF-Connecting-IP": "192.0.2.10",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name: "Test Applicant", email: `applicant${attempt}@example.com`, consent: false })
+    });
+    assert.equal((await worker.fetch(limitedRequest, configured)).status, 400);
+  }
+  const rateLimited = await worker.fetch(new Request("https://jobs.example/api/alerts/subscribe", {
+    method: "POST",
+    headers: {
+      Origin: "https://dpsagovernmentjobs.co.za",
+      "CF-Connecting-IP": "192.0.2.10",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ name: "Test Applicant", email: "sixth@example.com", consent: true })
+  }), configured);
+  assert.equal(rateLimited.status, 429);
+
+  const preflight = await worker.fetch(new Request("https://jobs.example/api/alerts/subscribe", {
+    method: "OPTIONS",
+    headers: { Origin: "https://dpsagovernmentjobs.co.za" }
+  }), configured);
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), "https://dpsagovernmentjobs.co.za");
+
+  const forbiddenOrigin = await worker.fetch(new Request("https://jobs.example/api/alerts/subscribe", {
+    method: "POST",
+    headers: { Origin: "https://attacker.example", "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Test Applicant", email: "applicant@example.com", consent: true })
+  }), configured);
+  assert.equal(forbiddenOrigin.status, 403);
+});
+
+test("confirmed alert subscribers receive only new jobs matching their preferences and can unsubscribe", async t => {
+  const sentEmails = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    assert.equal(url, "https://api.resend.com/emails");
+    sentEmails.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ id: `email-${sentEmails.length}` }), { status: 200 });
+  });
+  const env = createEnv([makeJob()]);
+  env.RESEND_API_KEY = "test-resend-key";
+  env.ALERTS_FROM_EMAIL = "DPSA Alerts <alerts@example.com>";
+
+  const signup = await worker.fetch(alertSignupRequest(), env);
+  assert.equal(signup.status, 202);
+  assert.equal(sentEmails.length, 1);
+  const confirmationToken = sentEmails[0].text.match(/api\/alerts\/confirm\?token=([a-f0-9]{64})/)[1];
+  const confirmation = await worker.fetch(new Request(
+    `https://jobs.example/api/alerts/confirm?token=${confirmationToken}`
+  ), env);
+  assert.equal(confirmation.status, 200);
+  assert.match(await confirmation.text(), /Confirm email address/);
+  const pendingSubscriberKey = [...(await env.JOBS.list({ prefix: "job-alerts:subscriber:" })).keys][0].name;
+  assert.equal((await env.JOBS.get(pendingSubscriberKey, "json")).status, "pending");
+  const confirmedResponse = await worker.fetch(new Request("https://jobs.example/api/alerts/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token: confirmationToken })
+  }), env);
+  assert.equal(confirmedResponse.status, 200);
+  assert.match(await confirmedResponse.text(), /Your email is confirmed/);
+
+  const subscriberKey = [...(await env.JOBS.list({ prefix: "job-alerts:subscriber:" })).keys][0].name;
+  const subscriber = await env.JOBS.get(subscriberKey, "json");
+  assert.equal(subscriber.status, "confirmed");
+  assert.equal(subscriber.province, "Limpopo");
+  assert.equal(subscriber.department, "Department of Health");
+  assert.ok(subscriber.consentedAt);
+
+  const matchingJob = makeJob({
+    id: "new-health-post",
+    title: "Professional Nurse",
+    company: "Department of Health",
+    province: "Limpopo"
+  });
+  const otherJob = makeJob({
+    id: "new-gauteng-post",
+    title: "Professional Nurse",
+    company: "Department of Health",
+    province: "Gauteng"
+  });
+  const pendingTasks = [];
+  const publish = await worker.fetch(new Request("https://jobs.example/api/jobs", {
+    method: "PUT",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify([makeJob(), matchingJob, otherJob])
+  }), env, { waitUntil(task) { pendingTasks.push(task); } });
+  assert.equal(publish.status, 200);
+  await Promise.all(pendingTasks);
+  assert.equal(sentEmails.length, 2);
+  assert.match(sentEmails[1].html, /new-health-post|Professional Nurse/);
+  assert.doesNotMatch(sentEmails[1].html, /new-gauteng-post/);
+  assert.match(sentEmails[1].headers["List-Unsubscribe"], /api\/alerts\/unsubscribe\?token=/);
+
+  const unsubscribeToken = subscriber.unsubscribeToken;
+  const unsubscribePage = await worker.fetch(new Request(
+    `https://jobs.example/api/alerts/unsubscribe?token=${unsubscribeToken}`
+  ), env);
+  assert.match(await unsubscribePage.text(), /Select unsubscribe/);
+  assert.equal((await env.JOBS.get(subscriberKey, "json")).status, "confirmed");
+  const unsubscribed = await worker.fetch(new Request(
+    `https://jobs.example/api/alerts/unsubscribe?token=${unsubscribeToken}`,
+    { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "List-Unsubscribe=One-Click" }
+  ), env);
+  assert.equal(unsubscribed.status, 200);
+  assert.equal(await env.JOBS.get(subscriberKey, "json"), null);
+});
 
 test("vacancy route renders unique metadata, full details and valid structured data", async () => {
   const job = makeJob({
@@ -571,6 +725,18 @@ test("publishing a fifth circular permanently removes the oldest circular and it
   assert.deepEqual(result.removedCircularNames, ["Circular 1 of 2026"]);
   assert.deepEqual(result.removedJobIds, ["circular-1"]);
   assert.deepEqual((await env.JOBS.get()).map(job => job.circularName), jobs.slice(1).map(job => job.circularName));
+
+  const pageResponse = await worker.fetch(new Request("https://jobs.example/circular-5-vacancy-1-1-example-1/"), env);
+  assert.equal(pageResponse.status, 200);
+  const html = await pageResponse.text();
+  const menu = html.match(/<div class="nav-dropdown-menu">([\s\S]*?)<\/div>/)?.[1] ?? "";
+  const menuCirculars = [...menu.matchAll(/>(Circular \d+ of 2026)<span/g)].map(match => match[1]);
+  assert.deepEqual(menuCirculars, [
+    "Circular 5 of 2026",
+    "Circular 4 of 2026",
+    "Circular 3 of 2026",
+    "Circular 2 of 2026"
+  ]);
 });
 
 test("accepts a published list containing up to 6000 jobs", async () => {

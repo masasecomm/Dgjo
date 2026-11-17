@@ -245,6 +245,15 @@ test("removes stale generated circular and province pages on rebuild", async () 
     await buildSite();
     await assert.rejects(access(staleCircular), error => error.code === "ENOENT");
     await assert.rejects(access(staleProvince), error => error.code === "ENOENT");
+    await Promise.all([
+      access(path.join(output, "cv-pdf-reader.js")),
+      access(path.join(output, "cv-docx-reader.js")),
+      access(path.join(output, "pdf.worker.min.mjs")),
+      access(path.join(output, "scripts", "cv-matcher.js"))
+    ]);
+    const homepage = await readFile(path.join(output, "index.html"), "utf8");
+    assert.match(homepage, /id="cv-job-matcher"/);
+    assert.match(homepage, /id="job-alert-form"/);
     const sitemap = await readFile(path.join(output, "sitemap.xml"), "utf8");
     assert.doesNotMatch(sitemap, /circular-41-of-2026|government-vacancies\/north-west/);
     assert.match(sitemap, /circular-42-of-2026/);
@@ -260,12 +269,20 @@ test("renders navigation links only for circulars that have published jobs", () 
   const links = renderCircularNavigationItems([
     { name: "Circular 1 of 2026", path: "/dpsa-vacancy-circulars/circular-1-of-2026/", jobs: [{}] },
     { name: "Circular 2 of 2026", path: "/dpsa-vacancy-circulars/circular-2-of-2026/", jobs: [{}, {}] },
-    { name: "Circular 3 of 2026", path: "/dpsa-vacancy-circulars/circular-3-of-2026/", jobs: [] }
+    { name: "Circular 3 of 2026", path: "/dpsa-vacancy-circulars/circular-3-of-2026/", jobs: [{}] },
+    { name: "Circular 4 of 2026", path: "/dpsa-vacancy-circulars/circular-4-of-2026/", jobs: [{}] },
+    { name: "Circular 5 of 2026", path: "/dpsa-vacancy-circulars/circular-5-of-2026/", jobs: [{}] },
+    { name: "Circular 6 of 2026", path: "/dpsa-vacancy-circulars/circular-6-of-2026/", jobs: [] }
   ]);
 
-  assert.match(links, /href="\/dpsa-vacancy-circulars\/circular-1-of-2026\/">Circular 1 of 2026<span class="nav-dropdown-count">1 job<\/span>/);
-  assert.match(links, /href="\/dpsa-vacancy-circulars\/circular-2-of-2026\/">Circular 2 of 2026<span class="nav-dropdown-count">2 jobs<\/span>/);
-  assert.doesNotMatch(links, /Circular 3 of 2026/);
+  assert.deepEqual([...links.matchAll(/>(Circular \d+ of 2026)<span/g)].map(match => match[1]), [
+    "Circular 5 of 2026",
+    "Circular 4 of 2026",
+    "Circular 3 of 2026",
+    "Circular 2 of 2026"
+  ]);
+  assert.match(links, /Circular 2 of 2026<span class="nav-dropdown-count">2 jobs<\/span>/);
+  assert.doesNotMatch(links, /Circular 1 of 2026|Circular 6 of 2026/);
 });
 
 test("keeps historical circular references available and maps old URLs to their section", () => {
@@ -295,20 +312,28 @@ test("builds province vacancy guides from canonicalized locations", () => {
   ];
   const groups = groupJobsByProvince(jobs);
   const gauteng = groups.find(group => group.name === "Gauteng");
+  const national = groups.find(group => group.name === "National");
   const gautengPage = renderProvinceLandingPage("gauteng", gauteng.jobs);
+  const nationalPage = renderProvinceLandingPage("National", national.jobs);
   const links = renderProvinceGuideLinks(groups);
   const sitemap = renderSitemapWithCircularArchives("<urlset>\n</urlset>", [], "2026-11-17", groups);
 
-  assert.deepEqual(groups.map(group => group.name), ["Gauteng", "Western Cape"]);
+  assert.deepEqual(groups.map(group => group.name), ["Gauteng", "Western Cape", "National"]);
   assert.equal(gauteng.jobs.length, 2);
+  assert.equal(national.jobs.length, 1);
   assert.match(links, /href="\/government-vacancies\/gauteng\/">Gauteng government vacancies<\/a><span>2 current vacancies/);
+  assert.match(links, /href="\/government-vacancies\/national\/">National government vacancies<\/a><span>1 current vacancy/);
   assert.match(gautengPage, /<title>Government Vacancies in Gauteng \| Current DPSA Jobs<\/title>/);
   assert.match(gautengPage, /Looking for GPG vacancies\?/);
   assert.match(gautengPage, /not a complete list of all Gauteng Provincial Government or municipal recruitment/);
   assert.match(gautengPage, /Gauteng role/);
   assert.match(gautengPage, /"@type":"CollectionPage"/);
   assert.match(gautengPage, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
+  assert.match(nationalPage, /<title>National Government Vacancies \| Current DPSA Jobs<\/title>/);
+  assert.match(nationalPage, /not assigned to a specific province/i);
+  assert.match(nationalPage, /Unknown location/);
   assert.match(sitemap, /<loc>https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/gauteng\/<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/national\/<\/loc>/);
   assert.throws(() => renderProvinceLandingPage("Unknown", []), /recognized South African province/);
 });
 

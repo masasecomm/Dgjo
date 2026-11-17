@@ -27,8 +27,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install browser-side CV parser dependencies
+        run: npm ci --prefix extension
       - name: Test homepage rendering
-        run: node --test scripts/build-site.test.mjs
+        run: node --test scripts/build-site.test.mjs scripts/cv-matcher.test.mjs
       - name: Build crawlable homepage
         run: node scripts/build-site.mjs
       - name: Configure GitHub Pages

@@ -51,6 +51,7 @@
         <a href="/" aria-current="page">Home</a>
         <details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a><!-- CIRCULAR_NAV_ITEMS --></div></details>
         <a href="#listings">Province</a>
+        <a href="#cv-job-matcher">CV job match</a>
         <a href="#questions-heading">Contact &amp; help</a>
       </div>
     </nav>
@@ -84,6 +85,69 @@
       </div>
     </section>
 
+    <section class="section cv-matcher-section" id="cv-job-matcher" aria-labelledby="cv-job-matcher-heading">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Personalised job search</p>
+            <h2 id="cv-job-matcher-heading">Find government jobs that fit your CV</h2>
+            <p class="section-intro">Upload a CV to compare its job-related skills and experience with current vacancies. Choose a province and department, or search all.</p>
+          </div>
+        </div>
+        <form id="cv-match-form" class="cv-match-form">
+          <div class="cv-match-fields">
+            <label>Full names
+              <input id="cv-match-name" name="name" type="text" autocomplete="name" maxlength="120" required>
+            </label>
+            <label>Email address
+              <input id="cv-match-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+            </label>
+            <label>CV file
+              <input id="cv-match-file" name="cv" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" required>
+              <span class="cv-field-hint">PDF, Word (.docx) or text file, up to 10 MB. Scanned PDFs are not supported.</span>
+            </label>
+            <label>Preferred province
+              <select id="cv-match-province" name="province"><option value="all">All provinces and National</option></select>
+            </label>
+            <label>Preferred department
+              <select id="cv-match-department" name="department"><option value="all">All departments</option></select>
+            </label>
+          </div>
+          <button class="button" type="submit">Match my CV to current vacancies <span aria-hidden="true">→</span></button>
+          <p class="cv-privacy-note">Your CV is read in this browser and is never uploaded or saved by this site. Your name and email stay in this browser for CV matching. Results show keyword overlap, not eligibility or a prediction of hiring. Always check the full requirements and closing date in the official advert.</p>
+          <p id="cv-match-status" class="cv-match-status" role="status" aria-live="polite"></p>
+        </form>
+        <section id="cv-match-results" class="cv-match-results" aria-labelledby="cv-match-results-heading" hidden>
+          <h3 id="cv-match-results-heading">Vacancies with the closest CV overlap</h3>
+          <p class="cv-match-disclaimer">A match is a starting point, not confirmation that you qualify. The hiring department makes all eligibility and recruitment decisions.</p>
+          <ol id="cv-match-list"></ol>
+          <button id="cv-match-load-more" class="button button-light cv-match-load-more" type="button" hidden>Show more matches</button>
+        </section>
+        <section class="cv-alert-panel" aria-labelledby="job-alert-heading">
+          <h3 id="job-alert-heading">Get new government job alerts by email</h3>
+          <p>Choose a province and department, or select all. We will email you when matching new vacancies are published.</p>
+          <form id="job-alert-form" class="job-alert-form">
+            <label>Full names
+              <input id="job-alert-name" name="name" type="text" autocomplete="name" maxlength="120" required>
+            </label>
+            <label>Email address
+              <input id="job-alert-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+            </label>
+            <label>Preferred province
+              <select id="job-alert-province" name="province"><option value="all">All provinces and National</option></select>
+            </label>
+            <label>Preferred department
+              <select id="job-alert-department" name="department"><option value="all">All departments</option></select>
+            </label>
+            <label class="job-alert-consent"><input id="job-alert-consent" name="consent" type="checkbox" required> I agree to receive job-alert emails for these preferences. I can unsubscribe at any time.</label>
+            <button class="button" type="submit">Subscribe to job alerts</button>
+            <p id="job-alert-status" class="cv-match-status" role="status" aria-live="polite"></p>
+          </form>
+          <p class="cv-privacy-note">We store your name, email and alert preferences only after you submit this form. Alerts start after you confirm your email, and every alert includes an unsubscribe link.</p>
+        </section>
+      </div>
+    </section>
+
     <section class="home-section home-featured" id="listings" aria-labelledby="listings-heading">
       <div class="home-section-heading">
           <div>
@@ -95,7 +159,7 @@
             <a class="home-text-link" href="/dpsa-vacancy-circulars/">Browse DPSA vacancy circulars <span aria-hidden="true">→</span></a>
           </div>
       </div>
-      <nav id="province-filters" class="province-filters" aria-label="Browse jobs by province">
+      <nav id="province-filters" class="province-filters" aria-label="Browse jobs by province or national category">
         <a class="province-filter is-active" href="#listings" data-province="">All Provinces</a>
       </nav>
       <p class="independent-note" id="job-list-status" role="status" hidden></p>
@@ -117,8 +181,8 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Explore local opportunities</p>
-            <h2 id="province-guides-heading">Government vacancies by province</h2>
-            <p class="section-intro">Browse current DPSA public service jobs by advertised work province. Gauteng listings are DPSA circular posts and are not a complete list of all GPG or municipal recruitment.</p>
+            <h2 id="province-guides-heading">Government vacancies by province or national category</h2>
+            <p class="section-intro">Browse current DPSA public service jobs by advertised work province or national category. National listings are not assigned to a specific province.</p>
           </div>
         </div>
         <nav class="province-guide-links" aria-label="Government vacancies by province">
@@ -219,7 +283,8 @@
   </footer>
   <script type="module">
     import { canonicalCircularName, circularArchivePath, sortJobsByCircular } from "./circulars.js";
-    import { normalizeProvince, PROVINCE_CRESTS, SOUTH_AFRICAN_PROVINCES } from "./provinces.js";
+    import { normalizeJobRegion, normalizeProvince, PROVINCE_CRESTS, SOUTH_AFRICAN_PROVINCES } from "./provinces.js";
+    import { rankJobsForCv } from "./scripts/cv-matcher.js";
     import {
       isNationalTreasuryScalesReference,
       extractJobLevel,
@@ -230,6 +295,7 @@
     import { cleanVacancyLocation, cleanVacancyTitle } from "./vacancy-format.js";
 
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
+    const alertsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/alerts/subscribe";
     const jobsPageOrigin = "https://jobs.dpsagovernmentjobs.co.za";
     const jobsList = document.querySelector("#job-list");
     const jobsStatus = document.querySelector("#job-list-status");
@@ -241,9 +307,26 @@
     const jobProvince = document.querySelector("#job-province");
     const jobDepartment = document.querySelector("#job-department");
     const provinceFilters = document.querySelector("#province-filters");
+    const cvMatchForm = document.querySelector("#cv-match-form");
+    const cvMatchName = document.querySelector("#cv-match-name");
+    const cvMatchEmail = document.querySelector("#cv-match-email");
+    const cvMatchFile = document.querySelector("#cv-match-file");
+    const cvMatchProvince = document.querySelector("#cv-match-province");
+    const cvMatchDepartment = document.querySelector("#cv-match-department");
+    const cvMatchStatus = document.querySelector("#cv-match-status");
+    const cvMatchResults = document.querySelector("#cv-match-results");
+    const cvMatchList = document.querySelector("#cv-match-list");
+    const cvMatchLoadMore = document.querySelector("#cv-match-load-more");
+    const jobAlertForm = document.querySelector("#job-alert-form");
+    const jobAlertProvince = document.querySelector("#job-alert-province");
+    const jobAlertDepartment = document.querySelector("#job-alert-department");
+    const jobAlertStatus = document.querySelector("#job-alert-status");
+    const jobAlertSubmit = jobAlertForm.querySelector('button[type="submit"]');
     const JOBS_PER_PAGE = 12;
+    const CV_MATCHES_PER_PAGE = 20;
     let allJobs = [];
     let filteredJobs = [];
+    let cvMatches = [];
     let visibleJobCount = JOBS_PER_PAGE;
     const monthNumbers = new Map([
       ["jan", 1], ["january", 1], ["feb", 2], ["february", 2], ["mar", 3], ["march", 3],
@@ -269,12 +352,21 @@
       }
       const departments = [...new Set(jobs.map(job => String(job.company ?? "").trim()).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
+      const alertDepartments = departments.filter(name =>
+        !/^(?:south african public service|hiring department not identified|department not specified)$/i.test(name)
+      );
       const selectedProvince = normalizeProvince(new URLSearchParams(location.search).get("province"));
       const selectedDepartment = new URLSearchParams(location.search).get("department") ?? "";
       const selectedQuery = new URLSearchParams(location.search).get("q") ?? "";
       jobQuery.value = selectedQuery;
       jobProvince.replaceChildren(new Option("All Provinces", ""), ...provinces.map(name => new Option(name, name)));
       jobDepartment.replaceChildren(new Option("All Departments", ""), ...departments.map(name => new Option(name, name)));
+      const allProvinceOption = () => new Option("All provinces and National", "all");
+      cvMatchProvince.replaceChildren(allProvinceOption(), ...provinces.map(name => new Option(name, name)));
+      jobAlertProvince.replaceChildren(allProvinceOption(), ...provinces.map(name => new Option(name, name)));
+      const allDepartmentOption = () => new Option("All departments", "all");
+      cvMatchDepartment.replaceChildren(allDepartmentOption(), ...alertDepartments.map(name => new Option(name, name)));
+      jobAlertDepartment.replaceChildren(allDepartmentOption(), ...alertDepartments.map(name => new Option(name, name)));
       if (selectedProvince) jobProvince.value = selectedProvince;
       if (departments.includes(selectedDepartment)) jobDepartment.value = selectedDepartment;
 
@@ -296,7 +388,7 @@
     }
 
     function setJobListings(jobs) {
-      allJobs = sortJobsByCircular(jobs.map(job => ({ ...job, province: normalizeProvince(job.province) })));
+      allJobs = sortJobsByCircular(jobs.map(job => ({ ...job, province: normalizeJobRegion(job.province) })));
       populateSearchFilters(allJobs);
       filterJobListings();
     }
@@ -542,6 +634,160 @@
       const remainingJobs = displayableJobs.length - visibleJobCount;
       loadMoreJobsButton.textContent = `Show ${Math.min(JOBS_PER_PAGE, remainingJobs)} more ${remainingJobs === 1 ? "vacancy" : "vacancies"}`;
     }
+
+    function setFormStatus(element, message, isError = false) {
+      element.textContent = message;
+      element.dataset.error = String(isError);
+    }
+
+    async function readCvText(file) {
+      if (!file) throw new Error("Choose a CV file to continue.");
+      if (file.size > 10 * 1024 * 1024) throw new Error("The CV must be 10 MB or smaller.");
+      const extension = file.name.toLowerCase().split(".").pop();
+      let text;
+      if (extension === "pdf") {
+        const { extractPdfText } = await import("./cv-pdf-reader.js");
+        text = await extractPdfText(file);
+      } else if (extension === "docx") {
+        const { extractDocxText } = await import("./cv-docx-reader.js");
+        text = await extractDocxText(file);
+      } else if (extension === "txt") {
+        text = await file.text();
+      } else {
+        throw new Error("Choose a PDF, Word (.docx), or plain-text CV.");
+      }
+      const cleanedText = String(text ?? "").replace(/\u0000/g, " ").trim();
+      if (cleanedText.length < 60) {
+        throw new Error("We could not find enough readable text. Scanned PDFs need OCR and are not supported.");
+      }
+      if (cleanedText.length > 120000) {
+        throw new Error("This CV contains too much text to compare. Try a shorter CV.");
+      }
+      return cleanedText;
+    }
+
+    function removePersonalDetails(text, name, email) {
+      let result = text.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ");
+      result = result.replace(/\+?\d[\d\s().-]{7,}\d/g, " ");
+      for (const value of [name, ...name.split(/\s+/), email]) {
+        const personalText = value.trim();
+        if (personalText.length < 3) continue;
+        const escaped = personalText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        result = result.replace(new RegExp(escaped, "gi"), " ");
+      }
+      return result;
+    }
+
+    function createCvMatchItem(match) {
+      const { job } = match;
+      const item = document.createElement("li");
+      item.className = "cv-match-result";
+      const link = document.createElement("a");
+      link.href = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/#how-to-apply`;
+      link.textContent = displayJobTitle(job.title);
+      const score = document.createElement("span");
+      score.className = "cv-match-score";
+      score.textContent = `Keyword overlap: ${match.overlap}%`;
+      const details = document.createElement("p");
+      const department = String(job.company ?? "").trim() || "Department not specified";
+      const province = normalizeJobRegion(job.province);
+      const closingDate = String(job.closingDate ?? "").trim();
+      details.textContent = [
+        department,
+        province,
+        `${match.matchedTerms.length} shared job-related terms`,
+        closingDate && `Closing date: ${closingDate}`
+      ].filter(Boolean).join(" · ");
+      item.append(link, score, details);
+      return item;
+    }
+
+    function renderCvMatches(matches) {
+      cvMatches = matches;
+      cvMatchList.replaceChildren();
+      if (!cvMatches.length) {
+        const empty = document.createElement("li");
+        empty.className = "listing-empty";
+        empty.textContent = "No current vacancies had enough job-related keyword overlap with this CV and your selected preferences.";
+        cvMatchList.append(empty);
+      }
+      const visibleCount = Math.min(cvMatches.length, CV_MATCHES_PER_PAGE);
+      for (const match of cvMatches.slice(0, visibleCount)) cvMatchList.append(createCvMatchItem(match));
+      cvMatchLoadMore.hidden = visibleCount >= cvMatches.length;
+      cvMatchLoadMore.textContent = `Show ${Math.min(CV_MATCHES_PER_PAGE, cvMatches.length - visibleCount)} more matches`;
+      cvMatchResults.hidden = false;
+    }
+
+    cvMatchLoadMore.addEventListener("click", () => {
+      const visibleCount = cvMatchList.querySelectorAll(".cv-match-result").length;
+      const nextCount = Math.min(visibleCount + CV_MATCHES_PER_PAGE, cvMatches.length);
+      for (const match of cvMatches.slice(visibleCount, nextCount)) cvMatchList.append(createCvMatchItem(match));
+      cvMatchLoadMore.hidden = nextCount >= cvMatches.length;
+      cvMatchLoadMore.textContent = `Show ${Math.min(CV_MATCHES_PER_PAGE, cvMatches.length - nextCount)} more matches`;
+    });
+
+    cvMatchForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const submitButton = cvMatchForm.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      cvMatchResults.hidden = true;
+      cvMatchLoadMore.hidden = true;
+      setFormStatus(cvMatchStatus, "Reading your CV in this browser and comparing it with current vacancies…");
+      try {
+        if (!allJobs.length) throw new Error("Current vacancy data is not available. Please try again later.");
+        const file = cvMatchFile.files?.[0];
+        const cvText = await readCvText(file);
+        const candidateText = removePersonalDetails(cvText, cvMatchName.value, cvMatchEmail.value);
+        const matches = rankJobsForCv(candidateText, allJobs, {
+          province: cvMatchProvince.value,
+          department: cvMatchDepartment.value
+        });
+        renderCvMatches(matches);
+        setFormStatus(
+          cvMatchStatus,
+          matches.length
+            ? `Found ${matches.length} current ${matches.length === 1 ? "vacancy" : "vacancies"} with relevant keyword overlap. Your CV was not uploaded.`
+            : "No current vacancies matched these preferences closely enough. Your CV was not uploaded."
+        );
+        cvMatchFile.value = "";
+      } catch (error) {
+        setFormStatus(cvMatchStatus, error.message || "The CV could not be read.", true);
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+
+    jobAlertForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      jobAlertSubmit.disabled = true;
+      setFormStatus(jobAlertStatus, "Sending your confirmation email…");
+      try {
+        const response = await fetch(alertsApiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: document.querySelector("#job-alert-name").value,
+            email: document.querySelector("#job-alert-email").value,
+            province: jobAlertProvince.value,
+            department: jobAlertDepartment.value,
+            consent: document.querySelector("#job-alert-consent").checked
+          })
+        });
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          throw new Error(`Alert service returned an invalid response (HTTP ${response.status}).`);
+        }
+        if (!response.ok) throw new Error(result.error || `Alert signup failed (HTTP ${response.status}).`);
+        setFormStatus(jobAlertStatus, result.message || "Check your inbox to confirm your subscription.");
+        jobAlertForm.reset();
+      } catch (error) {
+        setFormStatus(jobAlertStatus, error.message || "We could not submit your alert signup.", true);
+      } finally {
+        jobAlertSubmit.disabled = false;
+      }
+    });
 
     loadMoreJobsButton.addEventListener("click", () => {
       visibleJobCount = Math.min(visibleJobCount + JOBS_PER_PAGE, filteredJobs.length);

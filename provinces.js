@@ -1,3 +1,5 @@
+export const NATIONAL_REGION = "National";
+
 export const SOUTH_AFRICAN_PROVINCES = [
   "Eastern Cape",
   "Free State",
@@ -7,7 +9,8 @@ export const SOUTH_AFRICAN_PROVINCES = [
   "Mpumalanga",
   "North West",
   "Northern Cape",
-  "Western Cape"
+  "Western Cape",
+  NATIONAL_REGION
 ];
 
 export const PROVINCE_CRESTS = Object.freeze({
@@ -29,4 +32,8 @@ const provinceNamesByKey = new Map(
 export function normalizeProvince(value) {
   const key = String(value ?? "").toLocaleLowerCase("en-ZA").replace(/[^a-z]/g, "");
   return provinceNamesByKey.get(key) ?? "";
+}
+
+export function normalizeJobRegion(value) {
+  return normalizeProvince(value) || NATIONAL_REGION;
 }
