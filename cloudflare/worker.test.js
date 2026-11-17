@@ -288,8 +288,10 @@ test("vacancy route renders unique metadata, full details and valid structured d
   const adLoaderIndex = html.indexOf('<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');
   assert.ok(html.indexOf('<link rel="preconnect" href="https://pagead2.googlesyndication.com"') < adLoaderIndex);
   assert.ok(adLoaderIndex < html.indexOf("https://fonts.googleapis.com/css2?family=Jost"));
-  assert.match(html, /<script src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js" defer><\/script>/);
+  assert.match(html, /<script src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js\?v=20261117-saved-card-layout" defer><\/script>/);
   assert.match(html, /<button class="bookmark-button"[^>]+data-bookmark-url="https:\/\/jobs\.example\/assistant-director-example-1-1-example-1\/"/);
+  assert.match(html, /data-bookmark-company="Department of Health"/);
+  assert.match(html, /data-bookmark-employment-type="Contract"/);
   assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example/${slug}/">`));
   assert.match(html, /<strong>Reference:<\/strong> EXAMPLE\/1/);
   assert.match(html, /<strong>Post number:<\/strong> 1\/1/);
@@ -567,7 +569,7 @@ test("serves a browser-local saved-vacancies page on the jobs origin", async () 
   assert.match(html, /<title>Saved Vacancies \| DPSA Government Jobs<\/title>/);
   assert.match(html, /data-saved-vacancies-list/);
   assert.match(html, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.ico"/);
-  assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js" defer/);
+  assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js\?v=20261117-saved-card-layout" defer/);
   assert.match(html, /This list is separate from bookmarks saved on the main DPSA Government Jobs website/);
 });
 

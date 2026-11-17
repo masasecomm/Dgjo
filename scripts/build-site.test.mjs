@@ -50,6 +50,8 @@ test("renders crawlable vacancy cards with safe text and root-level job links", 
   assert.match(html, /listing-card-scope-provincial">Provincial/);
   assert.match(html, /<a class="listing-card-type listing-card-circular" href="\/dpsa-vacancy-circulars\/circular-41-of-2026\/">Circular 41 of 2026<\/a>/);
   assert.match(html, /<button class="bookmark-button"[^>]+data-bookmark-url="https:\/\/jobs\.dpsagovernmentjobs\.co\.za\/provisioning-officer-41-30-ref\/"[^>]+aria-pressed="false"/);
+  assert.match(html, /data-bookmark-company="Western Cape Community Education and Training College"/);
+  assert.match(html, /data-bookmark-circular="Circular 41 of 2026"/);
   assert.ok(html.includes('aria-label="Closing: 31 December 2099">'));
   assert.match(html, /M5\.5 4\.5 3 7/);
   assert.match(html, /M4 20h16 M6 20v-5h4v5 M14 20V9h4v11/);
@@ -426,8 +428,8 @@ test("removes stale generated circular and province pages on rebuild", async () 
     assert.match(homepage, /"@type"\s*:\s*"WebSite"/);
     assert.match(termsPage, /"@type"\s*:\s*"WebSite"/);
     assert.match(circularPage, /"@type"\s*:\s*"WebSite"/);
-    assert.match(circularPage, /rel="icon" type="image\/x-icon" href="\/favicon\.ico"/);
-    assert.match(savedVacancies, /rel="icon" type="image\/x-icon" href="\/favicon\.ico"/);
+    assert.match(circularPage, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="\/favicon\.ico"/);
+    assert.match(savedVacancies, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="\/favicon\.ico"/);
     const howToSchema = [...howToPage.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
       .map(([, schema]) => JSON.parse(schema))
       .find(schema => schema["@type"] === "HowTo");
@@ -435,11 +437,11 @@ test("removes stale generated circular and province pages on rebuild", async () 
     assert.equal(howToSchema.step[0].name, "Read the complete advert");
     assert.match(homepage, /href="https:\/\/www\.dpsa\.gov\.za\/newsroom\/psvc\/" target="_blank" rel="noopener noreferrer"/);
     assert.match(homepage, /id="job-alert-form"/);
-    assert.match(homepage, /src="\/bookmark\.js" defer/);
+    assert.match(homepage, /src="\/bookmark\.js\?v=20261117-saved-card-layout" defer/);
     assert.doesNotMatch(homepage, /id="province-guides-heading"/);
     await access(path.join(output, "job-alert-terms.html"));
     assert.match(savedVacancies, /data-saved-vacancies-list/);
-    assert.match(savedVacancies, /src="\/bookmark\.js" defer/);
+    assert.match(savedVacancies, /src="\/bookmark\.js\?v=20261117-saved-card-layout" defer/);
     const provinceHub = await readFile(path.join(output, "government-vacancies", "index.html"), "utf8");
     assert.match(provinceHub, /href="\/government-vacancies\/gauteng\/">Gauteng government vacancies<\/a><span>1 current vacancy/);
     const sitemap = await readFile(path.join(output, "sitemap.xml"), "utf8");
@@ -596,11 +598,11 @@ test("publishes the supplied salary table with a readable level guide and PDF ac
   assert.match(page, /<iframe src="\.\/salary-adjustment-table\.pdf#view=FitH"/);
 });
 
-test("refreshes the homepage stylesheet cache for hero filter spacing", async () => {
+test("keeps hero employment filters visibly separated from the search form", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-hero-filter-spacing">/);
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-hero-category-gap">/);
   const stylesheet = await readFile(new URL("../styles.css", import.meta.url), "utf8");
-  assert.match(stylesheet, /\.employment-type-filters \{ margin-top: 22px; \}/);
+  assert.match(stylesheet, /\.employment-type-filters \{ margin: 36px 0 18px; \}/);
   assert.match(stylesheet, /-webkit-text-size-adjust: 100%; text-size-adjust: 100%;/);
   assert.match(stylesheet, /button, input, select, textarea \{ font: inherit; \}/);
 });
@@ -675,10 +677,15 @@ test("provides a noindex saved-vacancies page connected to the existing bookmark
   assert.match(page, /href="\/saved-vacancies\/">Saved vacancies<\/a>/);
   assert.match(page, /data-saved-vacancies-list/);
   assert.match(page, /data-saved-vacancies-status/);
-  assert.match(page, /src="\/bookmark\.js" defer/);
+  assert.match(page, /src="\/bookmark\.js\?v=20261117-saved-card-layout" defer/);
   assert.match(bookmarks, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(bookmarks, /renderSavedVacancies\(\);/);
   assert.match(bookmarks, /link\.textContent = vacancy\.title/);
+  assert.match(bookmarks, /card\.className = "listing-card saved-vacancy-card"/);
+  assert.match(bookmarks, /button\.dataset\.bookmarkImage/);
+  assert.match(bookmarks, /listing-card-bottom/);
+  assert.match(bookmarks, /textContent = "View vacancy"/);
+  assert.match(bookmarks, /button\.dataset\.bookmarkCompany/);
   assert.match(bookmarks, /SAVED_VACANCY_HOSTS\.has\(parsedUrl\.hostname\)/);
 });
 

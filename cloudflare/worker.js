@@ -981,14 +981,30 @@ function relatedJobsMarkup(job, jobs, origin) {
     const province = normalizeProvince(related.province) || "National";
     const href = new URL(jobPagePath(related), origin).href;
     const title = displayJobTitle(related.title);
-    return `<article class="related-job-card">${bookmarkButtonMarkup(href, title)}<a class="related-job-link" href="${escapeHtml(href)}"><strong>${escapeHtml(title)}</strong><span>Province: ${escapeHtml(province)}</span></a></article>`;
+    const isCircularJob = Boolean(related.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(related.sourceUrl ?? ""));
+    const image = isCircularJob ? PROVINCE_CRESTS[province] || "/south-african-coat-of-arms.png" : "";
+    const scope = isCircularJob ? (PROVINCE_CRESTS[province] ? "Provincial" : "National") : "";
+    return `<article class="related-job-card">${bookmarkButtonMarkup(href, title, related, { image, location: province, scope })}<a class="related-job-link" href="${escapeHtml(href)}"><strong>${escapeHtml(title)}</strong><span>Province: ${escapeHtml(province)}</span></a></article>`;
   }).join("");
   return `<section class="related-jobs" aria-labelledby="related-jobs-heading"><h2 id="related-jobs-heading">Similar current vacancies</h2><div class="related-job-grid">${cards}</div></section>`;
 }
 
-function bookmarkButtonMarkup(url, title) {
+function bookmarkButtonMarkup(url, title, job = {}, { image = "", location = "", scope = "" } = {}) {
   const safeTitle = escapeHtml(title);
-  return `<button class="bookmark-button" type="button" data-bookmark-url="${escapeHtml(url)}" data-bookmark-title="${safeTitle}" aria-label="Save ${safeTitle} to saved vacancies" aria-pressed="false" title="Save vacancy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z"/></svg></button>`;
+  const metadata = {
+    company: job.company,
+    province: job.province,
+    circular: canonicalCircularName(job.circularName),
+    image,
+    location,
+    employmentType: displayEmploymentType(job),
+    scope
+  };
+  const dataAttributes = Object.entries(metadata)
+    .filter(([, value]) => typeof value === "string" && value.trim())
+    .map(([key, value]) => ` data-bookmark-${key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}="${escapeHtml(value)}"`)
+    .join("");
+  return `<button class="bookmark-button" type="button" data-bookmark-url="${escapeHtml(url)}" data-bookmark-title="${safeTitle}"${dataAttributes} aria-label="Save ${safeTitle} to saved vacancies" aria-pressed="false" title="Save vacancy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z"/></svg></button>`;
 }
 
 function faqEvidencePoints(value) {
@@ -1285,7 +1301,7 @@ function savedVacanciesPage(requestUrl) {
   return htmlResponse(`<!doctype html>
 <html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>Saved Vacancies | DPSA Government Jobs</title>
-<link rel="stylesheet" href="${SITE_URL}/styles.css"><script src="${SITE_URL}/bookmark.js" defer></script></head>
+<link rel="stylesheet" href="${SITE_URL}/styles.css"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script></head>
 <body class="post-theme"><a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt=""><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
@@ -1435,7 +1451,7 @@ function vacancyPage(job, requestUrl, jobs) {
 <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
 <link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
-<script src="${SITE_URL}/bookmark.js" defer></script>
+<script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script>
 <title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(metaDescription)}">
 <meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="article"><meta property="og:site_name" content="DPSA Government Jobs">
@@ -1523,7 +1539,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 <div class="nav-links"><a href="${SITE_URL}/">Home</a><a href="${new URL("/saved-vacancies/", requestUrl.origin).href}">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a href="${SITE_URL}/dpsa-vacancy-circulars/">All circulars</a>${circularNavigation}</div></details><a href="${SITE_URL}/#listings">Vacancies</a></div>
 </nav></header><main class="shell">
 <nav class="breadcrumb" aria-label="Breadcrumb">${breadcrumbMarkup}</nav>
-<article class="vacancy-card">${bookmarkButtonMarkup(pageUrl, title)}<div class="job-mark">${jobMark}</div><div class="job-content">
+<article class="vacancy-card">${bookmarkButtonMarkup(pageUrl, title, job, { image: isCircularJob ? coatOfArmsPath : "", location: [job.centre, province, job.location].filter(Boolean).join(", "), scope: isCircularJob ? (PROVINCE_CRESTS[province] ? "Provincial" : "National") : "" })}<div class="job-mark">${jobMark}</div><div class="job-content">
 <h1 class="job-title">${escapeHtml(title)}</h1><p class="intro">${employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`}</p>
 <div class="meta-grid"><p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
 ${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${escapeHtml(location)}</p>` : ""}

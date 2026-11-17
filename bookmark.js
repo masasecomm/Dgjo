@@ -42,6 +42,42 @@ function savedVacancyHref(url) {
   }
 }
 
+function addSavedVacancyMetadata(button, vacancy) {
+  const metadata = {
+    company: button.dataset.bookmarkCompany,
+    location: button.dataset.bookmarkLocation,
+    province: button.dataset.bookmarkProvince,
+    employmentType: button.dataset.bookmarkEmploymentType,
+    scope: button.dataset.bookmarkScope,
+    circularName: button.dataset.bookmarkCircular,
+    image: button.dataset.bookmarkImage
+  };
+  for (const [key, value] of Object.entries(metadata)) {
+    if (typeof value === "string" && value.trim()) vacancy[key] = value.trim();
+  }
+}
+
+function appendSavedMetadata(container, value, iconType = "", className = "listing-meta-item") {
+  if (!value) return;
+  const item = document.createElement("span");
+  item.className = className;
+  const iconPaths = {
+    department: "M3 8h18v12H3z M8 8V5h8v3 M3 12h18 M10 12v2h4v-2",
+    location: "M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0 M12 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"
+  };
+  if (iconPaths[iconType]) {
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", iconPaths[iconType]);
+    icon.append(path);
+    item.append(icon);
+  }
+  item.append(document.createTextNode(value));
+  container.append(item);
+}
+
 function renderSavedVacancies() {
   const list = document.querySelector("[data-saved-vacancies-list]");
   const status = document.querySelector("[data-saved-vacancies-status]");
@@ -86,16 +122,57 @@ function renderSavedVacancies() {
 
     const content = document.createElement("div");
     content.className = "listing-card-content";
+    const mark = document.createElement("div");
+    mark.className = "listing-card-mark";
+    const safeImage = typeof vacancy.image === "string" &&
+      /^\/(?:province-[a-z-]+|south-african-coat-of-arms)\.png$/.test(vacancy.image)
+      ? vacancy.image
+      : "";
+    if (safeImage) {
+      const image = document.createElement("img");
+      image.src = safeImage;
+      image.alt = "";
+      image.width = 64;
+      image.height = 64;
+      image.loading = "lazy";
+      image.decoding = "async";
+      mark.append(image);
+    } else {
+      mark.classList.add("listing-card-mark-generic");
+      mark.setAttribute("aria-hidden", "true");
+      mark.textContent = "▦";
+    }
+
     const heading = document.createElement("h3");
     const link = document.createElement("a");
     link.href = vacancy.href;
     link.textContent = vacancy.title;
     heading.append(link);
-    const note = document.createElement("p");
-    note.className = "saved-vacancy-note";
-    note.textContent = "Saved in this browser";
-    content.append(heading, note);
-    card.append(removeButton, content);
+    const titleRow = document.createElement("div");
+    titleRow.className = "listing-card-title";
+    titleRow.append(heading);
+    const metadata = document.createElement("div");
+    metadata.className = "listing-card-meta";
+    appendSavedMetadata(metadata, vacancy.company, "department");
+    appendSavedMetadata(metadata, vacancy.location || vacancy.province, "location");
+    const bottom = document.createElement("div");
+    bottom.className = "listing-card-bottom";
+    appendSavedMetadata(bottom, vacancy.employmentType, "", "listing-card-type");
+    if (vacancy.scope === "Provincial" || vacancy.scope === "National") {
+      appendSavedMetadata(bottom, vacancy.scope, "", `listing-card-type listing-card-scope-${vacancy.scope.toLowerCase()}`);
+    }
+    appendSavedMetadata(bottom, vacancy.circularName, "", "listing-card-type listing-card-circular");
+    const savedNote = document.createElement("span");
+    savedNote.className = "listing-card-type listing-card-saved";
+    savedNote.textContent = "Saved";
+    bottom.append(savedNote);
+    const apply = document.createElement("a");
+    apply.className = "listing-card-apply";
+    apply.href = `${vacancy.href}#how-to-apply`;
+    apply.textContent = "View vacancy";
+    bottom.append(apply);
+    content.append(titleRow, metadata, bottom);
+    card.append(removeButton, mark, content);
     list.append(card);
   }
 }
@@ -143,7 +220,11 @@ document.addEventListener("click", event => {
   const existing = saved.find(vacancy => vacancy.url === url);
   const updated = existing
     ? saved.filter(vacancy => vacancy.url !== url)
-    : [...saved, { url, title: button.dataset.bookmarkTitle }];
+    : (() => {
+      const vacancy = { url, title: button.dataset.bookmarkTitle };
+      addSavedVacancyMetadata(button, vacancy);
+      return [...saved, vacancy];
+    })();
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));

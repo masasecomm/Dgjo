@@ -253,7 +253,7 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .home-text-link { display: inline-flex; align-items: center; gap: 8px; color: #087ad2; font-size: 13px; font-weight: 700; text-decoration: none; }
 .home-text-link:hover { gap: 12px; color: #13377f; }
 .province-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 9px; margin: 0 0 18px; scroll-margin-top: 16px; }
-.employment-type-filters { margin-top: 22px; }
+.employment-type-filters { margin: 36px 0 18px; }
 .province-filter { display: inline-flex; min-height: 39px; align-items: center; justify-content: center; padding: 0 17px; border: 1px solid transparent; border-radius: 999px; color: #28323c; background: #eff3f5; font-size: 11px; font-weight: 700; text-decoration: none; transition: background .16s ease, box-shadow .16s ease; }
 .province-filter:hover { background: #e5ebee; }
 .province-filter.is-active { border-color: #e8edf0; color: #17499e; background: #fff; box-shadow: 0 5px 16px rgba(23,35,31,.08); }
@@ -265,13 +265,9 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .job-count { margin: 0 0 13px; color: #78838d; font-size: 11px; text-align: right; }
 .listing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .saved-vacancies-list { margin-top: 20px; }
-.saved-vacancy-card { min-height: 120px; justify-content: center; }
-.saved-vacancy-card > .bookmark-button { position: absolute; top: 16px; right: 16px; }
-.saved-vacancy-card .listing-card-content { padding-right: 38px; }
-.saved-vacancy-card h3 { margin: 0; font-size: 19px; line-height: 1.35; overflow-wrap: anywhere; }
-.saved-vacancy-card h3 a { color: #32373c; text-decoration: none; }
-.saved-vacancy-card h3 a:hover { color: #17499e; }
-.saved-vacancy-note, .saved-vacancy-storage-note { color: #737d85 !important; font-size: 13px; }
+.saved-vacancy-card .listing-card-meta { color: #737d85; }
+.saved-vacancy-card .listing-card-saved { color: #246545; background: #e4f4e9; }
+.saved-vacancy-storage-note { color: #737d85 !important; font-size: 13px; }
 .listing-card {
   position: relative;
   display: grid;

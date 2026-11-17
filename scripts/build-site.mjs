@@ -145,9 +145,22 @@ function metadataIcon(type) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${shapes[type]}"></path></svg>`;
 }
 
-function bookmarkButtonMarkup(jobUrl, title) {
+function bookmarkButtonMarkup(jobUrl, title, job, { image, location, employmentType, scope } = {}) {
   const safeTitle = escapeHtml(title);
-  return `<button class="bookmark-button" type="button" data-bookmark-url="${escapeHtml(jobUrl)}" data-bookmark-title="${safeTitle}" aria-label="Save ${safeTitle} to saved vacancies" aria-pressed="false" title="Save vacancy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z"/></svg></button>`;
+  const metadata = {
+    company: job.company,
+    province: job.province,
+    circular: canonicalCircularName(job.circularName),
+    image,
+    location,
+    employmentType,
+    scope
+  };
+  const dataAttributes = Object.entries(metadata)
+    .filter(([, value]) => typeof value === "string" && value.trim())
+    .map(([key, value]) => ` data-bookmark-${key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}="${escapeHtml(value)}"`)
+    .join("");
+  return `<button class="bookmark-button" type="button" data-bookmark-url="${escapeHtml(jobUrl)}" data-bookmark-title="${safeTitle}"${dataAttributes} aria-label="Save ${safeTitle} to saved vacancies" aria-pressed="false" title="Save vacancy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z"/></svg></button>`;
 }
 
 function isDisplayableJob(job) {
@@ -174,13 +187,13 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
     const mark = isCircularJob
       ? `<img src="${escapeHtml(crestPath)}" alt="${escapeHtml(isProvincial ? `${province} provincial coat of arms` : "South African national coat of arms")}" width="64" height="64" loading="lazy" decoding="async">`
       : '<span class="listing-card-mark-generic" aria-hidden="true">▦</span>';
+    const location = [job.centre, province, job.location]
+      .map(cleanVacancyLocation)
+      .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
     const hasDepartment = !/^(?:south african public service|hiring department not identified|department not specified)$/i.test(job.company.trim());
     const department = hasDepartment
       ? `<a class="listing-department-link" href="/?department=${encodeURIComponent(job.company)}#listings">${escapeHtml(job.company)}</a>`
       : "Department: see official advert";
-    const location = [job.centre, province, job.location]
-      .map(cleanVacancyLocation)
-      .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
     const closingDate = closingDateLabel(job.closingDate);
     const salary = isNationalTreasuryScalesReference(job.salaryText)
       ? `<a class="listing-salary-link" href="${SALARY_SCALES_PATH}">${SALARY_SCALES_LINK_LABEL}</a>`
@@ -210,7 +223,7 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
     ].filter(Boolean).join("");
 
     const title = displayJobTitle(job.title);
-    return `<article class="listing-card">${bookmarkButtonMarkup(jobUrl, title)}<div class="listing-card-mark">${mark}</div><div class="listing-card-content"><div class="listing-card-title"><h3><a href="${jobUrl}">${escapeHtml(title)}</a></h3></div><div class="listing-card-meta">${metadata}</div><div class="listing-card-bottom">${badges}<a class="listing-card-apply" href="${jobUrl}#how-to-apply">Apply</a></div></div></article>`;
+    return `<article class="listing-card">${bookmarkButtonMarkup(jobUrl, title, job, { image: isCircularJob ? crestPath : "", location, employmentType, scope })}<div class="listing-card-mark">${mark}</div><div class="listing-card-content"><div class="listing-card-title"><h3><a href="${jobUrl}">${escapeHtml(title)}</a></h3></div><div class="listing-card-meta">${metadata}</div><div class="listing-card-bottom">${badges}<a class="listing-card-apply" href="${jobUrl}#how-to-apply">Apply</a></div></div></article>`;
   }).join("");
 }
 
@@ -380,7 +393,7 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   <meta name="twitter:description" content="${escapeHtml(description)}">
   <meta name="twitter:image" content="${shareImageUrl}">
   <script type="module" src="/redirects.js"></script>
-  <script src="/bookmark.js" defer></script>
+  <script src="/bookmark.js?v=20261117-saved-card-layout" defer></script>
   <script type="application/ld+json">${jsonLd(structuredData)}</script>
   <script type="application/ld+json">${jsonLd(breadcrumbs)}</script>
 </head>
@@ -516,7 +529,7 @@ export function renderCircularArchivePage(circularName, jobs) {
   <meta name="twitter:description" content="${escapeHtml(description)}">
   <meta name="twitter:image" content="${shareImageUrl}">
   <script type="module" src="/redirects.js"></script>
-  <script src="/bookmark.js" defer></script>
+  <script src="/bookmark.js?v=20261117-saved-card-layout" defer></script>
   <script type="application/ld+json">${jsonLd(structuredData)}</script>
   <script type="application/ld+json">${jsonLd(breadcrumbs)}</script>
 </head>
