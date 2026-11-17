@@ -142,6 +142,31 @@ test("vacancy URLs combine the normalized title, post number and reference numbe
   assert.equal(oldSlugResponse.headers.get("Location"), `https://jobs.example${canonicalPath}`);
 });
 
+test("verified Security Management listing excludes the trailing circular page number from its centre", async () => {
+  const job = makeJob({
+    title: "ASSISTANT DIRECTOR: SECURITY MANAGEMENT",
+    postNo: "41/100",
+    refNo: "2026/165/OCJ",
+    circularName: "Circular 41 of 2026",
+    centre: "Mpumalanga Provincial Service Centre\n58",
+    location: "Mpumalanga Provincial Service Centre\n58",
+    province: "Mpumalanga"
+  });
+  const env = createEnv([job]);
+  const apiResponse = await worker.fetch(new Request("https://jobs.example/api/jobs"), env);
+  const [publicJob] = await apiResponse.json();
+  const pageResponse = await worker.fetch(
+    new Request("https://jobs.example/assistant-director-security-management-41-100-2026-165-ocj/"),
+    env
+  );
+  const html = await pageResponse.text();
+
+  assert.equal(publicJob.centre, "Mpumalanga Provincial Service Centre");
+  assert.equal(publicJob.location, "Mpumalanga Provincial Service Centre");
+  assert.match(html, /Location\/centre in advert:<\/strong> Mpumalanga/);
+  assert.doesNotMatch(html, /Mpumalanga Provincial Service Centre\s*58/);
+});
+
 test("generic employer data is not presented as the hiring department or marked up as a JobPosting", async () => {
   const job = makeJob({ company: "South African Public Service", centre: "Labour", location: "Labour" });
   const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));

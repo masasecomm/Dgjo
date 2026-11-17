@@ -28,6 +28,10 @@ const VERIFIED_CIRCULAR_FACTS = new Map([
     centre: "Labour Centre: KuGompo City",
     location: "KuGompo City",
     province: "Eastern Cape"
+  }],
+  ["Circular 41 of 2026|41/100", {
+    centre: "Mpumalanga Provincial Service Centre",
+    location: "Mpumalanga Provincial Service Centre"
   }]
 ]);
 const OPTIONAL_TEXT_FIELDS = new Map([

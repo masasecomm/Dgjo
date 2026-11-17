@@ -5,6 +5,11 @@ import {
   extractPdfText,
   parseDpsaCircular
 } from "./importer.js";
+import {
+  circularPublicationStatus,
+  getCircularVacancies,
+  vacancyMatchKey
+} from "./publication.js";
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
@@ -46,6 +51,8 @@ let activeFilter = "All";
 let toastTimer;
 const importedVacancies = new Map();
 let circularOptions = [];
+let activeCircularName = "";
+let publishInProgress = false;
 
 function showToast(message, isError = false) {
   toast.textContent = message;
@@ -127,6 +134,7 @@ async function connect(urlValue, tokenValue, askPermission) {
     connectedUrl.textContent = url.origin;
     setConnected(true);
     renderJobs();
+    renderImportedVacancies();
     showToast("Connected. Your settings are saved on this device.");
   } catch (error) {
     if (askPermission) showToast(error.message, true);
@@ -252,13 +260,48 @@ function requestDpsaPermission(url) {
   });
 }
 
+function circularOptionLabel(circular) {
+  if (!adminToken) return `${circular.label} · Connect to check publication status`;
+  const status = circularPublicationStatus(circular.circularName || circular.label, [], jobs);
+  const publicationLabel = status.publishedCount
+    ? `Published (${status.publishedCount} posts; republish available)`
+    : "Not published";
+  return `${circular.label} · ${publicationLabel}`;
+}
+
+function updateCircularOptionLabels() {
+  circularOptions.forEach((circular, index) => {
+    const option = circularPicker.options[index + 1];
+    if (option) option.textContent = circularOptionLabel(circular);
+  });
+}
+
 function renderImportedVacancies() {
   const vacancies = [...importedVacancies.values()];
+  updateCircularOptionLabels();
   importResults.hidden = vacancies.length === 0;
   importCount.textContent = `${vacancies.length} ${vacancies.length === 1 ? "vacancy" : "vacancies"} found`;
-  importSources.textContent = vacancies.length > 200
+  const sourceSummary = vacancies.length > 200
     ? `Showing the first 200 here. Excel export and publishing include all ${vacancies.length}.`
     : `${new Set(vacancies.map(job => job.circularName)).size} circular${new Set(vacancies.map(job => job.circularName)).size === 1 ? "" : "s"} loaded`;
+  const publicationStatus = activeCircularName
+    ? circularPublicationStatus(activeCircularName, vacancies, jobs)
+    : null;
+  let circularStatusText = "";
+  if (publicationStatus?.importedCount) {
+    if (!adminToken) {
+      circularStatusText = ` Connect to check whether ${activeCircularName} is published.`;
+    } else if (publicationStatus.alreadyPublishedCount === publicationStatus.importedCount) {
+      circularStatusText = ` ${activeCircularName} is published (${publicationStatus.alreadyPublishedCount}/${publicationStatus.importedCount} imported posts); republish all is available.`;
+    } else if (publicationStatus.alreadyPublishedCount) {
+      circularStatusText = ` ${activeCircularName} is published; ${publicationStatus.alreadyPublishedCount}/${publicationStatus.importedCount} imported posts already match. Republish all to update or add every post.`;
+    } else if (publicationStatus.publishedCount) {
+      circularStatusText = ` ${activeCircularName} is already published (${publicationStatus.publishedCount} posts); republish this import to add these vacancies.`;
+    } else {
+      circularStatusText = ` ${activeCircularName} is not published yet.`;
+    }
+  }
+  importSources.textContent = `${sourceSummary}${circularStatusText}`;
   importTableBody.replaceChildren();
 
   for (const vacancy of vacancies.slice(0, 200)) {
@@ -362,9 +405,24 @@ function appendEditableCell(row, vacancy, key, label) {
 
 function updatePublishButton() {
   const selectedCount = [...importedVacancies.values()].filter(job => job.selected).length;
-  const button = document.querySelector("#publish-import");
-  button.disabled = !adminToken || selectedCount === 0;
-  button.textContent = selectedCount ? `Publish selected (${selectedCount})` : "Publish selected";
+  const selectedButton = document.querySelector("#publish-import");
+  const allButton = document.querySelector("#publish-all-import");
+  const circularVacancies = activeCircularName
+    ? getCircularVacancies(importedVacancies.values(), activeCircularName)
+    : [...importedVacancies.values()];
+  const publicationStatus = activeCircularName
+    ? circularPublicationStatus(activeCircularName, circularVacancies, jobs)
+    : {
+        publishedCount: circularVacancies.filter(vacancy =>
+          jobs.some(job => vacancyMatchKey(job) === vacancyMatchKey(vacancy))
+        ).length
+      };
+  selectedButton.disabled = !adminToken || selectedCount === 0 || publishInProgress;
+  selectedButton.textContent = selectedCount ? `Publish selected (${selectedCount})` : "Publish selected";
+  allButton.disabled = !adminToken || circularVacancies.length === 0 || publishInProgress;
+  allButton.textContent = publicationStatus.publishedCount
+    ? `Republish all (${circularVacancies.length})`
+    : `Publish all (${circularVacancies.length})`;
 }
 
 async function importPdfFile(file, sourceUrl = "", circularMetadata = null) {
@@ -387,6 +445,8 @@ async function importPdfFile(file, sourceUrl = "", circularMetadata = null) {
       selected: false
     });
   }
+  const circularNames = [...new Set([...importedVacancies.values()].map(vacancy => vacancy.circularName).filter(Boolean))];
+  activeCircularName = circularMetadata?.circularName || (circularNames.length === 1 ? circularNames[0] : "");
   renderImportedVacancies();
   return { found: vacancies.length, added };
 }
@@ -479,20 +539,19 @@ function createPublishedVacancy(vacancy) {
   };
 }
 
-function vacancyMatchKey(job) {
-  const postIdentity = [job.postNo, job.refNo].filter(Boolean).join("|").toLowerCase();
-  if (postIdentity) return `${job.sourceUrl ?? ""}|${postIdentity}`;
-  return `${job.title}|${job.company}`.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-async function publishImportedVacancies() {
+async function publishImportedVacancies(publishAll = false) {
   if (!apiUrl || !adminToken) {
     showToast("Connect to your Worker before publishing imported jobs.", true);
     return;
   }
-  const selected = [...importedVacancies.values()].filter(vacancy => vacancy.selected);
+  const circularVacancies = activeCircularName
+    ? getCircularVacancies(importedVacancies.values(), activeCircularName)
+    : [...importedVacancies.values()];
+  const selected = publishAll
+    ? circularVacancies
+    : [...importedVacancies.values()].filter(vacancy => vacancy.selected);
   if (!selected.length) {
-    showToast("Select at least one vacancy to publish.", true);
+    showToast(publishAll ? "Import a circular before publishing all vacancies." : "Select at least one vacancy to publish.", true);
     return;
   }
   const incomplete = selected.find(vacancy => !vacancy.title.trim() || !vacancy.company.trim() || !vacancy.location.trim());
@@ -526,7 +585,18 @@ async function publishImportedVacancies() {
     showToast("A circular PDF link is invalid or too long. Review the extracted links before publishing.", true);
     return;
   }
-  if (!confirm(`Publish ${selected.length} selected vacancies to your website? Existing jobs will be kept.`)) return;
+  const matchingPublishedCount = selected.filter(vacancy =>
+    jobs.some(job => vacancyMatchKey(job) === vacancyMatchKey(vacancy))
+  ).length;
+  const circularAlreadyPublished = publishAll && activeCircularName
+    ? circularPublicationStatus(activeCircularName, selected, jobs).publishedCount > 0
+    : false;
+  const isRepublish = circularAlreadyPublished || matchingPublishedCount > 0;
+  const action = isRepublish ? "Republish" : "Publish";
+  const targetDescription = publishAll
+    ? `all ${selected.length} imported vacancies from ${activeCircularName || "this import"}`
+    : `${selected.length} selected vacancies`;
+  if (!confirm(`${action} ${targetDescription} to your website? Existing jobs will be kept.`)) return;
   if (jobs.length > MAX_PUBLISHED_JOBS) {
     showToast(`The Worker currently has more than ${MAX_PUBLISHED_JOBS} jobs. Remove some listings before importing.`, true);
     return;
@@ -541,8 +611,8 @@ async function publishImportedVacancies() {
     return;
   }
 
-  const button = document.querySelector("#publish-import");
-  button.disabled = true;
+  publishInProgress = true;
+  updatePublishButton();
   importProgress.hidden = false;
   publishProgress.value = 20;
   publishStatus.textContent = `Publishing ${selected.length} vacancies…`;
@@ -556,7 +626,9 @@ async function publishImportedVacancies() {
     publishStatus.textContent = `Publish failed: ${error.message}`;
     showToast(`Could not publish imported vacancies: ${error.message}`, true);
   } finally {
+    publishInProgress = false;
     updatePublishButton();
+    renderImportedVacancies();
   }
 }
 
@@ -581,6 +653,7 @@ async function publishJobs(nextJobs) {
   }
   jobs = nextJobs;
   renderJobs();
+  renderImportedVacancies();
   showToast("Changes published. Your website is up to date.");
 }
 
@@ -632,6 +705,7 @@ forgetButton.addEventListener("click", async () => {
   setConnected(false);
   jobSummary.textContent = "Connect to load your current listings.";
   renderJobs();
+  renderImportedVacancies();
   showToast("Saved connection forgotten.");
 });
 
@@ -648,6 +722,7 @@ refreshButton.addEventListener("click", async () => {
   try {
     jobs = await readJobs(apiUrl, adminToken);
     renderJobs();
+    renderImportedVacancies();
     showToast("Job list refreshed.");
   } catch (error) {
     showToast(`Could not refresh jobs: ${error.message}`, true);
@@ -757,7 +832,9 @@ document.querySelector("#discover-circulars").addEventListener("click", async ev
       setImportStatus("No PDF circular links were found on the DPSA page.");
     } else {
       circularPicker.add(new Option("Choose a circular…", ""));
-      circularOptions.forEach((circular, index) => circularPicker.add(new Option(circular.label, String(index))));
+      circularOptions.forEach((circular, index) =>
+        circularPicker.add(new Option(circularOptionLabel(circular), String(index)))
+      );
       circularPicker.disabled = false;
       const partialWarning = discovery.warnings.length
         ? ` ${discovery.warnings.join(" ")}`
@@ -845,6 +922,7 @@ document.querySelector("#export-excel").addEventListener("click", () => {
 document.querySelector("#clear-import").addEventListener("click", () => {
   if (importedVacancies.size && !confirm("Clear all imported vacancies from this review? Published jobs will not be removed.")) return;
   importedVacancies.clear();
+  activeCircularName = "";
   importProgress.hidden = true;
   publishProgress.value = 0;
   publishStatus.textContent = "";
@@ -852,4 +930,5 @@ document.querySelector("#clear-import").addEventListener("click", () => {
   renderImportedVacancies();
 });
 
-document.querySelector("#publish-import").addEventListener("click", publishImportedVacancies);
+document.querySelector("#publish-import").addEventListener("click", () => publishImportedVacancies(false));
+document.querySelector("#publish-all-import").addEventListener("click", () => publishImportedVacancies(true));
