@@ -5,23 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17499e">
   <meta name="robots" content="index, follow, max-image-preview:large">
-  <meta name="description" content="Find DPSA vacancies and South African government jobs. Browse official public service vacancy circulars, check closing dates and get Z83 application guidance.">
+  <meta name="description" content="Find current government vacancies and DPSA vacancies in South Africa for {{CURRENT_YEAR}}. Browse public service circulars, check closing dates and get Z83 application guidance.">
   <link rel="canonical" href="https://dpsagovernmentjobs.co.za/">
   <link rel="alternate" hreflang="en-ZA" href="https://dpsagovernmentjobs.co.za/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <title>DPSA Vacancies &amp; Government Jobs in South Africa</title>
+  <title>Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
   <meta property="og:site_name" content="DPSA Government Jobs">
-  <meta property="og:title" content="DPSA Vacancies &amp; Government Jobs in South Africa">
-  <meta property="og:description" content="Browse official public service vacancy circulars and learn how to apply for South African government jobs.">
+  <meta property="og:title" content="Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}">
+  <meta property="og:description" content="Find current government vacancies and DPSA vacancies in South Africa for {{CURRENT_YEAR}}. Browse public service circulars and check closing dates.">
   <meta property="og:url" content="https://dpsagovernmentjobs.co.za/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="DPSA Vacancies &amp; Government Jobs in South Africa">
-  <meta name="twitter:description" content="Browse official public service vacancy circulars and get practical Z83 application guidance.">
+  <meta name="twitter:title" content="Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}">
+  <meta name="twitter:description" content="Find current government vacancies and DPSA vacancies in South Africa for {{CURRENT_YEAR}}. Browse public service circulars and check closing dates.">
+  <script type="module" src="/redirects.js"></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
   <script async src="https://www.googletagmanager.com/gtm.js?id=GT-NMDDFKGP"></script>
   <script>
@@ -41,7 +42,7 @@
     }
   </script>
 </head>
-<body>
+<body class="post-theme home-page">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <nav class="nav shell" aria-label="Main navigation">
@@ -62,8 +63,8 @@
       <div class="home-hero-inner">
         <div class="home-hero-copy">
           <p class="home-eyebrow"><span aria-hidden="true"></span> SOUTH AFRICAN PUBLIC SERVICE OPPORTUNITIES</p>
-          <h1>South African Government Jobs</h1>
-          <p>Find current government vacancies by job title, province or department. Confirm every requirement and closing date in the official advert.</p>
+          <h1>South African Government Vacancies</h1>
+          <p>Find current DPSA jobs and government vacancies by job title, province or department. Confirm every requirement and closing date in the official advert.</p>
           <form id="job-search" class="home-search" action="#listings">
             <label class="home-search-field home-search-keywords">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.5 4.5"></path></svg>
@@ -87,7 +88,7 @@
       <div class="home-section-heading">
           <div>
             <p class="home-kicker">TAKE THE NEXT STEP</p>
-            <h2 id="listings-heading">GOVERNMENT JOBS</h2>
+            <h2 id="listings-heading">GOVERNMENT VACANCIES</h2>
             <p>Explore current public service roles and find the right opportunity for you.</p>
           </div>
           <div class="home-section-links">
@@ -109,6 +110,23 @@
         <p class="listing-pagination-status" id="listing-pagination-status" aria-live="polite" hidden></p>
       </div>
       <!-- JOB_DATA -->
+    </section>
+
+    <section class="section section-tint" aria-labelledby="province-guides-heading">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Explore local opportunities</p>
+            <h2 id="province-guides-heading">Government vacancies by province</h2>
+            <p class="section-intro">Browse current DPSA public service jobs by advertised work province. Gauteng listings are DPSA circular posts and are not a complete list of all GPG or municipal recruitment.</p>
+          </div>
+        </div>
+        <nav class="province-guide-links" aria-label="Government vacancies by province">
+          <!-- PROVINCE_GUIDES_START -->
+          <p>Province vacancy guides will appear when current listings are available.</p>
+          <!-- PROVINCE_GUIDES_END -->
+        </nav>
+      </div>
     </section>
 
     <section class="section" aria-labelledby="circulars-heading">
@@ -200,12 +218,14 @@
     </div>
   </footer>
   <script type="module">
-    import { canonicalCircularName, circularArchivePath } from "./circulars.js";
+    import { canonicalCircularName, circularArchivePath, sortJobsByCircular } from "./circulars.js";
     import { normalizeProvince, PROVINCE_CRESTS, SOUTH_AFRICAN_PROVINCES } from "./provinces.js";
     import {
       isNationalTreasuryScalesReference,
+      extractJobLevel,
       SALARY_SCALES_LINK_LABEL,
-      SALARY_SCALES_PATH
+      SALARY_SCALES_PATH,
+      salaryLevelHref
     } from "./salary-scales.js";
     import { cleanVacancyLocation, cleanVacancyTitle } from "./vacancy-format.js";
 
@@ -276,7 +296,7 @@
     }
 
     function setJobListings(jobs) {
-      allJobs = jobs.map(job => ({ ...job, province: normalizeProvince(job.province) }));
+      allJobs = sortJobsByCircular(jobs.map(job => ({ ...job, province: normalizeProvince(job.province) })));
       populateSearchFilters(allJobs);
       filterJobListings();
     }
@@ -399,7 +419,7 @@
         if (isDpsaJob) {
           const provincialCrest = PROVINCE_CRESTS[job.province];
           const crest = document.createElement("img");
-          crest.src = provincialCrest || "south-african-coat-of-arms.png";
+          crest.src = provincialCrest || "/south-african-coat-of-arms.png";
           crest.alt = provincialCrest
             ? `${job.province} provincial coat of arms`
             : "South African national coat of arms";
@@ -466,6 +486,18 @@
             salaryItem.append(document.createTextNode(job.salaryText));
           }
           metadata.append(salaryItem);
+        }
+        const jobLevel = extractJobLevel(job);
+        if (jobLevel) {
+          const levelItem = document.createElement("span");
+          levelItem.className = "listing-meta-item";
+          levelItem.append(metadataIcon("salary"), document.createTextNode("Job level: "));
+          const levelLink = document.createElement("a");
+          levelLink.className = "listing-salary-link";
+          levelLink.href = salaryLevelHref(jobLevel);
+          levelLink.textContent = jobLevel;
+          levelItem.append(levelLink);
+          metadata.append(levelItem);
         }
         const closingDate = closingDateLabel(job.closingDate);
         if (closingDate) {

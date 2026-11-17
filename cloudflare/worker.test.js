@@ -213,6 +213,114 @@ test("numberless National Treasury salary text links to the readable salary scal
   assert.match(html, /<strong>Salary:<\/strong> <a class="salary-scales-link" href="https:\/\/dpsagovernmentjobs\.co\.za\/national-treasury-salary-scales\/">National Treasury Scales<\/a>/);
 });
 
+test("renders vacancy-specific FAQs and matching FAQ schema with gross and estimated net pay", async () => {
+  const job = makeJob({
+    title: "ADMINISTRATION CLERK",
+    salary: 300000,
+    salaryText: "R300 000 per annum (Level 05)",
+    level: "Level 05",
+    requirements: "A Grade 12 certificate. At least two years of experience in administrative work.",
+    duties: "Provide administrative support and maintain the office records."
+  });
+  const response = await worker.fetch(new Request("https://jobs.example/administration-clerk-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+  const jsonLdBlocks = [...html.matchAll(/<script type="application\/ld\+json">([^<]+)<\/script>/g)]
+    .map(match => JSON.parse(match[1]));
+  const faqSchema = jsonLdBlocks.find(schema => schema["@type"] === "FAQPage");
+
+  assert.ok(faqSchema);
+  assert.equal(faqSchema.mainEntity.length, 5);
+  assert.match(html, /Questions about this vacancy/);
+  assert.match(html, /How much does the South African public service pay for the Administration Clerk post at Department of Health\?/);
+  assert.match(html, /R300 000 per year \(R25 000 per month\)/);
+  assert.match(html, /R259 428 per year \(R21 619 per month\)/);
+  assert.match(html, /SARS 2027 rates for an individual under 65 with the primary rebate/);
+  assert.match(html, /It excludes UIF, pension\/GEPF contributions, medical aid credits/);
+  assert.match(html, /At least two years of experience in administrative work/);
+  assert.match(html, /A Grade 12 certificate/);
+  assert.match(html, /Provide administrative support and maintain the office records/);
+  assert.match(html, /href="#requirements">Requirements section in this post<\/a>/);
+  assert.match(html, /href="https:\/\/www\.sars\.gov\.za\/tax-rates\/income-tax\/rates-of-tax-for-individuals\/"/);
+  assert.ok(faqSchema.mainEntity.some(question => question.name.startsWith("How much is the estimated monthly pay after South African tax")));
+  assert.ok(faqSchema.mainEntity.some(question => question.acceptedAnswer.text.includes("R21 619 per month")));
+});
+
+test("does not invent salary or qualification answers when vacancy data is absent", async () => {
+  const job = makeJob({
+    title: "ADMINISTRATION CLERK",
+    salary: 0,
+    salaryText: "Not stated in advert",
+    level: "",
+    requirements: "",
+    duties: ""
+  });
+  const response = await worker.fetch(new Request("https://jobs.example/administration-clerk-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+
+  assert.match(html, /do not provide a numeric salary or a usable salary level/);
+  assert.match(html, /Qualification requirements were not included in this vacancy's published details/);
+});
+
+test("uses the supplied salary-level table only as a labeled estimate when advertised pay is missing", async () => {
+  const job = makeJob({
+    title: "ADMINISTRATION CLERK",
+    salary: 0,
+    salaryText: "As per National Treasury scales",
+    level: "Level 05"
+  });
+  const response = await worker.fetch(new Request("https://jobs.example/administration-clerk-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+
+  assert.match(html, /The advert does not give a numeric salary but identifies Level 5/);
+  assert.match(html, /proposed monthly notch of R13 237, or R158 844 per year \(R13 237 per month\)/);
+  assert.match(html, /not a confirmed salary for this specific vacancy/);
+});
+
+test("links the job level to its salary guide section and shows three similar current vacancies", async () => {
+  const job = makeJob({ level: "Level 09" });
+  const relatedJobs = [
+    makeJob({
+      id: "same-title-same-province",
+      title: "ASSISTANT DIRECTOR: EXAMPLE OPERATIONS",
+      postNo: "1/2",
+      province: "Limpopo",
+      circularName: "Circular 2 of 2099"
+    }),
+    makeJob({
+      id: "same-title-other-province",
+      title: "ASSISTANT DIRECTOR: EXAMPLE SERVICES",
+      postNo: "1/3",
+      province: "Gauteng",
+      circularName: "Circular 3 of 2099"
+    }),
+    makeJob({
+      id: "same-department",
+      title: "PROGRAMME COORDINATOR",
+      postNo: "1/4",
+      province: "Limpopo",
+      circularName: "Circular 4 of 2099"
+    }),
+    makeJob({
+      id: "expired-related",
+      title: "ASSISTANT DIRECTOR: EXAMPLE CLOSED",
+      postNo: "1/5",
+      closingDate: "1 January 2000"
+    })
+  ];
+  const response = await worker.fetch(
+    new Request("https://jobs.example/assistant-director-example-1-1-example-1/"),
+    createEnv([job, ...relatedJobs])
+  );
+  const html = await response.text();
+
+  assert.match(html, /<strong>Job level:<\/strong> <a class="salary-scales-link" href="https:\/\/dpsagovernmentjobs\.co\.za\/national-treasury-salary-scales\/#level-9">Level 9<\/a>/);
+  assert.match(html, /<h2 id="related-jobs-heading">Similar current vacancies<\/h2>/);
+  assert.equal((html.match(/class="related-job-card"/g) ?? []).length, 3);
+  assert.match(html, /Assistant Director: Example Operations/);
+  assert.match(html, /Province: Limpopo/);
+  assert.doesNotMatch(html, /EXAMPLE CLOSED/);
+});
+
 test("vacancy URLs combine the normalized title, post number and reference number", async () => {
   const job = makeJob({
     title: "ASSISTANT DIRECTOR: SECURITY MANAGEMENT",
@@ -268,7 +376,8 @@ test("generic employer data is not presented as the hiring department or marked 
   assert.equal(response.status, 200);
   assert.match(html, /Hiring department:<\/strong> Check the official advert/);
   assert.doesNotMatch(html, /The South African Public Service/);
-  assert.doesNotMatch(html, /application\/ld\+json/);
+  assert.doesNotMatch(html, /"@type":"JobPosting"/);
+  assert.match(html, /"@type":"FAQPage"/);
   assert.match(html, /Location\/centre in advert:<\/strong> Limpopo/);
   assert.doesNotMatch(html, /based in Labour/);
 });
@@ -337,7 +446,7 @@ test("untrusted vacancy text is escaped in the page and structured data", async 
   assert.match(html, /&lt;\/script&gt;&lt;script&gt;alert/);
 });
 
-test("sitemap excludes expired jobs and unknown job IDs return 404", async () => {
+test("sitemap excludes expired jobs and unknown job IDs redirect home", async () => {
   const active = makeJob();
   const expired = makeJob({
     id: "closed-post",
@@ -357,11 +466,57 @@ test("sitemap excludes expired jobs and unknown job IDs return 404", async () =>
   assert.equal(closedResponse.status, 410);
   assert.equal(closedResponse.headers.get("X-Robots-Tag"), "noindex");
   const missingResponse = await worker.fetch(new Request("https://jobs.example/missing-title-and-reference/"), env);
-  assert.equal(missingResponse.status, 404);
+  assert.equal(missingResponse.status, 302);
+  assert.equal(missingResponse.headers.get("Location"), "https://dpsagovernmentjobs.co.za/");
 
   const indexResponse = await worker.fetch(new Request("https://jobs.example/jobs/"), env);
   assert.equal(indexResponse.status, 301);
   assert.equal(indexResponse.headers.get("Location"), "https://dpsagovernmentjobs.co.za/#listings");
+});
+
+test("redirects missing pages, admin paths and feed URLs to the homepage", async () => {
+  const paths = [
+    "/missing/nested/page",
+    "/admin/",
+    "/wp-admin/index.php",
+    "/wp-login.php",
+    "/extension/admin.html",
+    "/feed/",
+    "/comments/feed/",
+    "/feed/rss.xml",
+    "/index.xml",
+    "/rss.xml",
+    "/atom.xml",
+    "/old-post.rdf",
+    "/?feed=rss2",
+    "/index.php?format=feed&type=rss",
+    "/jobs/missing-id?type=atom"
+  ];
+
+  for (const path of paths) {
+    const response = await worker.fetch(new Request(`https://jobs.example${path}`), createEnv([]));
+    assert.equal(response.status, 302, `${path} should redirect`);
+    assert.equal(response.headers.get("Location"), "https://dpsagovernmentjobs.co.za/", `${path} should redirect home`);
+  }
+
+  const legacyCircular = await worker.fetch(new Request(
+    "https://jobs.example/civic-services-clerk-dpsa-circular-18-of-2026-dpsa-vacancies/"
+  ), createEnv([]));
+  assert.equal(legacyCircular.status, 302);
+  assert.equal(
+    legacyCircular.headers.get("Location"),
+    "https://dpsagovernmentjobs.co.za/dpsa-vacancy-circulars/#circular-18-of-2026"
+  );
+});
+
+test("keeps sitemap and API error responses out of page redirects", async () => {
+  const env = createEnv([]);
+  const sitemap = await worker.fetch(new Request("https://jobs.example/sitemap.xml"), env);
+  const missingApiRoute = await worker.fetch(new Request("https://jobs.example/api/missing"), env);
+
+  assert.equal(sitemap.status, 200);
+  assert.equal(missingApiRoute.status, 404);
+  assert.equal(missingApiRoute.headers.get("Content-Type"), "application/json; charset=utf-8");
 });
 
 test("public API hides expired jobs while authenticated admin reads retain them", async () => {

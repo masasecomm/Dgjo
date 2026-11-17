@@ -1,12 +1,21 @@
 import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { canonicalCircularName, circularArchivePath, groupJobsByCircular } from "../circulars.js";
-import { normalizeProvince, PROVINCE_CRESTS } from "../provinces.js";
 import {
+  canonicalCircularName,
+  circularArchiveAnchor,
+  circularArchivePath,
+  groupJobsByCircular,
+  sortJobsByCircular,
+  SEARCH_CONSOLE_ARCHIVED_CIRCULARS
+} from "../circulars.js";
+import { normalizeProvince, PROVINCE_CRESTS, SOUTH_AFRICAN_PROVINCES } from "../provinces.js";
+import {
+  extractJobLevel,
   isNationalTreasuryScalesReference,
   SALARY_SCALES_LINK_LABEL,
-  SALARY_SCALES_PATH
+  SALARY_SCALES_PATH,
+  salaryLevelHref
 } from "../salary-scales.js";
 import { cleanVacancyLocation, cleanVacancyTitle } from "../vacancy-format.js";
 
@@ -22,9 +31,13 @@ const COUNT_END = "<!-- JOB_COUNT_END -->";
 const DATA_MARKER = "<!-- JOB_DATA -->";
 const CIRCULAR_ARCHIVES_START = "<!-- CIRCULAR_ARCHIVES_START -->";
 const CIRCULAR_ARCHIVES_END = "<!-- CIRCULAR_ARCHIVES_END -->";
+const PAST_CIRCULARS_START = "<!-- PAST_CIRCULARS_START -->";
+const PAST_CIRCULARS_END = "<!-- PAST_CIRCULARS_END -->";
+const PROVINCE_GUIDES_START = "<!-- PROVINCE_GUIDES_START -->";
+const PROVINCE_GUIDES_END = "<!-- PROVINCE_GUIDES_END -->";
 const SNAPSHOT_FIELDS = [
   "id", "slug", "title", "company", "circularName", "sourceUrl", "centre", "province",
-  "location", "salaryText", "natureOfAppointment", "type", "closingDate", "refNo", "category"
+  "location", "salaryText", "level", "natureOfAppointment", "type", "closingDate", "refNo", "category"
 ];
 
 const acronymNames = new Set([
@@ -132,7 +145,7 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
     const jobUrl = `${JOBS_PAGE_ORIGIN}/${slug}/`;
     const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
     const province = normalizeProvince(job.province);
-    const crestPath = PROVINCE_CRESTS[province] ?? "south-african-coat-of-arms.png";
+    const crestPath = PROVINCE_CRESTS[province] ?? "/south-african-coat-of-arms.png";
     const scope = isCircularJob ? (province ? "Provincial" : "National") : "";
     const mark = isCircularJob
       ? `<img src="${escapeHtml(crestPath)}" alt="${escapeHtml(province ? `${province} provincial coat of arms` : "South African national coat of arms")}" width="64" height="64" loading="lazy" decoding="async">`
@@ -148,10 +161,12 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
     const salary = isNationalTreasuryScalesReference(job.salaryText)
       ? `<a class="listing-salary-link" href="${SALARY_SCALES_PATH}">${SALARY_SCALES_LINK_LABEL}</a>`
       : escapeHtml(job.salaryText);
+    const jobLevel = extractJobLevel(job);
     const metadata = [
       `<span class="listing-meta-item">${metadataIcon("department")}${department}</span>`,
       location ? `<span class="listing-meta-item">${metadataIcon("location")}${escapeHtml(location)}</span>` : "",
       job.salaryText ? `<span class="listing-meta-item">${metadataIcon("salary")}${salary}</span>` : "",
+      jobLevel ? `<span class="listing-meta-item">${metadataIcon("salary")}Job level: <a class="listing-salary-link" href="${salaryLevelHref(jobLevel)}">${jobLevel}</a></span>` : "",
       closingDate
         ? `<span class="listing-meta-item" aria-label="Closing: ${escapeHtml(closingDate)}">${metadataIcon("clock")}Closing: ${escapeHtml(closingDate)}</span>`
         : ""
@@ -174,14 +189,147 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
 }
 
 export function renderHomeJobListings(jobs) {
-  return renderJobListings(jobs.slice(0, INITIAL_LISTING_COUNT));
+  return renderJobListings(sortJobsByCircular(jobs).slice(0, INITIAL_LISTING_COUNT));
 }
 
 export function renderCircularArchiveLinks(circularGroups) {
   if (!circularGroups.length) return "<p>No current circular job collections are available.</p>";
   return `<ul class="circular-archive-list">${circularGroups.map(group =>
-    `<li><a href="${group.path}">${escapeHtml(group.name)}</a><span>${group.jobs.length} ${group.jobs.length === 1 ? "current job" : "current jobs"}</span></li>`
+    `<li id="${escapeHtml(circularArchiveAnchor(group.name))}"><a href="${group.path}">${escapeHtml(group.name)}</a><span>${group.jobs.length} ${group.jobs.length === 1 ? "current job" : "current jobs"}</span></li>`
   ).join("")}</ul>`;
+}
+
+export function renderPastCircularArchiveLinks(circularNames = SEARCH_CONSOLE_ARCHIVED_CIRCULARS) {
+  if (!circularNames.length) return "<p>No previous circular issues are listed.</p>";
+  return `<ul class="circular-archive-list">${circularNames.map(name =>
+    `<li id="${escapeHtml(circularArchiveAnchor(name))}"><strong>${escapeHtml(name)}</strong><span>Past issue; <a href="https://www.dpsa.gov.za/newsroom/psvc/" rel="noopener noreferrer">check the official DPSA page</a> for the original publication.</span></li>`
+  ).join("")}</ul>`;
+}
+
+function provincePath(province) {
+  const slug = province.toLocaleLowerCase("en-ZA").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `/government-vacancies/${slug}/`;
+}
+
+export function groupJobsByProvince(jobs) {
+  const groups = new Map(SOUTH_AFRICAN_PROVINCES.map(name => [name, {
+    name,
+    path: provincePath(name),
+    jobs: []
+  }]));
+  for (const job of jobs) {
+    const province = normalizeProvince(job?.province);
+    if (groups.has(province)) groups.get(province).jobs.push(job);
+  }
+  return [...groups.values()].filter(group => group.jobs.length > 0);
+}
+
+export function renderProvinceGuideLinks(provinceGroups) {
+  if (!provinceGroups.length) return "<p>Province vacancy guides will appear when current listings are available.</p>";
+  return `<ul class="circular-archive-list">${provinceGroups.map(group =>
+    `<li><a href="${group.path}">${escapeHtml(group.name)} government vacancies</a><span>${group.jobs.length} current ${group.jobs.length === 1 ? "vacancy" : "vacancies"}</span></li>`
+  ).join("")}</ul>`;
+}
+
+export function renderProvinceLandingPage(provinceValue, jobs) {
+  const province = normalizeProvince(provinceValue);
+  if (!province) throw new Error("A recognized South African province is required.");
+  const archivePath = provincePath(province);
+  const canonicalUrl = `${SITE_URL}${archivePath}`;
+  const isGauteng = province === "Gauteng";
+  const title = isGauteng
+    ? "Government Vacancies in Gauteng | Current DPSA Jobs"
+    : `DPSA Vacancies in ${province} | Government Jobs`;
+  const description = isGauteng
+    ? "Browse current DPSA circular jobs in Gauteng. Looking for GPG vacancies? Check each advert; this is not a complete list of all GPG or municipal recruitment."
+    : `Browse current DPSA public service vacancies located in ${province}. Check each official advert for requirements, application instructions and closing dates.`;
+  const intro = isGauteng
+    ? "Looking for GPG vacancies? These are current DPSA circular jobs whose advertised work location is Gauteng. This page is not a complete list of all Gauteng Provincial Government or municipal recruitment; verify every role in the department's official advert."
+    : `Browse current South African public service vacancies located in ${province}. Each listing links to job details; confirm its requirements, application method and closing date in the official department advert.`;
+  const itemList = {
+    "@type": "ItemList",
+    numberOfItems: jobs.length,
+    itemListElement: jobs.map((job, index) => {
+      const slug = encodeURIComponent(String(job.slug || job.id));
+      return {
+        "@type": "ListItem",
+        position: index + 1,
+        name: displayJobTitle(job.title),
+        url: `${JOBS_PAGE_ORIGIN}/${slug}/`
+      };
+    })
+  };
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: title,
+    description,
+    url: canonicalUrl,
+    inLanguage: "en-ZA",
+    mainEntity: itemList,
+    isPartOf: {
+      "@type": "WebSite",
+      name: "DPSA Government Jobs",
+      url: `${SITE_URL}/`
+    }
+  };
+
+  return `<!doctype html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${canonicalUrl}">
+  <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/styles.css">
+  <title>${escapeHtml(title)}</title>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DPSA Government Jobs">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:url" content="${canonicalUrl}">
+  <script type="module" src="/redirects.js"></script>
+  <script type="application/ld+json">${jsonLd(structuredData)}</script>
+</head>
+<body class="post-theme">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
+    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
+    <div class="nav-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">Circulars</a><a href="/how-to-apply/">How to apply</a></div>
+  </nav></header>
+  <main id="main">
+    <div class="site-post">
+    <section class="page-hero"><div class="shell">
+      <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> South African public service vacancies</p>
+      <h1>${isGauteng ? "Gauteng Government Vacancies" : `Government vacancies in ${escapeHtml(province)}`}</h1>
+      <p class="lead">${escapeHtml(intro)}</p>
+      <a class="button" href="https://www.dpsa.gov.za/newsroom/psvc/" rel="noopener noreferrer">Check the official DPSA circulars</a>
+    </div></section>
+    <section class="content-section"><div class="shell">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> › Government vacancies › ${escapeHtml(province)}</nav>
+      <h2>Current government jobs in ${escapeHtml(province)}</h2>
+      <p>${jobs.length} current ${jobs.length === 1 ? "vacancy is" : "vacancies are"} listed for this province. Confirm that the advertised location and deadline meet your needs before applying.</p>
+      <div class="listing-grid">${renderJobListings(jobs)}</div>
+      <h2>Before you apply</h2>
+      <ol>
+        <li>Read the full official department advert, including qualifications and reference number.</li>
+        <li>Follow the stated application method and submit all requested documents before the closing date.</li>
+        <li>Direct questions to the hiring department named in the advert; this site is an independent guide.</li>
+      </ol>
+      <p>For more opportunities, browse <a href="/dpsa-vacancy-circulars/">current DPSA circulars</a> or return to <a href="/">all South African government vacancies</a>.</p>
+    </div></section>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell footer-inner">
+    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
+    <p>Independent guide to South African public service vacancies. Verify details with the official advert and hiring department.</p>
+    <div class="footer-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a><a href="/how-to-apply/">Application guide</a></div>
+  </div></footer>
+</body>
+</html>`;
 }
 
 function jsonLd(value) {
@@ -242,6 +390,8 @@ export function renderCircularArchivePage(circularName, jobs) {
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="canonical" href="${canonicalUrl}">
+  <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/styles.css">
   <title>${escapeHtml(title)}</title>
   <meta property="og:type" content="website">
@@ -249,15 +399,17 @@ export function renderCircularArchivePage(circularName, jobs) {
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonicalUrl}">
+  <script type="module" src="/redirects.js"></script>
   <script type="application/ld+json">${jsonLd(structuredData)}</script>
 </head>
-<body>
+<body class="post-theme">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
-    <a class="brand" href="/" aria-label="DPSA Government Jobs home"><span class="brand-mark" aria-hidden="true">D</span><span>DPSA <b>Government Jobs</b></span></a>
+    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
     <div class="nav-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">Circulars</a><a href="/how-to-apply/">How to apply</a></div>
   </nav></header>
   <main id="main">
+    <div class="site-post">
     <section class="page-hero"><div class="shell">
       <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> DPSA public service vacancy circular</p>
       <h1>${escapeHtml(name)} Jobs and Vacancies</h1>
@@ -270,9 +422,10 @@ export function renderCircularArchivePage(circularName, jobs) {
       <div class="listing-grid">${jobsMarkup}</div>
       <p class="independent-note">This is an independent vacancy guide. Verify every job with the official circular and the hiring department.</p>
     </div></section>
+    </div>
   </main>
   <footer class="site-footer"><div class="shell footer-inner">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">D</span><span>DPSA <b>Government Jobs</b></span></a>
+    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
     <p>Independent guide to South African public service vacancies.</p>
     <div class="footer-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a><a href="/national-treasury-salary-scales/">National Treasury salary scales</a></div>
   </div></footer>
@@ -280,12 +433,18 @@ export function renderCircularArchivePage(circularName, jobs) {
 </html>`;
 }
 
-export function renderSitemapWithCircularArchives(source, circularGroups, lastmod = new Date().toISOString().slice(0, 10)) {
+export function renderSitemapWithCircularArchives(
+  source,
+  circularGroups,
+  lastmod = new Date().toISOString().slice(0, 10),
+  provinceGroups = []
+) {
   const closingTag = "</urlset>";
   const closingIndex = source.lastIndexOf(closingTag);
   if (closingIndex < 0) throw new Error("Sitemap is missing its urlset closing tag.");
-  const entries = circularGroups.map(group =>
-    `  <url>\n    <loc>${SITE_URL}${group.path}</loc>\n    <lastmod>${escapeHtml(lastmod)}</lastmod>\n  </url>`
+  const paths = [...circularGroups, ...provinceGroups].map(group => group.path);
+  const entries = [...new Set(paths)].map(path =>
+    `  <url>\n    <loc>${SITE_URL}${escapeHtml(path)}</loc>\n    <lastmod>${escapeHtml(lastmod)}</lastmod>\n  </url>`
   ).join("\n");
   if (!entries) return source;
   return `${source.slice(0, closingIndex).trimEnd()}\n${entries}\n${source.slice(closingIndex)}`;
@@ -315,11 +474,18 @@ export async function buildSite() {
   const jobs = await response.json();
   if (!Array.isArray(jobs)) throw new Error("Job service returned an invalid list.");
 
-  const validJobs = jobs.filter(isDisplayableJob);
+  const validJobs = sortJobsByCircular(jobs.filter(isDisplayableJob));
   const circularGroups = groupJobsByCircular(validJobs);
+  const provinceGroups = groupJobsByProvince(validJobs);
   let index = await readFile(path.join(ROOT, "index.html"), "utf8");
+  const currentYear = new Intl.DateTimeFormat("en-ZA", {
+    timeZone: "Africa/Johannesburg",
+    year: "numeric"
+  }).format(new Date());
+  index = index.replace(/\{\{CURRENT_YEAR\}\}/g, currentYear);
   index = replaceMarkedContent(index, JOBS_START, JOBS_END, renderHomeJobListings(validJobs));
   index = replaceMarkedContent(index, COUNT_START, COUNT_END, `${validJobs.length} current ${validJobs.length === 1 ? "vacancy" : "vacancies"}`);
+  index = replaceMarkedContent(index, PROVINCE_GUIDES_START, PROVINCE_GUIDES_END, renderProvinceGuideLinks(provinceGroups));
   const snapshot = validJobs.map(job => Object.fromEntries(
     SNAPSHOT_FIELDS.filter(field => job[field] !== undefined).map(field => [field, job[field]])
   ));
@@ -339,7 +505,7 @@ export async function buildSite() {
     "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
     "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
     "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",
-    "circulars.js", "provinces.js", "salary-scales.js", "south-african-coat-of-arms.png",
+    "circulars.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
     "south-african-flag.png", "styles.css", "vacancy-format.js"
   ];
   for (const file of files) {
@@ -357,6 +523,12 @@ export async function buildSite() {
     CIRCULAR_ARCHIVES_END,
     renderCircularArchiveLinks(circularGroups)
   );
+  circularHub = replaceMarkedContent(
+    circularHub,
+    PAST_CIRCULARS_START,
+    PAST_CIRCULARS_END,
+    renderPastCircularArchiveLinks()
+  );
   await writeFile(circularHubPath, circularHub);
 
   for (const group of circularGroups) {
@@ -366,10 +538,17 @@ export async function buildSite() {
     await writeFile(path.join(archiveDirectory, "index.html"), renderCircularArchivePage(group.name, group.jobs));
   }
 
+  for (const group of provinceGroups) {
+    const slug = group.path.split("/").filter(Boolean).at(-1);
+    const provinceDirectory = path.join(output, "government-vacancies", slug);
+    await mkdir(provinceDirectory, { recursive: true });
+    await writeFile(path.join(provinceDirectory, "index.html"), renderProvinceLandingPage(group.name, group.jobs));
+  }
+
   const sitemapPath = path.join(output, "sitemap.xml");
   const sitemap = await readFile(sitemapPath, "utf8");
-  await writeFile(sitemapPath, renderSitemapWithCircularArchives(sitemap, circularGroups));
-  console.log(`Built homepage with ${validJobs.length} listings and ${circularGroups.length} circular archive pages.`);
+  await writeFile(sitemapPath, renderSitemapWithCircularArchives(sitemap, circularGroups, new Date().toISOString().slice(0, 10), provinceGroups));
+  console.log(`Built homepage with ${validJobs.length} listings, ${circularGroups.length} circular archives and ${provinceGroups.length} province guides.`);
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
