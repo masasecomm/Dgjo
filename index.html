@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261117-cv-form">
+  <link rel="stylesheet" href="styles.css?v=20261117-footer-mobile-nav">
   <title>Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
@@ -50,9 +50,8 @@
       <div class="nav-links">
         <a href="/" aria-current="page">Home</a>
         <details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a><!-- CIRCULAR_NAV_ITEMS --></div></details>
-        <a href="#listings">Province</a>
         <a href="#cv-job-matcher">CV job match</a>
-        <a href="#questions-heading">Contact &amp; help</a>
+        <a href="/#questions-heading">Contact</a>
       </div>
     </nav>
   </header>
@@ -85,66 +84,6 @@
       </div>
     </section>
 
-    <section class="section cv-matcher-section" id="cv-job-matcher" aria-labelledby="cv-job-matcher-heading">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Personalised job search</p>
-            <h2 id="cv-job-matcher-heading">Find government jobs that fit your CV</h2>
-            <p class="section-intro">Upload a CV to compare its job-related skills and experience with current vacancies across all provinces and departments.</p>
-          </div>
-        </div>
-        <form id="cv-match-form" class="cv-match-form">
-          <div class="cv-match-fields">
-            <label>Full names
-              <input id="cv-match-name" name="name" type="text" autocomplete="name" maxlength="120" required>
-            </label>
-            <label>CV file
-              <input id="cv-match-file" name="cv" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" required>
-              <span class="cv-field-hint">PDF, Word (.docx) or text file, up to 10 MB. Scanned PDFs are not supported.</span>
-            </label>
-            <div class="cv-match-submit-row">
-              <label class="cv-match-email-label">
-                <input id="cv-match-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="Your e-mail" aria-label="Email address" required>
-              </label>
-              <button class="button" type="submit">Match my CV <span aria-hidden="true">→</span></button>
-            </div>
-          </div>
-          <label class="data-consent"><input id="cv-match-sheet-consent" name="sheetConsent" type="checkbox" required> I agree to send my name, email and the text extracted from my CV to the DPSAWebsite Google Sheet. These records are not automatically deleted.</label>
-          <p id="cv-match-status" class="cv-match-status" role="status" aria-live="polite"></p>
-        </form>
-        <section id="cv-match-results" class="cv-match-results" aria-labelledby="cv-match-results-heading" hidden>
-          <h3 id="cv-match-results-heading">Vacancies with the closest CV overlap</h3>
-          <p class="cv-match-disclaimer">A match is a starting point, not confirmation that you qualify. The hiring department makes all eligibility and recruitment decisions.</p>
-          <ol id="cv-match-list"></ol>
-          <button id="cv-match-load-more" class="button button-light cv-match-load-more" type="button" hidden>Show more matches</button>
-        </section>
-        <section class="cv-alert-panel" aria-labelledby="job-alert-heading">
-          <h3 id="job-alert-heading">Get new government job alerts by email</h3>
-          <p>Choose a province and department, or select all. We will email you when matching new vacancies are published.</p>
-          <form id="job-alert-form" class="job-alert-form">
-            <label>Full names
-              <input id="job-alert-name" name="name" type="text" autocomplete="name" maxlength="120" required>
-            </label>
-            <label>Email address
-              <input id="job-alert-email" name="email" type="email" autocomplete="email" maxlength="254" required>
-            </label>
-            <label>Preferred province
-              <select id="job-alert-province" name="province"><option value="all">All provinces and National</option></select>
-            </label>
-            <label>Preferred department
-              <select id="job-alert-department" name="department"><option value="all">All departments</option></select>
-            </label>
-            <label class="job-alert-consent"><input id="job-alert-consent" name="consent" type="checkbox" required> I agree to receive job-alert emails for these preferences. I can unsubscribe at any time.</label>
-            <label class="job-alert-consent"><input id="job-alert-sheet-consent" name="sheetConsent" type="checkbox" required> I agree to have my name, email, province and department recorded in the DPSAWebsite Google Sheet. The record is not automatically deleted if I unsubscribe.</label>
-            <button class="button" type="submit">Subscribe to job alerts</button>
-            <p id="job-alert-status" class="cv-match-status" role="status" aria-live="polite"></p>
-          </form>
-          <p class="cv-privacy-note">Alert details are recorded in the DPSAWebsite Google Sheet after you submit. Alerts start after you confirm your email. Unsubscribing stops emails and changes the sheet status to “unsubscribed”; it does not delete the record.</p>
-        </section>
-      </div>
-    </section>
-
     <section class="home-section home-featured" id="listings" aria-labelledby="listings-heading">
       <div class="home-section-heading">
           <div>
@@ -166,80 +105,57 @@
         <p class="listing-empty">Loading South African job listings…</p>
         <!-- JOB_LISTINGS_END -->
       </div>
+    </section>
+
+    <section class="section cv-matcher-section" id="cv-job-matcher" aria-labelledby="cv-job-matcher-heading">
+      <div class="shell">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Personalised job search</p>
+            <h2 id="cv-job-matcher-heading">Find government jobs that fit your CV</h2>
+            <p class="section-intro">Upload a CV to compare its job-related skills and experience with current vacancies across all provinces and departments.</p>
+          </div>
+        </div>
+        <form id="cv-match-form" class="cv-match-form">
+          <div class="cv-match-contact-row">
+            <label class="cv-match-file-field">
+              <span class="cv-match-file-title">Upload CV</span>
+              <input id="cv-match-file" name="cv" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" aria-label="Upload CV file (PDF, DOCX or text, up to 10 MB)" required>
+            </label>
+            <span class="footer-field-divider cv-match-file-divider" aria-hidden="true"></span>
+            <label class="cv-match-name-label">
+              <input id="cv-match-name" name="name" type="text" autocomplete="name" maxlength="120" placeholder="Your name" aria-label="Full name" required>
+            </label>
+            <span class="footer-field-divider cv-match-name-divider" aria-hidden="true"></span>
+            <label class="cv-match-email-label">
+              <input id="cv-match-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="Your e-mail" aria-label="Email address" required>
+            </label>
+            <label class="cv-match-terms-consent"><input id="cv-match-sheet-consent" name="sheetConsent" type="checkbox" required> <a href="/job-alert-terms.html">Terms</a></label>
+            <button class="button" type="submit">Match my CV <span aria-hidden="true">→</span></button>
+          </div>
+          <p class="cv-field-hint">PDF, Word (.docx) or text file, up to 10 MB. Scanned PDFs are not supported.</p>
+          <p id="cv-match-status" class="cv-match-status" role="status" aria-live="polite"></p>
+        </form>
+        <section id="cv-match-results" class="cv-match-results" aria-labelledby="cv-match-results-heading" hidden>
+          <h3 id="cv-match-results-heading">Vacancies with the closest CV overlap</h3>
+          <p class="cv-match-disclaimer">A match is a starting point, not confirmation that you qualify. The hiring department makes all eligibility and recruitment decisions.</p>
+          <ol id="cv-match-list"></ol>
+          <button id="cv-match-load-more" class="button button-light cv-match-load-more" type="button" hidden>Show more matches</button>
+        </section>
+      </div>
+    </section>
+
+    <section class="home-section home-job-continuation" aria-label="More current government vacancies">
+      <div class="listing-grid" id="job-list-continuation" aria-live="polite">
+        <!-- JOB_LISTINGS_CONTINUATION_START -->
+        <!-- JOB_LISTINGS_CONTINUATION_END -->
+      </div>
       <div class="listing-pagination">
-        <button class="button listing-load-more" id="load-more-jobs" type="button" hidden>Show more vacancies</button>
+        <button class="button listing-load-more" id="load-more-jobs" type="button" hidden>Show 10 more vacancies</button>
         <p class="listing-pagination-status" id="listing-pagination-status" aria-live="polite" hidden></p>
       </div>
-      <!-- JOB_DATA -->
     </section>
-
-    <section class="section section-tint" aria-labelledby="province-guides-heading">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Explore local opportunities</p>
-            <h2 id="province-guides-heading">Government vacancies by province or national category</h2>
-            <p class="section-intro">Browse current DPSA public service jobs by advertised work province or national category. National listings are not assigned to a specific province.</p>
-          </div>
-        </div>
-        <nav class="province-guide-links" aria-label="Government vacancies by province">
-          <!-- PROVINCE_GUIDES_START -->
-          <p>Province vacancy guides will appear when current listings are available.</p>
-          <!-- PROVINCE_GUIDES_END -->
-        </nav>
-      </div>
-    </section>
-
-    <section class="section" aria-labelledby="circulars-heading">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Official publications</p>
-            <h2 id="circulars-heading">Find current DPSA vacancy circulars</h2>
-            <p class="section-intro">The Department of Public Service and Administration publishes public service vacancy circulars, usually weekly except in December. Each circular brings together job advertisements from government departments.</p>
-          </div>
-          <a class="button" href="https://www.dpsa.gov.za/newsroom/psvc/">Visit the official DPSA page <span aria-hidden="true">↗</span></a>
-        </div>
-        <div class="resource-grid">
-          <article class="resource-card">
-            <span class="resource-number">01</span>
-            <h3>Browse the circulars</h3>
-            <p>Open the official DPSA vacancy circular page and choose the publication you need. Always read the complete advert from the hiring department.</p>
-            <a class="text-link" href="https://www.dpsa.gov.za/newsroom/psvc/">DPSA vacancy circulars <span aria-hidden="true">↗</span></a>
-          </article>
-          <article class="resource-card">
-            <span class="resource-number">02</span>
-            <h3>Get the Z83 form</h3>
-            <p>Use the current application form and follow the instructions in the specific vacancy advert, including any CV or supporting documents requested.</p>
-            <a class="text-link" href="https://www.dpsa.gov.za/dpsa2g/documents/vacancies/editable%20Approved%20New%20Z83%20form%20Gazetted%206%20Nov%202020.pdf">Download the official editable Z83 <span aria-hidden="true">↗</span></a>
-          </article>
-          <article class="resource-card">
-            <span class="resource-number">03</span>
-            <h3>Apply to the department</h3>
-            <p>Applications and vacancy enquiries go to the department named in the advert. DPSA publishes the circular but does not manage each department’s recruitment.</p>
-            <a class="text-link" href="/how-to-apply/">Read the application guide <span aria-hidden="true">→</span></a>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section-tint" aria-labelledby="steps-heading">
-      <div class="shell">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">A clear application process</p>
-            <h2 id="steps-heading">How to apply for a DPSA vacancy</h2>
-            <p class="section-intro">Requirements differ by post. The advert issued by the hiring department is the final guide for eligibility, documents and submission.</p>
-          </div>
-          <a class="text-link" href="/how-to-apply/">See all application steps <span aria-hidden="true">→</span></a>
-        </div>
-        <ol class="steps">
-          <li><span>1</span><div><h3>Read the full job advert</h3><p>Check qualifications, experience, location, reference number and closing date.</p></div></li>
-          <li><span>2</span><div><h3>Prepare the requested documents</h3><p>Complete the Z83 form and attach the CV or other documents requested in the advert.</p></div></li>
-          <li><span>3</span><div><h3>Submit to the named department</h3><p>Use the email, online portal or postal address in the advert and submit before the deadline.</p></div></li>
-        </ol>
-      </div>
-    </section>
+    <!-- JOB_DATA -->
 
     <section class="section" aria-labelledby="questions-heading">
       <div class="shell narrow">
@@ -262,20 +178,66 @@
   </main>
 
   <footer class="site-footer">
-    <div class="shell footer-inner">
-      <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="south-african-flag.png" alt=""><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-      <p>Independent guide to South African public service vacancies. Verify details with the official advert and hiring department.</p>
-      <div class="footer-links">
-        <a href="/dpsa-vacancy-circulars/">DPSA circulars</a>
-        <a href="/national-treasury-salary-scales/">National Treasury salary scales</a>
-        <a href="/how-to-apply/">Application guide</a>
-        <a href="https://www.dpsa.gov.za/newsroom/psvc/">Official DPSA source ↗</a>
+    <div class="shell">
+      <section class="footer-newsletter" aria-labelledby="job-alert-heading">
+        <h2 id="job-alert-heading">Get new government job alerts by email</h2>
+        <p><span>Get notified when new public service vacancies are published.</span> <span>Confirm your email to activate alerts.</span></p>
+        <form id="job-alert-form" class="job-alert-form">
+          <div class="footer-subscribe-row">
+            <label class="footer-name-field">
+              <input id="job-alert-name" name="name" type="text" autocomplete="name" maxlength="120" placeholder="Your name" aria-label="Full name" required>
+            </label>
+            <span class="footer-field-divider" aria-hidden="true"></span>
+            <label class="footer-email-field">
+              <input id="job-alert-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="Your e-mail" aria-label="Email address" required>
+            </label>
+            <label class="job-alert-consent footer-terms-consent"><input id="job-alert-consent" name="consent" type="checkbox" required> <a href="/job-alert-terms.html">Terms</a></label>
+            <button class="button" type="submit">Subscribe</button>
+          </div>
+          <p id="job-alert-status" class="cv-match-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      <div class="footer-inner">
+        <div class="footer-main">
+          <div class="footer-contact">
+            <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="south-african-flag.png" alt=""><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
+            <address class="footer-address">
+              <img src="/footer-location.svg" alt="">
+              <span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span>
+            </address>
+          </div>
+          <nav class="footer-column" aria-label="Vacancies">
+            <h2>Vacancies</h2>
+            <a href="/">All vacancies</a>
+            <a href="/government-vacancies/">Vacancies by province</a>
+            <a href="/dpsa-vacancy-circulars/">DPSA circulars</a>
+          </nav>
+          <nav class="footer-column" aria-label="Job seeker resources">
+            <h2>Job seeker resources</h2>
+            <a href="/how-to-apply/">How to apply</a>
+            <a href="/national-treasury-salary-scales/">National Treasury salary scales</a>
+            <a href="/job-alert-terms.html">Job alert terms</a>
+          </nav>
+          <nav class="footer-column footer-social-column" aria-label="About and social media">
+            <h2>Official information</h2>
+            <a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a>
+            <a href="/#questions-heading">Contact</a>
+            <span class="footer-follow-label">Follow us</span>
+            <div class="social-links">
+              <a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook">
+                <img src="/footer-facebook.svg" alt="">
+              </a>
+              <a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X">
+                <img src="/footer-x.svg" alt="">
+              </a>
+              <a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest">
+                <img src="/footer-pinterest.svg" alt="">
+              </a>
+            </div>
+          </nav>
+        </div>
+        <div class="footer-bottom"><span>© DPSA Government Jobs</span><span>This is an independent guide and is not affiliated with DPSA.</span></div>
       </div>
-      <nav class="footer-links social-links" aria-label="Social media">
-        <a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><span aria-hidden="true">f</span></a>
-        <a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><span aria-hidden="true">𝕏</span></a>
-        <a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><span aria-hidden="true">P</span></a>
-      </nav>
     </div>
   </footer>
   <script type="module">
@@ -296,6 +258,7 @@
     const cvMatchesApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/cv-matches";
     const jobsPageOrigin = "https://jobs.dpsagovernmentjobs.co.za";
     const jobsList = document.querySelector("#job-list");
+    const jobsContinuation = document.querySelector("#job-list-continuation");
     const jobsStatus = document.querySelector("#job-list-status");
     const jobCount = document.querySelector("#job-count");
     const loadMoreJobsButton = document.querySelector("#load-more-jobs");
@@ -315,11 +278,10 @@
     const cvMatchList = document.querySelector("#cv-match-list");
     const cvMatchLoadMore = document.querySelector("#cv-match-load-more");
     const jobAlertForm = document.querySelector("#job-alert-form");
-    const jobAlertProvince = document.querySelector("#job-alert-province");
-    const jobAlertDepartment = document.querySelector("#job-alert-department");
     const jobAlertStatus = document.querySelector("#job-alert-status");
     const jobAlertSubmit = jobAlertForm.querySelector('button[type="submit"]');
-    const JOBS_PER_PAGE = 12;
+    const INITIAL_JOB_COUNT = 4;
+    const JOBS_PER_PAGE = 10;
     const CV_MATCHES_PER_PAGE = 20;
     let allJobs = [];
     let filteredJobs = [];
@@ -349,19 +311,12 @@
       }
       const departments = [...new Set(jobs.map(job => String(job.company ?? "").trim()).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
-      const alertDepartments = departments.filter(name =>
-        !/^(?:south african public service|hiring department not identified|department not specified)$/i.test(name)
-      );
       const selectedProvince = normalizeProvince(new URLSearchParams(location.search).get("province"));
       const selectedDepartment = new URLSearchParams(location.search).get("department") ?? "";
       const selectedQuery = new URLSearchParams(location.search).get("q") ?? "";
       jobQuery.value = selectedQuery;
       jobProvince.replaceChildren(new Option("All Provinces", ""), ...provinces.map(name => new Option(name, name)));
       jobDepartment.replaceChildren(new Option("All Departments", ""), ...departments.map(name => new Option(name, name)));
-      const allProvinceOption = () => new Option("All provinces and National", "all");
-      jobAlertProvince.replaceChildren(allProvinceOption(), ...provinces.map(name => new Option(name, name)));
-      const allDepartmentOption = () => new Option("All departments", "all");
-      jobAlertDepartment.replaceChildren(allDepartmentOption(), ...alertDepartments.map(name => new Option(name, name)));
       if (selectedProvince) jobProvince.value = selectedProvince;
       if (departments.includes(selectedDepartment)) jobDepartment.value = selectedDepartment;
 
@@ -477,7 +432,10 @@
     }
 
     function showJobListings(jobs, append = false) {
-      if (!append) jobsList.replaceChildren();
+      if (!append) {
+        jobsList.replaceChildren();
+        jobsContinuation.replaceChildren();
+      }
       const displayableJobs = jobs.filter(job =>
         job &&
         typeof job.title === "string" &&
@@ -491,13 +449,16 @@
           ? "No vacancies match your search. Try another keyword or filter."
           : "There are no job listings right now. Please check back later.";
         jobsList.append(empty);
+        jobsContinuation.replaceChildren();
         loadMoreJobsButton.hidden = true;
         listingPaginationStatus.hidden = true;
         return;
       }
 
-      const startIndex = append ? jobsList.querySelectorAll(".listing-card").length : 0;
-      displayableJobs.slice(startIndex, visibleJobCount).forEach(job => {
+      const startIndex = append
+        ? jobsList.querySelectorAll(".listing-card").length + jobsContinuation.querySelectorAll(".listing-card").length
+        : 0;
+      displayableJobs.slice(startIndex, visibleJobCount).forEach((job, index) => {
         const card = document.createElement("article");
         card.className = "listing-card";
         const mark = document.createElement("span");
@@ -621,7 +582,8 @@
         bottom.append(applyButton);
         content.append(titleRow, metadata, bottom);
         card.append(mark, content);
-        jobsList.append(card);
+        const jobIndex = startIndex + index;
+        (jobIndex < INITIAL_JOB_COUNT ? jobsList : jobsContinuation).append(card);
       });
       loadMoreJobsButton.hidden = visibleJobCount >= displayableJobs.length;
       listingPaginationStatus.hidden = displayableJobs.length <= JOBS_PER_PAGE;
@@ -777,10 +739,10 @@
           body: JSON.stringify({
             name: document.querySelector("#job-alert-name").value,
             email: document.querySelector("#job-alert-email").value,
-            province: jobAlertProvince.value,
-            department: jobAlertDepartment.value,
+            province: "all",
+            department: "all",
             consent: document.querySelector("#job-alert-consent").checked,
-            sheetConsent: document.querySelector("#job-alert-sheet-consent").checked
+            sheetConsent: document.querySelector("#job-alert-consent").checked
           })
         });
         let result;

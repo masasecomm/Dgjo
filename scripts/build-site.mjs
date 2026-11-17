@@ -34,9 +34,12 @@ const { build: buildBrowserBundle } = extensionRequire("esbuild");
 const API_URL = process.env.JOBS_API_URL || "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
 const JOBS_PAGE_ORIGIN = "https://jobs.dpsagovernmentjobs.co.za";
-const INITIAL_LISTING_COUNT = 12;
+const INITIAL_LISTING_COUNT = 4;
+const INITIAL_VISIBLE_LISTING_COUNT = 10;
 const JOBS_START = "<!-- JOB_LISTINGS_START -->";
 const JOBS_END = "<!-- JOB_LISTINGS_END -->";
+const JOBS_CONTINUATION_START = "<!-- JOB_LISTINGS_CONTINUATION_START -->";
+const JOBS_CONTINUATION_END = "<!-- JOB_LISTINGS_CONTINUATION_END -->";
 const COUNT_START = "<!-- JOB_COUNT_START -->";
 const COUNT_END = "<!-- JOB_COUNT_END -->";
 const DATA_MARKER = "<!-- JOB_DATA -->";
@@ -205,6 +208,11 @@ export function renderHomeJobListings(jobs) {
   return renderJobListings(sortJobsByCircular(jobs).slice(0, INITIAL_LISTING_COUNT));
 }
 
+export function renderHomeJobContinuation(jobs) {
+  const continuation = sortJobsByCircular(jobs).slice(INITIAL_LISTING_COUNT, INITIAL_VISIBLE_LISTING_COUNT);
+  return continuation.length ? renderJobListings(continuation) : "";
+}
+
 export function renderCircularArchiveLinks(circularGroups) {
   if (!circularGroups.length) return "<p>No current circular job collections are available.</p>";
   return `<ul class="circular-archive-list">${circularGroups.map(group =>
@@ -254,6 +262,28 @@ export function renderProvinceGuideLinks(provinceGroups) {
   return `<ul class="circular-archive-list">${provinceGroups.map(group =>
     `<li><a href="${group.path}">${escapeHtml(group.name)} government vacancies</a><span>${group.jobs.length} current ${group.jobs.length === 1 ? "vacancy" : "vacancies"}</span></li>`
   ).join("")}</ul>`;
+}
+
+function renderSiteFooter() {
+  return `<footer class="site-footer"><div class="shell footer-inner">
+  <div class="footer-main">
+    <div class="footer-contact">
+      <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
+      <address class="footer-address"><img src="/footer-location.svg" alt=""><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address>
+    </div>
+    <nav class="footer-column" aria-label="Vacancies"><h2>Vacancies</h2><a href="/">All vacancies</a><a href="/government-vacancies/">Vacancies by province</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a></nav>
+    <nav class="footer-column" aria-label="Job seeker resources"><h2>Job seeker resources</h2><a href="/how-to-apply/">How to apply</a><a href="/national-treasury-salary-scales/">National Treasury salary scales</a><a href="/job-alert-terms.html">Job alert terms</a></nav>
+    <nav class="footer-column footer-social-column" aria-label="Official information and social media">
+      <h2>Official information</h2><a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a><a href="/#questions-heading">Contact</a><span class="footer-follow-label">Follow us</span>
+      <div class="social-links">
+        <a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><img src="/footer-facebook.svg" alt=""></a>
+        <a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><img src="/footer-x.svg" alt=""></a>
+        <a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><img src="/footer-pinterest.svg" alt=""></a>
+      </div>
+    </nav>
+  </div>
+  <div class="footer-bottom"><span>© DPSA Government Jobs</span><span>This is an independent guide and is not affiliated with DPSA.</span></div>
+</div></footer>`;
 }
 
 export function renderProvinceLandingPage(provinceValue, jobs) {
@@ -314,6 +344,9 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="canonical" href="${canonicalUrl}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/styles.css">
@@ -330,7 +363,7 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
     <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/how-to-apply/">How to apply</a></div>
+    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/#questions-heading">Contact</a></div>
   </nav></header>
   <main id="main">
     <div class="site-post">
@@ -355,11 +388,7 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
     </div></section>
     </div>
   </main>
-  <footer class="site-footer"><div class="shell footer-inner">
-    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <p>Independent guide to South African public service vacancies. Verify details with the official advert and hiring department.</p>
-    <div class="footer-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a><a href="/how-to-apply/">Application guide</a></div>
-  </div></footer>
+  ${renderSiteFooter()}
 </body>
 </html>`;
 }
@@ -422,6 +451,9 @@ export function renderCircularArchivePage(circularName, jobs) {
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="canonical" href="${canonicalUrl}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/styles.css">
@@ -438,7 +470,7 @@ export function renderCircularArchivePage(circularName, jobs) {
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
     <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/how-to-apply/">How to apply</a></div>
+    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/#questions-heading">Contact</a></div>
   </nav></header>
   <main id="main">
     <div class="site-post">
@@ -456,11 +488,7 @@ export function renderCircularArchivePage(circularName, jobs) {
     </div></section>
     </div>
   </main>
-  <footer class="site-footer"><div class="shell footer-inner">
-    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <p>Independent guide to South African public service vacancies.</p>
-    <div class="footer-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a><a href="/national-treasury-salary-scales/">National Treasury salary scales</a></div>
-  </div></footer>
+  ${renderSiteFooter()}
 </body>
 </html>`;
 }
@@ -531,8 +559,19 @@ export async function buildSite() {
   }).format(new Date());
   index = index.replace(/\{\{CURRENT_YEAR\}\}/g, currentYear);
   index = replaceMarkedContent(index, JOBS_START, JOBS_END, renderHomeJobListings(validJobs));
+  index = replaceMarkedContent(
+    index,
+    JOBS_CONTINUATION_START,
+    JOBS_CONTINUATION_END,
+    renderHomeJobContinuation(validJobs)
+  );
+  index = replaceMarkedContent(
+    index,
+    JOBS_CONTINUATION_START,
+    JOBS_CONTINUATION_END,
+    renderHomeJobContinuation(validJobs)
+  );
   index = replaceMarkedContent(index, COUNT_START, COUNT_END, `${validJobs.length} current ${validJobs.length === 1 ? "vacancy" : "vacancies"}`);
-  index = replaceMarkedContent(index, PROVINCE_GUIDES_START, PROVINCE_GUIDES_END, renderProvinceGuideLinks(provinceGroups));
   index = replaceUniqueMarker(index, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups));
   const snapshot = validJobs.map(job => Object.fromEntries(
     SNAPSHOT_FIELDS.filter(field => job[field] !== undefined).map(field => [field, job[field]])
@@ -568,11 +607,12 @@ export async function buildSite() {
   await cp(path.join(ROOT, "scripts", "cv-matcher.js"), path.join(output, "scripts", "cv-matcher.js"), { force: true });
   await writeFile(path.join(output, "index.html"), index);
   const files = [
-    "404.html", "CNAME", "ads.txt", "jobs.json", "robots.txt", "sitemap.xml",
+    "404.html", "CNAME", "ads.txt", "job-alert-terms.html", "jobs.json", "robots.txt", "sitemap.xml",
     "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
     "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
     "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",
     "circulars.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
+    "footer-facebook.svg", "footer-location.svg", "footer-pinterest.svg", "footer-x.svg",
     "south-african-flag.png", "styles.css", "vacancy-format.js"
   ];
   for (const file of files) {
@@ -581,7 +621,7 @@ export async function buildSite() {
   const notFoundPath = path.join(output, "404.html");
   const notFoundPage = await readFile(notFoundPath, "utf8");
   await writeFile(notFoundPath, replaceUniqueMarker(notFoundPage, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
-  for (const directory of ["dpsa-vacancy-circulars", "how-to-apply", "national-treasury-salary-scales"]) {
+  for (const directory of ["dpsa-vacancy-circulars", "government-vacancies", "how-to-apply", "national-treasury-salary-scales"]) {
     await cp(path.join(ROOT, directory), path.join(output, directory), { recursive: true, force: true });
   }
 
@@ -601,6 +641,17 @@ export async function buildSite() {
   );
   circularHub = replaceUniqueMarker(circularHub, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups));
   await writeFile(circularHubPath, circularHub);
+
+  const provinceHubPath = path.join(output, "government-vacancies", "index.html");
+  let provinceHub = await readFile(provinceHubPath, "utf8");
+  provinceHub = replaceMarkedContent(
+    provinceHub,
+    PROVINCE_GUIDES_START,
+    PROVINCE_GUIDES_END,
+    renderProvinceGuideLinks(provinceGroups)
+  );
+  provinceHub = replaceUniqueMarker(provinceHub, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups));
+  await writeFile(provinceHubPath, provinceHub);
 
   for (const directory of ["how-to-apply", "national-treasury-salary-scales"]) {
     const pagePath = path.join(output, directory, "index.html");

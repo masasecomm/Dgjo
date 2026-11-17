@@ -295,6 +295,12 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /href="https:\/\/www\.facebook\.com\/DPSAGovernmentJobs"/);
   assert.match(html, /href="https:\/\/x\.com\/dpsajobs"/);
   assert.match(html, /href="https:\/\/za\.pinterest\.com\/dpsavacancies\/"/);
+  assert.match(html, /Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002/);
+  assert.match(html, /href="https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/">Vacancies by province/);
+  assert.match(html, /href="https:\/\/dpsagovernmentjobs\.co\.za\/how-to-apply\/">How to apply/);
+  assert.match(html, /<img src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-facebook\.svg" alt="">/);
+  assert.match(html, /<img src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-x\.svg" alt="">/);
+  assert.match(html, /<img src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-pinterest\.svg" alt="">/);
   assert.match(html, /<h2 id="share-post-title">Share this post<\/h2>/);
   assert.match(html, /href="https:\/\/www\.facebook\.com\/sharer\/sharer\.php\?u=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F"/);
   assert.match(html, /href="https:\/\/twitter\.com\/intent\/tweet\?url=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F&amp;text=Assistant\+Director%3A\+Example"/);

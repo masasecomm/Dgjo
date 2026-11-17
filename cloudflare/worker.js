@@ -1328,7 +1328,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .apply:hover{background:#13377f;color:#fff}.sections{grid-column:1/-1;border-top:1px solid #e6eaf0;margin-top:8px;padding-top:8px}
 .sections section{margin:20px 0}.sections h2{margin:0 0 7px;color:#17499e;font-size:20px;line-height:1.3}.sections p,.sections li{color:#536171;font-size:16px;white-space:pre-line;overflow-wrap:anywhere}
 .important{margin:24px 0 0;padding-top:15px;border-top:1px solid #e6eaf0;color:#737d85;font-size:12px}
-.official-circular{margin:24px 0;color:#536171;font-size:16px}.site-footer{padding:22px 0;border-top:1px solid #e6eaf0;color:#6b747c;background:#f4f8fd;font-size:12px}.site-footer p{margin:0}
+.official-circular{margin:24px 0;color:#536171;font-size:16px}.site-footer{border-top:0;color:#fff;background:linear-gradient(110deg,#245db9 0%,#173b83 100%);font-size:13px}.site-footer .shell{padding-block:34px 18px}.site-footer p{margin:0;color:rgba(255,255,255,.78)}.footer-main{display:grid;grid-template-columns:minmax(230px,1.5fr) repeat(3,minmax(130px,1fr));gap:30px;align-items:start}.footer-contact{max-width:310px}.footer-contact .brand{color:#fff}.footer-contact .brand-subtitle{color:rgba(255,255,255,.78)}.footer-address{display:flex;align-items:flex-start;gap:9px;margin:20px 0 12px;color:rgba(255,255,255,.92);font-size:13px;font-style:normal;line-height:1.65}.footer-address img{width:18px;height:18px;flex:0 0 18px;margin-top:2px}.footer-contact>p{font-size:12px;line-height:1.65}.footer-column{display:grid;align-content:start;justify-items:start;gap:11px}.footer-column h2{margin:2px 0 5px;color:#fff;font-size:14px}.footer-column>a{color:rgba(255,255,255,.88);font-size:13px;line-height:1.4;text-decoration:none}.footer-column>a:hover{color:#ffbf3f;text-decoration:underline;text-underline-offset:3px}.footer-follow-label{margin-top:7px;color:rgba(255,255,255,.8);font-size:12px;font-weight:600}.footer-bottom{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;margin-top:30px;padding-top:15px;border-top:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.75);font-size:11px}
 .content-ad{display:flex;justify-content:center;margin:24px 0}.content-ad .adsbygoogle{max-width:100%}
 .sections .share-post{margin:24px 0;padding-top:16px;border-top:1px solid #e6eaf0}
 .share-post h2{margin:0 0 12px;font-size:18px}
@@ -1336,7 +1336,8 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .post-share-link{display:inline-flex;min-height:40px;align-items:center;gap:8px;padding:7px 13px;border:1px solid #dce3ed;border-radius:7px;color:#17499e;background:#fff;font-size:14px;font-weight:600;text-decoration:none}
 .post-share-link:hover{background:#e0ebfb}
 .post-share-icon{display:grid;width:20px;height:20px;place-items:center;font-size:15px;font-weight:800}
-.social-links{display:flex;align-items:center;gap:12px;margin-top:12px}.social-links a{display:grid;width:32px;height:32px;place-items:center;border:1px solid #dce3ed;border-radius:50%;color:#17499e;font-size:14px;font-weight:700;text-decoration:none}.social-links a:hover{background:#e0ebfb}
+.social-links{display:flex;align-items:center;gap:9px}.social-links a{display:grid;width:34px;height:34px;place-items:center;border:1px solid rgba(255,255,255,.48);border-radius:50%;color:#fff;text-decoration:none}.social-links a:hover{border-color:#fff;background:rgba(255,255,255,.14)}.social-links img{width:16px;height:16px}
+@media(max-width:980px){.footer-main{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 20px}.footer-contact{grid-column:1/-1;max-width:460px}.footer-bottom{flex-direction:column;margin-top:24px}}
 @media(max-width:700px){.related-job-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.shell{width:min(100% - 28px,1120px)}.nav{min-height:70px;gap:12px}.brand img{width:36px;height:36px}.nav-links{gap:12px;font-size:11px}main{padding-block:22px 38px}.vacancy-card{grid-template-columns:48px minmax(0,1fr);gap:13px;padding:17px}.job-mark{width:48px;height:48px;border-radius:9px}.meta-grid{grid-template-columns:1fr;gap:7px}.sections{margin-top:0}.related-jobs,.vacancy-faq{padding:17px}}
 </style></head>
@@ -1363,12 +1364,20 @@ ${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHt
 <a class="post-share-link" href="${escapeHtml(shareLinks.pinterest)}" target="_blank" rel="noopener noreferrer"><span class="post-share-icon" aria-hidden="true">P</span>Pinterest</a>
 </nav></section>
 <p class="important"><strong>Important:</strong> Confirm the department, eligibility, closing date and submission instructions in the official advert.</p></div>
-</article>${faq.markup}${relatedJobsMarkup(job, jobs, requestUrl.origin)}</main><footer class="site-footer"><div class="shell"><p><a href="${SITE_URL}/">DPSA Government Jobs</a> is an independent guide. Always verify vacancy details with the hiring department.</p>
-<nav class="social-links" aria-label="Social media">
-<a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><span aria-hidden="true">f</span></a>
-<a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><span aria-hidden="true">𝕏</span></a>
-<a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><span aria-hidden="true">P</span></a>
-</nav></div></footer></body></html>`);
+</article>${faq.markup}${relatedJobsMarkup(job, jobs, requestUrl.origin)}</main>
+<footer class="site-footer"><div class="shell">
+<div class="footer-main">
+<div class="footer-contact"><a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
+<address class="footer-address"><img src="${SITE_URL}/footer-location.svg" alt=""><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address>
+</div>
+<nav class="footer-column" aria-label="Vacancies"><h2>Vacancies</h2><a href="${SITE_URL}/">All vacancies</a><a href="${SITE_URL}/government-vacancies/">Vacancies by province</a><a href="${SITE_URL}/dpsa-vacancy-circulars/">DPSA circulars</a></nav>
+<nav class="footer-column" aria-label="Job seeker resources"><h2>Job seeker resources</h2><a href="${SITE_URL}/how-to-apply/">How to apply</a><a href="${SITE_URL}/national-treasury-salary-scales/">National Treasury salary scales</a><a href="${SITE_URL}/job-alert-terms.html">Job alert terms</a></nav>
+<nav class="footer-column footer-social-column" aria-label="Official information and social media"><h2>Official information</h2><a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a><a href="${SITE_URL}/#questions-heading">Contact</a><span class="footer-follow-label">Follow us</span>
+<div class="social-links"><a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><img src="${SITE_URL}/footer-facebook.svg" alt=""></a>
+<a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><img src="${SITE_URL}/footer-x.svg" alt=""></a>
+<a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><img src="${SITE_URL}/footer-pinterest.svg" alt=""></a></div></nav>
+</div><div class="footer-bottom"><span>© DPSA Government Jobs</span><span>This is an independent guide and is not affiliated with DPSA.</span></div>
+</div></footer></body></html>`);
 }
 
 function sitemapResponse(jobs, requestUrl) {
