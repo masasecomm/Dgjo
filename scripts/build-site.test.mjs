@@ -382,12 +382,27 @@ test("shows vacancies from earlier circulars first while preserving order within
 test("publishes the supplied salary table with a readable level guide and PDF actions", async () => {
   const page = await readFile(new URL("../national-treasury-salary-scales/index.html", import.meta.url), "utf8");
   const levels = [...page.matchAll(/<summary>Level \d+/g)];
+  const monthlySalaries = [...page.matchAll(/<dt>Overall monthly salary<\/dt><dd>R([\d ]+)<\/dd>/g)]
+    .map(([, amount]) => Number(amount.replace(/\s/g, "")));
+  const monthlyAfterPaye = [...page.matchAll(/<dt>Estimated monthly salary after PAYE<\/dt><dd>R([\d ]+)<\/dd>/g)]
+    .map(([, amount]) => Number(amount.replace(/\s/g, "")));
 
   assert.equal(levels.length, 12);
   assert.equal((page.match(/id="level-\d+"/g) ?? []).length, 12);
-  assert.match(page, /potential gains, not guaranteed take-home pay/i);
+  assert.equal(monthlySalaries.length, 12);
+  assert.equal(monthlyAfterPaye.length, 12);
+  assert.doesNotMatch(page, /Overall monthly gain/);
+  assert.deepEqual(monthlyAfterPaye, monthlySalaries.map(amount =>
+    Math.round((amount * 12 - estimateAnnualIncomeTax(amount * 12)) / 12)
+  ));
+  assert.match(page, /2027 SARS rates for an under-65 taxpayer with the primary rebate/i);
   assert.match(page, /href="\.\/salary-adjustment-table\.pdf" download/);
   assert.match(page, /<iframe src="\.\/salary-adjustment-table\.pdf#view=FitH"/);
+});
+
+test("refreshes the homepage stylesheet cache for the CV matcher design", async () => {
+  const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-cv">/);
 });
 
 test("loads the AdSense script on every public static HTML page", async () => {
