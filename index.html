@@ -195,6 +195,8 @@
     </div>
   </footer>
   <script type="module">
+    import { normalizeProvince, PROVINCE_CRESTS, SOUTH_AFRICAN_PROVINCES } from "./provinces.js";
+
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
     const jobsPageOrigin = "https://jobs.dpsagovernmentjobs.co.za";
     const jobsList = document.querySelector("#job-list");
@@ -221,17 +223,22 @@
     const todayInSouthAfrica = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day);
 
     function populateSearchFilters(jobs) {
-      const provinces = [...new Set(jobs.map(job => String(job.province ?? "").trim()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b));
+      const provinces = SOUTH_AFRICAN_PROVINCES;
+      const provinceCounts = new Map(provinces.map(name => [name, 0]));
+      for (const job of jobs) {
+        if (provinceCounts.has(job.province)) {
+          provinceCounts.set(job.province, provinceCounts.get(job.province) + 1);
+        }
+      }
       const departments = [...new Set(jobs.map(job => String(job.company ?? "").trim()).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
-      const selectedProvince = new URLSearchParams(location.search).get("province") ?? "";
+      const selectedProvince = normalizeProvince(new URLSearchParams(location.search).get("province"));
       const selectedDepartment = new URLSearchParams(location.search).get("department") ?? "";
       const selectedQuery = new URLSearchParams(location.search).get("q") ?? "";
       jobQuery.value = selectedQuery;
       jobProvince.replaceChildren(new Option("All Provinces", ""), ...provinces.map(name => new Option(name, name)));
       jobDepartment.replaceChildren(new Option("All Departments", ""), ...departments.map(name => new Option(name, name)));
-      if (provinces.includes(selectedProvince)) jobProvince.value = selectedProvince;
+      if (selectedProvince) jobProvince.value = selectedProvince;
       if (departments.includes(selectedDepartment)) jobDepartment.value = selectedDepartment;
 
       provinceFilters.replaceChildren();
@@ -239,7 +246,7 @@
         ...provinces.map(name => ({
           name,
           value: name,
-          count: jobs.filter(job => String(job.province ?? "").trim() === name).length
+          count: provinceCounts.get(name)
         }))];
       for (const filter of filters) {
         const link = document.createElement("a");
@@ -249,6 +256,12 @@
         link.textContent = `${filter.name} (${filter.count})`;
         provinceFilters.append(link);
       }
+    }
+
+    function setJobListings(jobs) {
+      allJobs = jobs.map(job => ({ ...job, province: normalizeProvince(job.province) }));
+      populateSearchFilters(allJobs);
+      filterJobListings();
     }
 
     function filterJobListings() {
@@ -342,9 +355,12 @@
         const mark = document.createElement("span");
         mark.className = "listing-card-mark";
         if (job.circularName || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""))) {
+          const provincialCrest = PROVINCE_CRESTS[job.province];
           const crest = document.createElement("img");
-          crest.src = "south-african-coat-of-arms.png";
-          crest.alt = "South African coat of arms";
+          crest.src = provincialCrest || "south-african-coat-of-arms.png";
+          crest.alt = provincialCrest
+            ? `${job.province} provincial coat of arms`
+            : "South African national coat of arms";
           mark.append(crest);
         } else {
           mark.classList.add("listing-card-mark-generic");
@@ -443,9 +459,7 @@
         if (!response.ok) throw new Error(`Job service returned HTTP ${response.status}.`);
         const jobs = await response.json();
         if (!Array.isArray(jobs)) throw new Error("Job service returned an invalid list.");
-        allJobs = jobs;
-        populateSearchFilters(jobs);
-        filterJobListings();
+        setJobListings(jobs);
       } catch (apiError) {
         try {
           const response = await fetch("jobs.json");
@@ -453,9 +467,7 @@
           const jobs = await response.json();
           if (!Array.isArray(jobs)) throw new Error("Backup job list returned an invalid list.");
           if (jobs.length || !allJobs.length) {
-            allJobs = jobs;
-            populateSearchFilters(jobs);
-            filterJobListings();
+            setJobListings(jobs);
           }
           jobsStatus.textContent = jobs.length
             ? `Live listings could not be loaded: ${apiError.message} Showing saved backup listings instead.`
@@ -480,9 +492,7 @@
       try {
         const jobs = JSON.parse(initialJobData.textContent);
         if (!Array.isArray(jobs)) throw new Error("Saved job snapshot is not a list.");
-        allJobs = jobs;
-        populateSearchFilters(jobs);
-        filterJobListings();
+        setJobListings(jobs);
       } catch (error) {
         jobsStatus.textContent = `Saved job listings could not be loaded: ${error.message}`;
         jobsStatus.hidden = false;

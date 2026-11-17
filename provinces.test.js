@@ -1,0 +1,53 @@
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import {
+  normalizeProvince,
+  PROVINCE_CRESTS,
+  SOUTH_AFRICAN_PROVINCES
+} from "./provinces.js";
+
+const root = dirname(fileURLToPath(import.meta.url));
+
+test("provides one canonical entry for each South African province", () => {
+  assert.equal(SOUTH_AFRICAN_PROVINCES.length, 9);
+  assert.equal(new Set(SOUTH_AFRICAN_PROVINCES).size, 9);
+  assert.deepEqual(Object.keys(PROVINCE_CRESTS).sort(), [...SOUTH_AFRICAN_PROVINCES].sort());
+  for (const crest of Object.values(PROVINCE_CRESTS)) {
+    assert.ok(existsSync(join(root, crest.slice(1))), `Missing province crest: ${crest}`);
+  }
+});
+
+test("normalizes case and KwaZulu-Natal punctuation variants", () => {
+  const variants = [
+    "gauteng",
+    "Gauteng",
+    "GAUTENG",
+    "KwaZulu Natal",
+    "Kwazulu-Natal",
+    "KWAZULU-NATAL"
+  ];
+  assert.deepEqual(variants.map(normalizeProvince), [
+    "Gauteng",
+    "Gauteng",
+    "Gauteng",
+    "KwaZulu-Natal",
+    "KwaZulu-Natal",
+    "KwaZulu-Natal"
+  ]);
+  assert.equal(normalizeProvince("Unknown Province"), "");
+});
+
+test("combines counts for differently formatted province values", () => {
+  const rawProvinces = ["gauteng", "Gauteng", "GAUTENG", "KwaZulu Natal", "Kwazulu-Natal"];
+  const counts = new Map(SOUTH_AFRICAN_PROVINCES.map(name => [name, 0]));
+  for (const rawProvince of rawProvinces) {
+    const province = normalizeProvince(rawProvince);
+    if (province) counts.set(province, counts.get(province) + 1);
+  }
+
+  assert.equal(counts.get("Gauteng"), 3);
+  assert.equal(counts.get("KwaZulu-Natal"), 2);
+});

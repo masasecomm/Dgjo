@@ -8,12 +8,14 @@ import {
 import {
   circularPublicationStatus,
   getCircularVacancies,
+  mergeVacancyLinks,
   vacancyMatchKey
 } from "./publication.js";
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
 const MAX_PUBLISHED_JOBS = 2000;
+const MAX_JOB_LINKS = 100;
 const apiUrlInput = document.querySelector("#api-url");
 const tokenInput = document.querySelector("#admin-token");
 const sourceUrlInput = document.querySelector("#source-url");
@@ -576,7 +578,7 @@ async function publishImportedVacancies(publishAll = false) {
     typeof link.label !== "string" || link.label.length > 300 ||
     !/^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)
   );
-  const tooManyPdfLinks = selected.find(vacancy => Array.isArray(vacancy.links) && vacancy.links.length > 100);
+  const tooManyPdfLinks = selected.find(vacancy => Array.isArray(vacancy.links) && vacancy.links.length > MAX_JOB_LINKS);
   if (tooManyPdfLinks) {
     showToast(`“${tooManyPdfLinks.title}” has more than 100 extracted PDF links. Remove unrelated links before publishing.`, true);
     return;
@@ -604,7 +606,26 @@ async function publishImportedVacancies(publishAll = false) {
 
   const byKey = new Map(jobs.map(job => [vacancyMatchKey(job), job]));
   const imported = selected.map(createPublishedVacancy);
-  for (const vacancy of imported) byKey.set(vacancyMatchKey(vacancy), vacancy);
+  for (const vacancy of imported) {
+    const key = vacancyMatchKey(vacancy);
+    const existing = byKey.get(key);
+    if (existing) {
+      vacancy.links = mergeVacancyLinks(existing.links, vacancy.links);
+      if (existing.sourceUrl && vacancy.sourceUrl && existing.sourceUrl !== vacancy.sourceUrl &&
+          !vacancy.links.some(link => link.url === existing.sourceUrl)) {
+        vacancy.links = mergeVacancyLinks(vacancy.links, [{
+          label: "Previous official advert or circular",
+          url: existing.sourceUrl
+        }]);
+      }
+      if (!vacancy.sourceUrl && existing.sourceUrl) vacancy.sourceUrl = existing.sourceUrl;
+    }
+    if (vacancy.links.length > MAX_JOB_LINKS) {
+      showToast(`Republishing “${vacancy.title}” would exceed the ${MAX_JOB_LINKS}-link limit. Reduce the new links, then try again; existing links are preserved.`, true);
+      return;
+    }
+    byKey.set(key, vacancy);
+  }
   const nextJobs = [...byKey.values()];
   if (nextJobs.length > MAX_PUBLISHED_JOBS) {
     showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
@@ -746,9 +767,11 @@ sortJobs.addEventListener("change", renderJobs);
 form.addEventListener("submit", async event => {
   event.preventDefault();
   const id = document.querySelector("#job-id").value || crypto.randomUUID();
+  const existingJob = jobs.find(candidate => candidate.id === id);
   const title = document.querySelector("#title").value.trim();
   const sourceUrl = sourceUrlInput.value.trim();
   const job = {
+    ...(existingJob ?? {}),
     id,
     ...(sourceUrl ? { sourceUrl } : {}),
     title,

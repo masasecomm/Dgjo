@@ -37,3 +37,26 @@ test("escapes vacancy content and renders an empty state without listings", () =
   assert.doesNotMatch(html, /<img src=x>/);
   assert.match(renderJobListings([]), /There are no current job listings/);
 });
+
+test("renders provincial and national crests on the correct vacancy cards", () => {
+  const html = renderJobListings([
+    {
+      id: "provincial-role",
+      title: "Provincial role",
+      company: "Department",
+      circularName: "Circular 1",
+      province: "gauteng"
+    },
+    {
+      id: "national-role",
+      title: "National role",
+      company: "Department",
+      circularName: "Circular 1",
+      province: "",
+      centre: "National Head Office"
+    }
+  ]);
+
+  assert.match(html, /src="\/province-gauteng\.png" alt="Gauteng provincial coat of arms"/);
+  assert.match(html, /src="south-african-coat-of-arms\.png" alt="South African national coat of arms"/);
+});

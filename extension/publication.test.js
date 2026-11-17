@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { circularPublicationStatus, getCircularVacancies } from "./publication.js";
+import {
+  circularPublicationStatus,
+  getCircularVacancies,
+  mergeVacancyLinks
+} from "./publication.js";
 
 test("tracks published posts per circular and identifies posts that can be republished", () => {
   const imported = [
@@ -20,4 +24,21 @@ test("tracks published posts per circular and identifies posts that can be repub
     alreadyPublishedCount: 2
   });
   assert.equal(getCircularVacancies(imported, "Circular 40 of 2026").length, 0);
+});
+
+test("keeps all existing and imported post links when merging a republished vacancy", () => {
+  const existingLinks = [
+    { label: "Apply", url: "https://department.gov.za/apply" },
+    { label: "Circular", url: "https://dpsa.gov.za/circular.pdf" }
+  ];
+  const importedLinks = [
+    { label: "Apply online", url: "https://department.gov.za/apply" },
+    { label: "Application form", url: "https://department.gov.za/form.pdf" }
+  ];
+
+  assert.deepEqual(mergeVacancyLinks(existingLinks, importedLinks), [
+    { label: "Apply online", url: "https://department.gov.za/apply" },
+    { label: "Circular", url: "https://dpsa.gov.za/circular.pdf" },
+    { label: "Application form", url: "https://department.gov.za/form.pdf" }
+  ]);
 });

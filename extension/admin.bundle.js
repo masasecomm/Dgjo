@@ -47349,6 +47349,17 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     if (postIdentity) return `${job.sourceUrl ?? ""}|${postIdentity}`;
     return `${job.title}|${job.company}`.toLowerCase().replace(/\s+/g, " ").trim();
   }
+  function mergeVacancyLinks(existingLinks, importedLinks) {
+    const links = /* @__PURE__ */ new Map();
+    for (const link of [
+      ...Array.isArray(existingLinks) ? existingLinks : [],
+      ...Array.isArray(importedLinks) ? importedLinks : []
+    ]) {
+      if (typeof link?.url !== "string" || typeof link.label !== "string") continue;
+      links.set(link.url, { label: link.label, url: link.url });
+    }
+    return [...links.values()];
+  }
   function getCircularVacancies(vacancies, circularName) {
     const normalizedName = normalizeCircularName(circularName);
     if (!normalizedName) return [...vacancies];
@@ -47369,6 +47380,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   var DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
   var SETTINGS_KEY = "goodworkAdminSettings";
   var MAX_PUBLISHED_JOBS = 2e3;
+  var MAX_JOB_LINKS = 100;
   var apiUrlInput = document.querySelector("#api-url");
   var tokenInput = document.querySelector("#admin-token");
   var sourceUrlInput = document.querySelector("#source-url");
@@ -47877,7 +47889,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     const invalidPdfLink = selected.flatMap((vacancy) => vacancy.links ?? []).find(
       (link) => !link || typeof link.url !== "string" || link.url.length > 2048 || typeof link.label !== "string" || link.label.length > 300 || !/^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)
     );
-    const tooManyPdfLinks = selected.find((vacancy) => Array.isArray(vacancy.links) && vacancy.links.length > 100);
+    const tooManyPdfLinks = selected.find((vacancy) => Array.isArray(vacancy.links) && vacancy.links.length > MAX_JOB_LINKS);
     if (tooManyPdfLinks) {
       showToast(`\u201C${tooManyPdfLinks.title}\u201D has more than 100 extracted PDF links. Remove unrelated links before publishing.`, true);
       return;
@@ -47900,7 +47912,25 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     }
     const byKey = new Map(jobs.map((job) => [vacancyMatchKey(job), job]));
     const imported = selected.map(createPublishedVacancy);
-    for (const vacancy of imported) byKey.set(vacancyMatchKey(vacancy), vacancy);
+    for (const vacancy of imported) {
+      const key = vacancyMatchKey(vacancy);
+      const existing = byKey.get(key);
+      if (existing) {
+        vacancy.links = mergeVacancyLinks(existing.links, vacancy.links);
+        if (existing.sourceUrl && vacancy.sourceUrl && existing.sourceUrl !== vacancy.sourceUrl && !vacancy.links.some((link) => link.url === existing.sourceUrl)) {
+          vacancy.links = mergeVacancyLinks(vacancy.links, [{
+            label: "Previous official advert or circular",
+            url: existing.sourceUrl
+          }]);
+        }
+        if (!vacancy.sourceUrl && existing.sourceUrl) vacancy.sourceUrl = existing.sourceUrl;
+      }
+      if (vacancy.links.length > MAX_JOB_LINKS) {
+        showToast(`Republishing \u201C${vacancy.title}\u201D would exceed the ${MAX_JOB_LINKS}-link limit. Reduce the new links, then try again; existing links are preserved.`, true);
+        return;
+      }
+      byKey.set(key, vacancy);
+    }
     const nextJobs = [...byKey.values()];
     if (nextJobs.length > MAX_PUBLISHED_JOBS) {
       showToast(`This import would exceed the ${MAX_PUBLISHED_JOBS}-job limit (${nextJobs.length}). Select fewer vacancies or remove existing jobs.`, true);
@@ -48033,9 +48063,11 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const id = document.querySelector("#job-id").value || crypto.randomUUID();
+    const existingJob = jobs.find((candidate) => candidate.id === id);
     const title = document.querySelector("#title").value.trim();
     const sourceUrl = sourceUrlInput.value.trim();
     const job = {
+      ...existingJob ?? {},
       id,
       ...sourceUrl ? { sourceUrl } : {},
       title,

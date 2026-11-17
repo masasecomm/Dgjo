@@ -51,7 +51,11 @@ function createEnv(jobs, token = "test-token") {
 test("vacancy route renders unique metadata, full details and valid structured data", async () => {
   const job = makeJob({
     requirements: "- A relevant qualification.\n- At least three years of experience.",
-    duties: "- Manage the service.\n- Support staff and prepare reports."
+    duties: "- Manage the service.\n- Support staff and prepare reports.",
+    links: [
+      { label: "Online application portal", url: "https://department.gov.za/apply" },
+      { label: "Download application form", url: "https://department.gov.za/form.pdf" }
+    ]
   });
   const slug = "assistant-director-example-1-1-example-1";
   const response = await worker.fetch(new Request(`https://jobs.example/${slug}/`), createEnv([job]));
@@ -77,12 +81,12 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /<h2 id="share-post-title">Share this post<\/h2>/);
   assert.match(html, /href="https:\/\/www\.facebook\.com\/sharer\/sharer\.php\?u=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F"/);
   assert.match(html, /href="https:\/\/twitter\.com\/intent\/tweet\?url=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F&amp;text=Assistant\+Director%3A\+Example"/);
-  assert.match(html, /href="https:\/\/pinterest\.com\/pin\/create\/button\/\?url=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F&amp;media=https%3A%2F%2Fdpsagovernmentjobs\.co\.za%2Fsouth-african-coat-of-arms\.png&amp;description=Assistant\+Director%3A\+Example"/);
-  assert.match(html, /<meta property="og:image" content="https:\/\/dpsagovernmentjobs\.co\.za\/south-african-coat-of-arms\.png">/);
+  assert.match(html, /href="https:\/\/pinterest\.com\/pin\/create\/button\/\?url=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F&amp;media=https%3A%2F%2Fdpsagovernmentjobs\.co\.za%2Fprovince-limpopo\.png&amp;description=Assistant\+Director%3A\+Example"/);
+  assert.match(html, /<meta property="og:image" content="https:\/\/dpsagovernmentjobs\.co\.za\/province-limpopo\.png">/);
   assert.match(html, /font-family:"Jost",Arial,Helvetica,sans-serif/);
   assert.match(html, /\.job-title\{[^}]*font-size:20px/);
   assert.match(html, /\.meta\{[^}]*font-size:16px/);
-  assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/south-african-coat-of-arms\.png" alt="South African coat of arms" width="58" height="58"/);
+  assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/province-limpopo\.png" alt="Limpopo provincial coat of arms" width="58" height="58"/);
   assert.match(html, /class="site-header"/);
   assert.doesNotMatch(html, /<link rel="stylesheet"/);
   assert.match(html, /Requirements/);
@@ -94,6 +98,7 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /<ul><li>A relevant qualification\.<\/li><li>At least three years of experience\.<\/li><\/ul>/);
   assert.match(html, /id="how-to-apply"/);
   assert.match(html, /<ul><li>Manage the service\.<\/li><li>Support staff and prepare reports\.<\/li><\/ul>/);
+  assert.match(html, /<h2>Links in the official circular<\/h2><ul><li><a href="https:\/\/department\.gov\.za\/apply"[^>]*>Online application portal<\/a><\/li><li><a href="https:\/\/department\.gov\.za\/form\.pdf"[^>]*>Download application form<\/a><\/li><\/ul>/);
   assert.match(html, /Hiring department:<\/strong> Department of Health/);
   const jsonLd = html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/);
   assert.ok(jsonLd);
@@ -104,6 +109,19 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.equal(structuredData.jobLocation.address.addressRegion, "Limpopo");
   assert.equal(structuredData.validThrough, "2099-12-31T16:00:00+02:00");
   assert.match(structuredData.description, /<ul><li>A relevant qualification/);
+});
+
+test("national DPSA vacancies use the South African national coat of arms", async () => {
+  const job = makeJob({
+    province: "",
+    centre: "National Head Office",
+    location: "National Head Office"
+  });
+  const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+
+  assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/south-african-coat-of-arms\.png" alt="South African national coat of arms"/);
+  assert.match(html, /<meta property="og:image" content="https:\/\/dpsagovernmentjobs\.co\.za\/south-african-coat-of-arms\.png">/);
 });
 
 test("legacy salary descriptions exclude unrelated prose after the salary and level", async () => {

@@ -1,5 +1,6 @@
 import defaultJobs from "../jobs.json" with { type: "json" };
 import { cleanSalaryText, splitVacancyPoints } from "../vacancy-format.js";
+import { normalizeProvince, PROVINCE_CRESTS } from "../provinces.js";
 
 const JOBS_KEY = "published-jobs";
 const CATEGORIES = new Set([
@@ -293,6 +294,25 @@ function detailSections(job) {
   ].filter(([, value]) => typeof value === "string" && value.trim());
 }
 
+function vacancyLinksSection(job) {
+  if (!Array.isArray(job.links) || !job.links.length) return "";
+  const links = job.links.map(link => {
+    const url = typeof link?.url === "string" ? link.url.trim() : "";
+    const label = typeof link?.label === "string" && link.label.trim() ? link.label.trim() : url || "Link";
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return `<li>${escapeHtml(label)}${url ? `: ${escapeHtml(url)}` : ""}</li>`;
+    }
+    if (!["http:", "https:", "mailto:", "tel:"].includes(parsedUrl.protocol) || parsedUrl.username || parsedUrl.password) {
+      return `<li>${escapeHtml(label)}${url ? `: ${escapeHtml(url)}` : ""}</li>`;
+    }
+    return `<li><a href="${escapeHtml(url)}" rel="noopener noreferrer">${escapeHtml(label)}</a></li>`;
+  });
+  return `<section><h2>Links in the official circular</h2><ul>${links.join("")}</ul></section>`;
+}
+
 function vacancySectionMarkup(label, value) {
   if (["Requirements", "Duties", "Additional information"].includes(label)) {
     const renderPoints = points => `<ul>${points.map(point =>
@@ -392,10 +412,9 @@ function vacancyPage(job, requestUrl) {
     job.postNo && ["Post number", job.postNo]
   ].filter(Boolean);
   const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
-  const shareImageUrl = new URL(
-    isCircularJob ? "/south-african-coat-of-arms.png" : "/south-african-flag.png",
-    SITE_URL
-  ).href;
+  const province = normalizeProvince(job.province);
+  const coatOfArmsPath = PROVINCE_CRESTS[province] || "/south-african-coat-of-arms.png";
+  const shareImageUrl = new URL(isCircularJob ? coatOfArmsPath : "/south-african-flag.png", SITE_URL).href;
   const shareLinks = {
     facebook: `https://www.facebook.com/sharer/sharer.php?${new URLSearchParams({ u: pageUrl })}`,
     twitter: `https://twitter.com/intent/tweet?${new URLSearchParams({ url: pageUrl, text: title })}`,
@@ -406,7 +425,7 @@ function vacancyPage(job, requestUrl) {
     })}`
   };
   const jobMark = isCircularJob
-    ? `<img src="${SITE_URL}/south-african-coat-of-arms.png" alt="South African coat of arms" width="58" height="58" fetchpriority="high">`
+    ? `<img src="${SITE_URL}${coatOfArmsPath}" alt="${escapeHtml(province ? `${province} provincial coat of arms` : "South African national coat of arms")}" width="58" height="58" fetchpriority="high">`
     : `<span class="job-mark-generic" aria-hidden="true">▦</span>`;
 
   return htmlResponse(`<!doctype html>
@@ -469,7 +488,7 @@ ${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${esca
 <p class="meta"><strong>Employment type:</strong> ${escapeHtml(job.type)}</p><p class="meta"><strong>Salary:</strong> ${escapeHtml(job.salaryText || "Not stated in advert")}</p>
 <p class="meta"><strong>Closing date:</strong> ${escapeHtml(deadline)}</p>${referenceDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}
 ${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}</div>
-</div><div class="sections">${sections}${officialCircularLink}
+</div><div class="sections">${sections}${vacancyLinksSection(job)}${officialCircularLink}
 <section class="share-post" aria-labelledby="share-post-title"><h2 id="share-post-title">Share this post</h2>
 <nav class="post-share-links" aria-label="Share this post">
 <a class="post-share-link" href="${escapeHtml(shareLinks.facebook)}" target="_blank" rel="noopener noreferrer"><span class="post-share-icon" aria-hidden="true">f</span>Facebook</a>

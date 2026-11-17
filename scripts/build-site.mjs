@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { normalizeProvince, PROVINCE_CRESTS } from "../provinces.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const API_URL = process.env.JOBS_API_URL || "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
@@ -99,14 +100,16 @@ export function renderJobListings(jobs) {
     const slug = encodeURIComponent(String(job.slug || job.id));
     const jobUrl = `${JOBS_PAGE_ORIGIN}/${slug}/`;
     const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
+    const province = normalizeProvince(job.province);
+    const crestPath = PROVINCE_CRESTS[province] ?? "south-african-coat-of-arms.png";
     const mark = isCircularJob
-      ? '<img src="south-african-coat-of-arms.png" alt="South African coat of arms">'
+      ? `<img src="${escapeHtml(crestPath)}" alt="${escapeHtml(province ? `${province} provincial coat of arms` : "South African national coat of arms")}">`
       : '<span class="listing-card-mark-generic" aria-hidden="true">▦</span>';
     const hasDepartment = !/^(?:south african public service|hiring department not identified|department not specified)$/i.test(job.company.trim());
     const department = hasDepartment
       ? `<a class="listing-department-link" href="/?department=${encodeURIComponent(job.company)}#listings">${escapeHtml(job.company)}</a>`
       : "Department: see official advert";
-    const location = [job.centre, job.province, job.location]
+    const location = [job.centre, province, job.location]
       .map(value => String(value ?? "").trim())
       .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
     const metadata = [
@@ -169,7 +172,11 @@ export async function buildSite() {
   await writeFile(path.join(output, "index.html"), index);
   const files = [
     "404.html", "CNAME", "ads.txt", "jobs.json", "robots.txt", "sitemap.xml",
-    "south-african-coat-of-arms.png", "south-african-flag.png", "styles.css", "vacancy-format.js"
+    "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
+    "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
+    "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",
+    "provinces.js", "south-african-coat-of-arms.png", "south-african-flag.png",
+    "styles.css", "vacancy-format.js"
   ];
   for (const file of files) {
     await cp(path.join(ROOT, file), path.join(output, file), { force: true });
