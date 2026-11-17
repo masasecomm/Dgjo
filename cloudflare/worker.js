@@ -1259,11 +1259,17 @@ function schemaForJob(job, pageUrl) {
 }
 
 function htmlResponse(content, status = 200, robots = "index, follow") {
-  const favicon = `<link rel="icon" type="image/svg+xml" href="${SITE_URL}/favicon.svg">`;
-  const withFavicon = /<link\b(?=[^>]*\brel=["'][^"']*\bicon\b)(?=[^>]*\bhref=["'][^"']*favicon\.svg["'])[^>]*>/i.test(content)
-    ? content
-    : content.replace("</head>", `${favicon}</head>`);
-  const page = openExternalLinksInNewTabs(addWebsiteSchema(withFavicon));
+  let pageContent = content;
+  const iconLinks = [
+    [`rel=["'][^"']*\\bicon\\b`, "favicon\\.ico", `<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="${SITE_URL}/favicon.ico">`],
+    [`rel=["']shortcut icon["']`, "favicon\\.ico", `<link rel="shortcut icon" href="${SITE_URL}/favicon.ico">`],
+    [`rel=["']apple-touch-icon["']`, "apple-touch-icon\\.png", `<link rel="apple-touch-icon" sizes="180x180" href="${SITE_URL}/apple-touch-icon.png">`]
+  ];
+  for (const [relPattern, hrefPattern, link] of iconLinks) {
+    const pattern = new RegExp(`<link\\b(?=[^>]*\\b${relPattern})(?=[^>]*\\bhref=["'][^"']*${hrefPattern}["'])[^>]*>`, "i");
+    if (!pattern.test(pageContent)) pageContent = pageContent.replace("</head>", `${link}</head>`);
+  }
+  const page = openExternalLinksInNewTabs(addWebsiteSchema(pageContent));
   return new Response(page, {
     status,
     headers: {
@@ -1445,6 +1451,7 @@ ${faq.schemaMarkup}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:light;font-family:"Jost",Arial,Helvetica,sans-serif;color:#32373c;background:#f8fbff}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}button,input,select,textarea{font:inherit}
 *{box-sizing:border-box}body{margin:0;font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
 a{color:#087ad2;text-underline-offset:3px}.shell{width:min(1120px,calc(100% - 40px));margin-inline:auto}
 .site-header{background:#17499e;color:#fff;box-shadow:0 4px 16px rgba(13,42,95,.12)}

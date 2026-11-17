@@ -614,16 +614,28 @@ function addWebsiteStructuredData(html) {
 }
 
 function addFaviconLink(html) {
-  if (/<link\b(?=[^>]*\brel=["'][^"']*\bicon\b)(?=[^>]*\bhref=["'][^"']*favicon\.svg["'])[^>]*>/i.test(html)) return html;
-  return html.replace("</head>", '<link rel="icon" type="image/svg+xml" href="/favicon.svg"></head>');
+  const iconPattern = /<link\b(?=[^>]*\brel=["'][^"']*\bicon\b)(?=[^>]*\bhref=["'][^"']*favicon\.ico["'])[^>]*>/i;
+  let updated = html.replace(iconPattern, '<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico">');
+  if (!iconPattern.test(html)) {
+    updated = updated.replace("</head>", '<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico"></head>');
+  }
+  if (!/<link\b(?=[^>]*\brel=["']shortcut icon["'])(?=[^>]*\bhref=["'][^"']*favicon\.ico["'])[^>]*>/i.test(updated)) {
+    updated = updated.replace("</head>", '<link rel="shortcut icon" href="/favicon.ico"></head>');
+  }
+  if (!/<link\b(?=[^>]*\brel=["']apple-touch-icon["'])(?=[^>]*\bhref=["'][^"']*apple-touch-icon\.png["'])[^>]*>/i.test(updated)) {
+    updated = updated.replace("</head>", '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"></head>');
+  }
+  return updated;
 }
 
 function validatePublishedSeo(html, filePath) {
   const isNoIndex = /<meta\b[^>]*\bname=["']robots["'][^>]*\bcontent=["'][^"']*\bnoindex\b/i.test(html);
   const pageLabel = path.relative(ROOT, filePath);
   const errors = [];
-  if (!/<link\b(?=[^>]*\brel=["'][^"']*\bicon\b)(?=[^>]*\bhref=["'][^"']*favicon\.svg["'])[^>]*>/i.test(html)) {
-    errors.push("missing favicon link");
+  if (!/<link\b(?=[^>]*\brel=["'][^"']*\bicon\b)(?=[^>]*\bhref=["'][^"']*favicon\.ico["'])[^>]*>/i.test(html) ||
+      !/<link\b(?=[^>]*\brel=["']shortcut icon["'])(?=[^>]*\bhref=["'][^"']*favicon\.ico["'])[^>]*>/i.test(html) ||
+      !/<link\b(?=[^>]*\brel=["']apple-touch-icon["'])(?=[^>]*\bhref=["'][^"']*apple-touch-icon\.png["'])[^>]*>/i.test(html)) {
+    errors.push("missing cross-browser favicon links");
   }
   if (!/<img\b[^>]*\balt\s*=/i.test(html) && /<img\b/i.test(html)) {
     errors.push("image is missing alt text");
@@ -754,7 +766,7 @@ export async function buildSite() {
   await cp(path.join(ROOT, "scripts", "cv-matcher.js"), path.join(output, "scripts", "cv-matcher.js"), { force: true });
   await writeFile(path.join(output, "index.html"), index);
   const files = [
-    "404.html", "CNAME", "ads.txt", "favicon.svg", "job-alert-terms.html", "jobs.json", "robots.txt", "sitemap.xml",
+    "404.html", "CNAME", "ads.txt", "apple-touch-icon.png", "favicon.ico", "job-alert-terms.html", "jobs.json", "robots.txt", "sitemap.xml",
     "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
     "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
     "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",

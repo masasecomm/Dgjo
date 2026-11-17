@@ -406,7 +406,8 @@ test("removes stale generated circular and province pages on rebuild", async () 
       access(path.join(output, "scripts", "cv-matcher.js")),
       access(path.join(output, "bookmark.js")),
       access(path.join(output, "employment-type.js")),
-      access(path.join(output, "favicon.svg")),
+      access(path.join(output, "favicon.ico")),
+      access(path.join(output, "apple-touch-icon.png")),
       access(path.join(output, "footer-facebook.svg")),
       access(path.join(output, "footer-location.svg")),
       access(path.join(output, "footer-pinterest.svg")),
@@ -418,13 +419,15 @@ test("removes stale generated circular and province pages on rebuild", async () 
     const savedVacancies = await readFile(path.join(output, "saved-vacancies", "index.html"), "utf8");
     const howToPage = await readFile(path.join(output, "how-to-apply", "index.html"), "utf8");
     assert.match(homepage, /id="cv-job-matcher"/);
-    assert.match(homepage, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
-    assert.match(termsPage, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
+    assert.match(homepage, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="\/favicon\.ico"/);
+    assert.match(termsPage, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="\/favicon\.ico"/);
+    assert.match(homepage, /rel="shortcut icon" href="\/favicon\.ico"/);
+    assert.match(homepage, /rel="apple-touch-icon" sizes="180x180" href="\/apple-touch-icon\.png"/);
     assert.match(homepage, /"@type"\s*:\s*"WebSite"/);
     assert.match(termsPage, /"@type"\s*:\s*"WebSite"/);
     assert.match(circularPage, /"@type"\s*:\s*"WebSite"/);
-    assert.match(circularPage, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
-    assert.match(savedVacancies, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
+    assert.match(circularPage, /rel="icon" type="image\/x-icon" href="\/favicon\.ico"/);
+    assert.match(savedVacancies, /rel="icon" type="image\/x-icon" href="\/favicon\.ico"/);
     const howToSchema = [...howToPage.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
       .map(([, schema]) => JSON.parse(schema))
       .find(schema => schema["@type"] === "HowTo");
@@ -593,9 +596,13 @@ test("publishes the supplied salary table with a readable level guide and PDF ac
   assert.match(page, /<iframe src="\.\/salary-adjustment-table\.pdf#view=FitH"/);
 });
 
-test("refreshes the homepage stylesheet cache for category scroll and back-to-top updates", async () => {
+test("refreshes the homepage stylesheet cache for hero filter spacing", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-category-scroll-top">/);
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-hero-filter-spacing">/);
+  const stylesheet = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.match(stylesheet, /\.employment-type-filters \{ margin-top: 22px; \}/);
+  assert.match(stylesheet, /-webkit-text-size-adjust: 100%; text-size-adjust: 100%;/);
+  assert.match(stylesheet, /button, input, select, textarea \{ font: inherit; \}/);
 });
 
 test("discloses and gates CV and alert data sharing to the Google Sheet", async () => {

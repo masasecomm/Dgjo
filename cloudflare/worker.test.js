@@ -280,7 +280,9 @@ test("vacancy route renders unique metadata, full details and valid structured d
 
   assert.equal(response.status, 200);
   assert.match(html, /<title>Assistant Director: Example at Department of Health \| DPSA Government Jobs<\/title>/);
-  assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.svg">/);
+  assert.match(html, /<link rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.ico">/);
+  assert.match(html, /<link rel="shortcut icon" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.ico">/);
+  assert.match(html, /<link rel="apple-touch-icon" sizes="180x180" href="https:\/\/dpsagovernmentjobs\.co\.za\/apple-touch-icon\.png">/);
   assert.match(html, /<nav class="breadcrumb" aria-label="Breadcrumb"><a href="https:\/\/dpsagovernmentjobs\.co\.za\/">Home<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/limpopo\/">Limpopo<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/\?department=Department%20of%20Health#listings">Department of Health<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/dpsa-vacancy-circulars\/circular-1-of-2099\/">Circular 1 of 2099<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/\?employmentType=Contract#listings">Contract<\/a> › Assistant Director: Example<\/nav>/);
   assert.equal(html.split("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347").length - 1, 1);
   const adLoaderIndex = html.indexOf('<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');
@@ -564,7 +566,7 @@ test("serves a browser-local saved-vacancies page on the jobs origin", async () 
   assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow");
   assert.match(html, /<title>Saved Vacancies \| DPSA Government Jobs<\/title>/);
   assert.match(html, /data-saved-vacancies-list/);
-  assert.match(html, /rel="icon" type="image\/svg\+xml" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.svg"/);
+  assert.match(html, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.ico"/);
   assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js" defer/);
   assert.match(html, /This list is separate from bookmarks saved on the main DPSA Government Jobs website/);
 });
