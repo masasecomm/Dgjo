@@ -16,7 +16,7 @@ const FIELD_LABELS = [
   ["natureOfAppointment", /\bNATURE\s+OF\s+APPOINTMENT\b\s*[:.\u2013\u2014-]\s*/gi],
   ["centre", /\bCENTRE\b\s*[:.\u2013\u2014-]\s*/gi],
   ["closingDate", /\bCLOSING\s+DATE(?:\s+FOR\s+APPLICATIONS)?\b\s*[:.\u2013\u2014-]\s*/gi],
-  ["requirements", /\bREQUIREMENTS\b\s*[:.\u2013\u2014-]\s*/gi],
+  ["requirements", /\bREQ(?:UIRE|UIR)MENTS?\b\s*[:.\u2013\u2014-]\s*/gi],
   ["duties", /\bDUTIES\b\s*[:.\u2013\u2014-]\s*/gi],
   ["jobPurpose", /\b(?:JOB\s+PURPOSE|PURPOSE\s+OF\s+THE\s+POST)\b\s*[:.\u2013\u2014-]\s*/gi],
   ["skillsAndCompetencies", /\bSKILLS?\s+(?:AND|&)\s+COMPETENC(?:Y|IES)\b\s*[:.\u2013\u2014-]\s*/gi],

@@ -27,6 +27,40 @@ function splitColonSubpoints(sentence) {
   return points.filter(Boolean).map(point => `${label} ${point}`);
 }
 
+const REQUIREMENTS_LABEL = /\bREQ(?:UIRE|UIR)MENTS?\s*[:.\u2013\u2014-]\s*/i;
+
+export function cleanVacancyTitle(value) {
+  const title = String(value ?? "").replace(/\s+/g, " ").trim();
+  const invitation = /\s+(?:(?:the\s+)?department(?:\s+of\s+[\p{L}\p{N}&'’()./-]+(?:\s+[\p{L}\p{N}&'’()./-]+){0,12})?\s+invites?\s+applications\b|applications?\s+(?:are|is)\s+invited\b)[\s\S]*$/iu;
+  return title.replace(invitation, "").trim();
+}
+
+export function cleanVacancyLocation(value) {
+  let location = String(value ?? "").replace(/\s+/g, " ").trim();
+  const requirementsHeading = REQUIREMENTS_LABEL.exec(location);
+  if (requirementsHeading) location = location.slice(0, requirementsHeading.index).trim();
+  if (!location || location.length > 140 ||
+      /\b(?:qualification|experience|competenc(?:y|ies)|knowledge|skills?|work under pressure|ability to|minimum educational)\b/i.test(location)) {
+    return "";
+  }
+  return location;
+}
+
+export function cleanVacancyRequirements(value) {
+  return String(value ?? "").replace(/^\s*REQ(?:UIRE|UIR)MENTS?\s*[:.\u2013\u2014-]\s*/i, "").trim();
+}
+
+export function recoverVacancyRequirements(value) {
+  const text = String(value ?? "").trim();
+  const heading = REQUIREMENTS_LABEL.exec(text);
+  if (heading) return text.slice(heading.index + heading[0].length).trim();
+  if (text.length >= 180 &&
+      /\b(?:qualification|experience|competenc(?:y|ies)|knowledge|skills?|ability to|NQF|minimum educational)\b/i.test(text)) {
+    return text;
+  }
+  return "";
+}
+
 export function splitVacancyPoints(value) {
   const links = [];
   const points = [];
@@ -62,7 +96,7 @@ export function splitVacancyPoints(value) {
       : points;
     const blockText = block.depth ? block.text.replace(/,\s*$/, "") : block.text;
     const line = blockText
-      .replace(/^\s*(?:REQUIREMENTS?|DUTIES|NOTES?)\s*:\s*/i, "")
+      .replace(/^\s*(?:REQ(?:UIRE|UIR)MENTS?|DUTIES|NOTES?)\s*:\s*/i, "")
       .replace(/https?:\/\/\S+|www\.\S+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, match => {
         let link = match;
         let punctuation = "";

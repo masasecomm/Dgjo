@@ -104,6 +104,10 @@
         <p class="listing-empty">Loading South African job listings…</p>
         <!-- JOB_LISTINGS_END -->
       </div>
+      <div class="listing-pagination">
+        <button class="button listing-load-more" id="load-more-jobs" type="button" hidden>Show more vacancies</button>
+        <p class="listing-pagination-status" id="listing-pagination-status" aria-live="polite" hidden></p>
+      </div>
       <!-- JOB_DATA -->
     </section>
 
@@ -184,6 +188,7 @@
       <p>Independent guide to South African public service vacancies. Verify details with the official advert and hiring department.</p>
       <div class="footer-links">
         <a href="/dpsa-vacancy-circulars/">DPSA circulars</a>
+        <a href="/national-treasury-salary-scales/">National Treasury salary scales</a>
         <a href="/how-to-apply/">Application guide</a>
         <a href="https://www.dpsa.gov.za/newsroom/psvc/">Official DPSA source ↗</a>
       </div>
@@ -195,19 +200,31 @@
     </div>
   </footer>
   <script type="module">
+    import { canonicalCircularName, circularArchivePath } from "./circulars.js";
     import { normalizeProvince, PROVINCE_CRESTS, SOUTH_AFRICAN_PROVINCES } from "./provinces.js";
+    import {
+      isNationalTreasuryScalesReference,
+      SALARY_SCALES_LINK_LABEL,
+      SALARY_SCALES_PATH
+    } from "./salary-scales.js";
+    import { cleanVacancyLocation, cleanVacancyTitle } from "./vacancy-format.js";
 
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
     const jobsPageOrigin = "https://jobs.dpsagovernmentjobs.co.za";
     const jobsList = document.querySelector("#job-list");
     const jobsStatus = document.querySelector("#job-list-status");
     const jobCount = document.querySelector("#job-count");
+    const loadMoreJobsButton = document.querySelector("#load-more-jobs");
+    const listingPaginationStatus = document.querySelector("#listing-pagination-status");
     const jobSearch = document.querySelector("#job-search");
     const jobQuery = document.querySelector("#job-query");
     const jobProvince = document.querySelector("#job-province");
     const jobDepartment = document.querySelector("#job-department");
     const provinceFilters = document.querySelector("#province-filters");
+    const JOBS_PER_PAGE = 12;
     let allJobs = [];
+    let filteredJobs = [];
+    let visibleJobCount = JOBS_PER_PAGE;
     const monthNumbers = new Map([
       ["jan", 1], ["january", 1], ["feb", 2], ["february", 2], ["mar", 3], ["march", 3],
       ["apr", 4], ["april", 4], ["may", 5], ["jun", 6], ["june", 6], ["jul", 7], ["july", 7],
@@ -268,7 +285,7 @@
       const query = jobQuery.value.trim().toLowerCase();
       const province = jobProvince.value;
       const department = jobDepartment.value.toLowerCase();
-      const filtered = allJobs.filter(job => {
+      filteredJobs = allJobs.filter(job => {
         if (province && String(job.province ?? "").trim() !== province) return false;
         if (department && String(job.company ?? "").trim().toLowerCase() !== department) return false;
         if (!query) return true;
@@ -281,12 +298,13 @@
         link.classList.toggle("is-active", link.dataset.province === province);
       });
       const criteria = [query && `matching “${jobQuery.value.trim()}”`, province, jobDepartment.value].filter(Boolean);
-      jobCount.textContent = `${filtered.length} ${filtered.length === 1 ? "opportunity" : "opportunities"}${criteria.length ? ` · ${criteria.join(" · ")}` : ""}`;
-      showJobListings(filtered);
+      jobCount.textContent = `${filteredJobs.length} ${filteredJobs.length === 1 ? "opportunity" : "opportunities"}${criteria.length ? ` · ${criteria.join(" · ")}` : ""}`;
+      visibleJobCount = JOBS_PER_PAGE;
+      showJobListings(filteredJobs);
     }
 
     function displayJobTitle(value) {
-      const title = String(value ?? "").trim();
+      const title = cleanVacancyTitle(value);
       const letters = title.match(/\p{L}/gu) ?? [];
       if (!letters.length || letters.some(letter => letter !== letter.toLocaleUpperCase("en-ZA"))) return title;
       const acronyms = new Set(["AIDS", "CEO", "CFO", "DDG", "DPSA", "GIS", "HIV", "HOD", "HR", "ICT", "ID", "IT", "MEC", "NQF", "OHS", "PMDS", "SAPS", "SCM", "SMS", "TVET"]);
@@ -316,6 +334,25 @@
       return `Expires in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}`;
     }
 
+    function closingDateLabel(value) {
+      const text = String(value ?? "");
+      const isoDate = text.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+      const textDate = text.match(/\b(\d{1,2})\s+([A-Za-z]+)\s+(20\d{2})\b/);
+      const year = Number(isoDate?.[1] ?? textDate?.[3]);
+      const month = Number(isoDate?.[2] ?? monthNumbers.get(textDate?.[2]?.toLowerCase()));
+      const day = Number(isoDate?.[3] ?? textDate?.[1]);
+      if (!year || !month || !day) return "";
+
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "";
+      return new Intl.DateTimeFormat("en-ZA", {
+        timeZone: "UTC",
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+      }).format(date);
+    }
+
     function metadataIcon(type) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 24 24");
@@ -324,15 +361,16 @@
       const shapes = {
         department: "M3 8h18v12H3z M8 8V5h8v3 M3 12h18 M10 12v2h4v-2",
         location: "M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0 M12 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5",
-        salary: "M3 6h18v12H3z M3 9h18 M3 15h18 M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4"
+        salary: "M3 6h18v12H3z M3 9h18 M3 15h18 M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4",
+        clock: "M12 8v4l2 2 M5.5 4.5 3 7 M18.5 4.5 21 7 M6 20l-2 2 M18 20l2 2 M12 22a9 9 0 1 0 0-18 9 9 0 0 0 0 18"
       };
       path.setAttribute("d", shapes[type]);
       svg.append(path);
       return svg;
     }
 
-    function showJobListings(jobs) {
-      jobsList.replaceChildren();
+    function showJobListings(jobs, append = false) {
+      if (!append) jobsList.replaceChildren();
       const displayableJobs = jobs.filter(job =>
         job &&
         typeof job.title === "string" &&
@@ -346,21 +384,29 @@
           ? "No vacancies match your search. Try another keyword or filter."
           : "There are no job listings right now. Please check back later.";
         jobsList.append(empty);
+        loadMoreJobsButton.hidden = true;
+        listingPaginationStatus.hidden = true;
         return;
       }
 
-      displayableJobs.forEach(job => {
+      const startIndex = append ? jobsList.querySelectorAll(".listing-card").length : 0;
+      displayableJobs.slice(startIndex, visibleJobCount).forEach(job => {
         const card = document.createElement("article");
         card.className = "listing-card";
         const mark = document.createElement("span");
         mark.className = "listing-card-mark";
-        if (job.circularName || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""))) {
+        const isDpsaJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
+        if (isDpsaJob) {
           const provincialCrest = PROVINCE_CRESTS[job.province];
           const crest = document.createElement("img");
           crest.src = provincialCrest || "south-african-coat-of-arms.png";
           crest.alt = provincialCrest
             ? `${job.province} provincial coat of arms`
             : "South African national coat of arms";
+          crest.width = 64;
+          crest.height = 64;
+          crest.loading = "lazy";
+          crest.decoding = "async";
           mark.append(crest);
         } else {
           mark.classList.add("listing-card-mark-generic");
@@ -398,7 +444,7 @@
         metadata.append(departmentItem);
 
         const locationLabel = [job.centre, job.province, job.location]
-          .map(value => String(value ?? "").trim())
+          .map(cleanVacancyLocation)
           .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
         if (locationLabel) {
           const locationItem = document.createElement("span");
@@ -409,18 +455,44 @@
         if (job.salaryText) {
           const salaryItem = document.createElement("span");
           salaryItem.className = "listing-meta-item";
-          salaryItem.append(metadataIcon("salary"), document.createTextNode(job.salaryText));
+          salaryItem.append(metadataIcon("salary"));
+          if (isNationalTreasuryScalesReference(job.salaryText)) {
+            const salaryLink = document.createElement("a");
+            salaryLink.className = "listing-salary-link";
+            salaryLink.href = SALARY_SCALES_PATH;
+            salaryLink.textContent = SALARY_SCALES_LINK_LABEL;
+            salaryItem.append(salaryLink);
+          } else {
+            salaryItem.append(document.createTextNode(job.salaryText));
+          }
           metadata.append(salaryItem);
+        }
+        const closingDate = closingDateLabel(job.closingDate);
+        if (closingDate) {
+          const closingDateItem = document.createElement("span");
+          closingDateItem.className = "listing-meta-item";
+          closingDateItem.setAttribute("aria-label", `Closing: ${closingDate}`);
+          closingDateItem.append(metadataIcon("clock"), document.createTextNode(`Closing: ${closingDate}`));
+          metadata.append(closingDateItem);
         }
 
         const bottom = document.createElement("div");
         bottom.className = "listing-card-bottom";
         const employmentType = String(job.natureOfAppointment ?? "").trim() || String(job.type ?? "").trim();
-        for (const [label, className] of [[employmentType, "listing-card-type"], [expiry, "listing-card-type listing-card-expiry"]]) {
+        const scope = isDpsaJob ? (PROVINCE_CRESTS[job.province] ? "Provincial" : "National") : "";
+        const circularName = canonicalCircularName(job.circularName);
+        const badges = [
+          { label: employmentType, className: "listing-card-type" },
+          { label: scope, className: `listing-card-type listing-card-scope-${scope.toLowerCase()}` },
+          { label: circularName, className: "listing-card-type listing-card-circular", href: circularArchivePath(circularName) },
+          { label: expiry, className: "listing-card-type listing-card-expiry" }
+        ];
+        for (const { label, className, href } of badges) {
           if (!label) continue;
-          const badge = document.createElement("span");
+          const badge = document.createElement(href ? "a" : "span");
           badge.className = className;
           badge.textContent = label;
+          if (href) badge.href = href;
           bottom.append(badge);
         }
         const applyButton = document.createElement("a");
@@ -432,7 +504,17 @@
         card.append(mark, content);
         jobsList.append(card);
       });
+      loadMoreJobsButton.hidden = visibleJobCount >= displayableJobs.length;
+      listingPaginationStatus.hidden = displayableJobs.length <= JOBS_PER_PAGE;
+      listingPaginationStatus.textContent = `Showing ${Math.min(visibleJobCount, displayableJobs.length)} of ${displayableJobs.length} vacancies`;
+      const remainingJobs = displayableJobs.length - visibleJobCount;
+      loadMoreJobsButton.textContent = `Show ${Math.min(JOBS_PER_PAGE, remainingJobs)} more ${remainingJobs === 1 ? "vacancy" : "vacancies"}`;
     }
+
+    loadMoreJobsButton.addEventListener("click", () => {
+      visibleJobCount = Math.min(visibleJobCount + JOBS_PER_PAGE, filteredJobs.length);
+      showJobListings(filteredJobs, true);
+    });
 
     jobSearch.addEventListener("submit", event => {
       event.preventDefault();

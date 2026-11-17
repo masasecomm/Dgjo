@@ -1,6 +1,19 @@
 import defaultJobs from "../jobs.json" with { type: "json" };
-import { cleanSalaryText, splitVacancyPoints } from "../vacancy-format.js";
+import {
+  cleanSalaryText,
+  cleanVacancyLocation,
+  cleanVacancyRequirements,
+  cleanVacancyTitle,
+  recoverVacancyRequirements,
+  splitVacancyPoints
+} from "../vacancy-format.js";
+import { canonicalCircularName, circularArchivePath } from "../circulars.js";
 import { normalizeProvince, PROVINCE_CRESTS } from "../provinces.js";
+import {
+  isNationalTreasuryScalesReference,
+  SALARY_SCALES_LINK_LABEL,
+  SALARY_SCALES_PATH
+} from "../salary-scales.js";
 
 const JOBS_KEY = "published-jobs";
 const CATEGORIES = new Set([
@@ -122,6 +135,11 @@ function escapeHtml(value) {
 }
 
 function displayJobTitle(value) {
+  const title = cleanVacancyTitle(value);
+  return titleCaseJobTitle(title);
+}
+
+function titleCaseJobTitle(value) {
   const title = String(value ?? "").trim();
   const letters = title.match(/\p{L}/gu) ?? [];
   if (!letters.length || letters.some(letter => letter !== letter.toLocaleUpperCase("en-ZA"))) return title;
@@ -131,6 +149,30 @@ function displayJobTitle(value) {
       ? word.toLocaleUpperCase("en-ZA")
       : `${word.charAt(0).toLocaleUpperCase("en-ZA")}${word.slice(1)}`
   );
+}
+
+function linkifyText(value) {
+  const text = String(value ?? "");
+  const linkPattern = /(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+  let html = "";
+  let cursor = 0;
+  for (const match of text.matchAll(linkPattern)) {
+    let link = match[0];
+    let punctuation = "";
+    while (/[.,;:!?)}\]]$/.test(link)) {
+      punctuation = link.slice(-1) + punctuation;
+      link = link.slice(0, -1);
+    }
+    if (!link) continue;
+    const before = text.slice(cursor, match.index);
+    html += `${escapeHtml(before).replace(/\r?\n/g, "<br>")}`;
+    const href = link.includes("@") && !/^https?:/i.test(link)
+      ? `mailto:${link}`
+      : /^https?:/i.test(link) ? link : `https://${link}`;
+    html += `<a href="${escapeHtml(href)}" rel="noopener noreferrer">${escapeHtml(link)}</a>${escapeHtml(punctuation)}`;
+    cursor = match.index + match[0].length;
+  }
+  return `${html}${escapeHtml(text.slice(cursor)).replace(/\r?\n/g, "<br>")}`;
 }
 
 function parseSouthAfricanDate(value, closingDate = false) {
@@ -221,7 +263,7 @@ function slugifyJobPart(value) {
 
 function jobSlug(job) {
   const identity = [job.postNo, job.refNo].filter(value => String(value ?? "").trim());
-  return [displayJobTitle(job.title), ...identity]
+  return [titleCaseJobTitle(job.title), ...identity]
     .map(slugifyJobPart)
     .filter(Boolean)
     .join("-") || slugifyJobPart(job.id);
@@ -234,7 +276,7 @@ function jobPagePath(job) {
 function locationDetails(job) {
   const province = String(job.province ?? "").trim();
   const locationParts = [job.centre, job.location]
-    .map(value => String(value ?? "").trim())
+    .map(cleanVacancyLocation)
     .filter(value => value && !/^(?:south africa|labour|department of labour|national head office|(?:[a-z-]+\s+)*provincial service centre(?:\s+\d+)?|central office)$/i.test(value));
   const locality = locationParts
     .map(value => value.split(/[,\n:]/).map(part => part.trim()).filter(Boolean).at(-1) ?? "")
@@ -256,12 +298,24 @@ function locationDetails(job) {
 function publicJob(job) {
   const correctionKey = `${job.circularName ?? ""}|${job.postNo ?? ""}`;
   const enriched = { ...job, ...(VERIFIED_CIRCULAR_FACTS.get(correctionKey) ?? {}) };
-  const company = hiringOrganizationName(enriched);
-  const location = locationDetails(enriched);
-  const centreIsGeneric = /^(?:labour|department of labour|national head office|(?:[a-z-]+\s+)*provincial service centre(?:\s+\d+)?|central office)$/i
-    .test(String(enriched.centre ?? "").trim());
-  return {
+  let requirements = cleanVacancyRequirements(enriched.requirements);
+  if (!requirements) {
+    requirements = [enriched.centre, enriched.location]
+      .map(recoverVacancyRequirements)
+      .find(Boolean) ?? "";
+  }
+  const normalized = {
     ...enriched,
+    centre: cleanVacancyLocation(enriched.centre),
+    location: cleanVacancyLocation(enriched.location),
+    requirements
+  };
+  const company = hiringOrganizationName(normalized);
+  const location = locationDetails(normalized);
+  const centreIsGeneric = /^(?:labour|department of labour|national head office|(?:[a-z-]+\s+)*provincial service centre(?:\s+\d+)?|central office)$/i
+    .test(String(normalized.centre ?? "").trim());
+  return {
+    ...normalized,
     salaryText: cleanSalaryText(enriched.salaryText),
     slug: jobSlug(enriched),
     ...(company ? { company } : {}),
@@ -298,7 +352,8 @@ function vacancyLinksSection(job) {
   if (!Array.isArray(job.links) || !job.links.length) return "";
   const links = job.links.map(link => {
     const url = typeof link?.url === "string" ? link.url.trim() : "";
-    const label = typeof link?.label === "string" && link.label.trim() ? link.label.trim() : url || "Link";
+    const rawLabel = typeof link?.label === "string" && link.label.trim() ? link.label.trim() : url || "Link";
+    const label = url && rawLabel.toLowerCase().includes(url.toLowerCase()) ? url : rawLabel;
     let parsedUrl;
     try {
       parsedUrl = new URL(url);
@@ -320,6 +375,7 @@ function vacancySectionMarkup(label, value) {
     ).join("")}</ul>`;
     return renderPoints(splitVacancyPoints(value));
   }
+  if (label === "How to apply") return `<p>${linkifyText(value)}</p>`;
   return `<p>${escapeHtml(value).replace(/\r?\n/g, "<br>")}</p>`;
 }
 
@@ -383,7 +439,8 @@ function vacancyPage(job, requestUrl) {
   const title = displayJobTitle(job.title);
   const pageUrl = new URL(jobPagePath(job), requestUrl.origin).href;
   const employer = hiringOrganizationName(job);
-  const location = [locationDetails(job)?.locality, job.province, job.centre, job.location]
+  const address = locationDetails(job);
+  const location = [address?.locality, address?.province]
     .map(value => String(value ?? "").trim())
     .find(value => value && !/^(?:south africa|labour|department of labour)$/i.test(value));
   const deadline = String(job.closingDate ?? "").trim() || "Not stated; check the official advert";
@@ -397,8 +454,10 @@ function vacancyPage(job, requestUrl) {
   const schema = schemaForJob(job, pageUrl);
   const schemaMarkup = schema ? `<script type="application/ld+json">${jsonLdScript(schema)}</script>` : "";
   const circularPage = String(job.circularPage ?? "").replace(/^page\s*/i, "").trim();
+  const circularName = canonicalCircularName(job.circularName);
+  const circularPath = circularArchivePath(circularName);
   const publicationDetails = [
-    job.circularName && ["Published", job.circularName],
+    circularName && ["Published", circularName],
     job.circularDate && ["Date", job.circularDate],
     circularPage && ["Page on Circular", `Page ${circularPage}`]
   ].filter(Boolean);
@@ -411,6 +470,10 @@ function vacancyPage(job, requestUrl) {
     job.refNo && ["Reference", job.refNo],
     job.postNo && ["Post number", job.postNo]
   ].filter(Boolean);
+  const salaryText = String(job.salaryText || "Not stated in advert");
+  const salaryMarkup = isNationalTreasuryScalesReference(salaryText)
+    ? `<a class="salary-scales-link" href="${new URL(SALARY_SCALES_PATH, SITE_URL).href}">${SALARY_SCALES_LINK_LABEL}</a>`
+    : escapeHtml(salaryText);
   const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
   const province = normalizeProvince(job.province);
   const coatOfArmsPath = PROVINCE_CRESTS[province] || "/south-african-coat-of-arms.png";
@@ -461,6 +524,8 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .intro{margin:0 0 18px;padding:13px 15px;border-left:3px solid #f2b632;border-radius:0 7px 7px 0;color:#536171;background:#f7f9fc}
 .meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;margin:0 0 20px}
 .meta{margin:0;color:#737d85;font-size:16px;overflow-wrap:anywhere}.meta strong{color:#32373c}
+.circular-pill{display:inline-flex;align-items:center;padding:3px 10px;border:1px solid #d5e0f2;border-radius:999px;color:#17499e;background:#edf3fc;font-size:13px;font-weight:700;text-decoration:none}.circular-pill:hover{background:#e0ebfb}
+.salary-scales-link{color:#17499e;font-weight:700;text-decoration:underline;text-underline-offset:2px}
 .circular-info{margin:0 0 16px;color:#737d85;font-size:13px}.apply{display:inline-flex;min-height:43px;align-items:center;justify-content:center;padding:10px 17px;border-radius:7px;color:#fff;background:#17499e;font-size:14px;font-weight:700;text-decoration:none}
 .apply:hover{background:#13377f;color:#fff}.sections{grid-column:1/-1;border-top:1px solid #e6eaf0;margin-top:8px;padding-top:8px}
 .sections section{margin:20px 0}.sections h2{margin:0 0 7px;color:#17499e;font-size:20px;line-height:1.3}.sections p,.sections li{color:#536171;font-size:16px;white-space:pre-line;overflow-wrap:anywhere}
@@ -485,9 +550,11 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 <h1 class="job-title">${escapeHtml(title)}</h1><p class="intro">${employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`}</p>
 <div class="meta-grid"><p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
 ${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${escapeHtml(location)}</p>` : ""}
-<p class="meta"><strong>Employment type:</strong> ${escapeHtml(job.type)}</p><p class="meta"><strong>Salary:</strong> ${escapeHtml(job.salaryText || "Not stated in advert")}</p>
+<p class="meta"><strong>Employment type:</strong> ${escapeHtml(job.type)}</p><p class="meta"><strong>Salary:</strong> ${salaryMarkup}</p>
 <p class="meta"><strong>Closing date:</strong> ${escapeHtml(deadline)}</p>${referenceDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}
-${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}</div>
+${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${label === "Published" && circularPath
+  ? `<a class="circular-pill" href="${SITE_URL}${circularPath}">${escapeHtml(value)}</a>`
+  : escapeHtml(value)}</p>`).join("")}</div>
 </div><div class="sections">${sections}${vacancyLinksSection(job)}${officialCircularLink}
 <section class="share-post" aria-labelledby="share-post-title"><h2 id="share-post-title">Share this post</h2>
 <nav class="post-share-links" aria-label="Share this post">

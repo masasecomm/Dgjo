@@ -50,6 +50,20 @@ DUTIES: Provide screening services and process applications for UIF benefits.`, 
   assert.equal(vacancies[0].centre, "Labour Centre: KuGompo City");
 });
 
+test("misspelled requirements headings no longer get absorbed into the centre", () => {
+  const { vacancies } = parseDpsaCircular(`DEPARTMENT OF HEALTH
+POST 40/217: ASSISTANT DIRECTOR
+CENTRE: Stellenbosch Hospital, Stellenbosch Sub-district
+REQUIRMENTS : Minimum educational qualification: An appropriate National Diploma (NQF 6) or equivalent.
+DUTIES: Manage human resource and facility services.`, {
+    fileName: "Circular 40 of 2026.pdf"
+  });
+
+  assert.equal(vacancies[0].centre, "Stellenbosch Hospital, Stellenbosch Sub-district");
+  assert.match(vacancies[0].requirements, /^- Minimum educational qualification:/);
+  assert.doesNotMatch(vacancies[0].requirements, /REQUIRMENTS/);
+});
+
 test("salary extraction excludes following candidate conditions", () => {
   const { vacancies } = parseDpsaCircular(`POST 1: ASSISTANT DIRECTOR
 SALARY: R487 197 – R573 897 per annum (Level 09). The successful candidate will be required to sign a performance agreement.

@@ -70,7 +70,7 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example/${slug}/">`));
   assert.match(html, /<strong>Reference:<\/strong> EXAMPLE\/1/);
   assert.match(html, /<strong>Post number:<\/strong> 1\/1/);
-  assert.match(html, /<strong>Published:<\/strong> Circular 1 of 2099/);
+  assert.match(html, /<strong>Published:<\/strong> <a class="circular-pill" href="https:\/\/dpsagovernmentjobs\.co\.za\/dpsa-vacancy-circulars\/circular-1-of-2099\/">Circular 1 of 2099<\/a>/);
   assert.match(html, /<strong>Date:<\/strong> \d{1,2} [A-Za-z]+ \d{4}/);
   assert.match(html, /<strong>Page on Circular:<\/strong> Page 3/);
   assert.match(html, /Read\/Download the official vacancy advert on <a href="https:\/\/www\.dpsa\.gov\.za\/example\.pdf"[^>]*>Circular 1 of 2099<\/a>/);
@@ -111,6 +111,73 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(structuredData.description, /<ul><li>A relevant qualification/);
 });
 
+test("How to apply URLs and email addresses render as active links", async () => {
+  const job = makeJob({
+    applications: "Apply online at https://department.gov.za/apply or email applications@example.gov.za."
+  });
+  const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+
+  assert.match(html, /<a href="https:\/\/department\.gov\.za\/apply" rel="noopener noreferrer">https:\/\/department\.gov\.za\/apply<\/a>/);
+  assert.match(html, /<a href="mailto:applications@example\.gov\.za" rel="noopener noreferrer">applications@example\.gov\.za<\/a>/);
+});
+
+test("trims invitation copy from a job title without changing its existing URL", async () => {
+  const job = makeJob({
+    title: "RISK MANAGEMENT COMMITTEE (CHAIRPERSON) The Department of Social Development invites applications from suitably qualified and experienced individuals to serve a",
+    circularName: "Circular 40 of 2026",
+    postNo: "40/177",
+    refNo: ""
+  });
+  const oldSlug = "risk-management-committee-chairperson-the-department-of-social-development-invites-applications-from-suitably-qualified-and-experienced-individuals-to-serve-a-40-177";
+  const response = await worker.fetch(new Request(`https://jobs.example/${oldSlug}/`), createEnv([job]));
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example/${oldSlug}/">`));
+  assert.match(html, /<h1 class="job-title">Risk Management Committee \(Chairperson\)<\/h1>/);
+  assert.doesNotMatch(html, /suitably qualified and experienced individuals to serve a/);
+});
+
+test("recovers requirements and clean locations from misparsed circular fields", async () => {
+  const labelledRequirements = makeJob({
+    id: "misparsed-labelled-requirements",
+    circularName: "Circular 40 of 2026",
+    postNo: "40/217",
+    refNo: "",
+    centre: "Stellenbosch Hospital, Stellenbosch Sub-district\nREQUIRMENTS : Minimum educational qualification: An appropriate National Diploma (NQF 6) or equivalent.",
+    location: "Stellenbosch Hospital, Stellenbosch Sub-district\nREQUIRMENTS : Minimum educational qualification: An appropriate National Diploma (NQF 6) or equivalent.",
+    requirements: ""
+  });
+  const misplacedRequirements = makeJob({
+    id: "misparsed-centre-requirements",
+    circularName: "Circular 40 of 2026",
+    postNo: "40/262",
+    refNo: "",
+    centre: "An appropriate 3-year qualification (National Diploma/B-Degree or higher qualification); a minimum of 1-year relevant experience. Competencies: knowledge of public finance, policy, management and governance. Skills: planning, communication, flexibility, teamwork and ability to work under pressure.",
+    location: "work under pressure.",
+    requirements: "",
+    province: "Western Cape"
+  });
+  const env = createEnv([labelledRequirements, misplacedRequirements]);
+  const apiResponse = await worker.fetch(new Request("https://jobs.example/api/jobs"), env);
+  const jobs = await apiResponse.json();
+  const recoveredLocationJob = jobs.find(job => job.id === "misparsed-labelled-requirements");
+  const recoveredRequirementsJob = jobs.find(job => job.id === "misparsed-centre-requirements");
+
+  assert.equal(recoveredLocationJob.centre, "Stellenbosch Hospital, Stellenbosch Sub-district");
+  assert.match(recoveredLocationJob.requirements, /^Minimum educational qualification:/);
+  assert.match(recoveredRequirementsJob.requirements, /^An appropriate 3-year qualification/);
+  assert.equal(recoveredRequirementsJob.centre, "");
+  assert.equal(recoveredRequirementsJob.location, "");
+
+  const pageResponse = await worker.fetch(new Request(`https://jobs.example/${recoveredLocationJob.slug}/`), env);
+  const html = await pageResponse.text();
+  assert.match(html, /<h2>Requirements<\/h2>/);
+  assert.match(html, /Location\/centre in advert:<\/strong> Stellenbosch Sub-district/);
+  assert.doesNotMatch(html, /REQUIRMENTS\s*:/);
+});
+
 test("national DPSA vacancies use the South African national coat of arms", async () => {
   const job = makeJob({
     province: "",
@@ -136,6 +203,14 @@ test("legacy salary descriptions exclude unrelated prose after the salary and le
   assert.match(html, /R487 197 – R573 897 per annum \(Level 09\)/);
   assert.doesNotMatch(html, /Salary:<\/strong>[^<]*performance agreement/);
   assert.equal(publicJob.salaryText, "R487 197 – R573 897 per annum (Level 09)");
+});
+
+test("numberless National Treasury salary text links to the readable salary scales page", async () => {
+  const job = makeJob({ salaryText: "As per National Treasury scales" });
+  const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+
+  assert.match(html, /<strong>Salary:<\/strong> <a class="salary-scales-link" href="https:\/\/dpsagovernmentjobs\.co\.za\/national-treasury-salary-scales\/">National Treasury Scales<\/a>/);
 });
 
 test("vacancy URLs combine the normalized title, post number and reference number", async () => {
@@ -229,7 +304,7 @@ test("legacy DPSA records use verified facts and emit JobPosting markup when the
 
   assert.equal(pageResponse.status, 200);
   assert.match(html, /The Department of Employment and Labour invites applications/);
-  assert.match(html, /<strong>Published:<\/strong> Circular 41 of 2026/);
+  assert.match(html, /<strong>Published:<\/strong> <a class="circular-pill" href="https:\/\/dpsagovernmentjobs\.co\.za\/dpsa-vacancy-circulars\/circular-41-of-2026\/">Circular 41 of 2026<\/a>/);
   assert.match(html, /<strong>Date:<\/strong> 13 November 2026/);
   assert.match(html, /<strong>Page on Circular:<\/strong> Page 17/);
   assert.match(html, /Read\/Download the official vacancy advert on <a href="https:\/\/www\.dpsa\.gov\.za\/dpsa2g\/documents\/vacancies\/2026\/PSV%20CIRCULAR%2041%20of%202026\.pdf"[^>]*>Circular 41 of 2026<\/a>/);
