@@ -42,6 +42,19 @@ function savedVacancyHref(url) {
   }
 }
 
+function savedVacancyImageUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const parsedUrl = new URL(value, window.location.href);
+    if (parsedUrl.protocol !== "https:" || !SAVED_VACANCY_HOSTS.has(parsedUrl.hostname)) return "";
+    if (!/^\/(?:province-[a-z-]+|south-african-coat-of-arms)\.png$/.test(parsedUrl.pathname)) return "";
+    return new URL(parsedUrl.pathname, "https://dpsagovernmentjobs.co.za").href;
+  } catch (error) {
+    console.error("Could not read the saved vacancy image.", error);
+    return "";
+  }
+}
+
 function addSavedVacancyMetadata(button, vacancy) {
   const metadata = {
     company: button.dataset.bookmarkCompany,
@@ -124,10 +137,7 @@ function renderSavedVacancies() {
     content.className = "listing-card-content";
     const mark = document.createElement("div");
     mark.className = "listing-card-mark";
-    const safeImage = typeof vacancy.image === "string" &&
-      /^\/(?:province-[a-z-]+|south-african-coat-of-arms)\.png$/.test(vacancy.image)
-      ? vacancy.image
-      : "";
+    const safeImage = savedVacancyImageUrl(vacancy.image);
     if (safeImage) {
       const image = document.createElement("img");
       image.src = safeImage;

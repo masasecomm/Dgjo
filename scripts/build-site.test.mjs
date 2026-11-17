@@ -686,6 +686,8 @@ test("provides a noindex saved-vacancies page connected to the existing bookmark
   assert.match(bookmarks, /listing-card-bottom/);
   assert.match(bookmarks, /textContent = "View vacancy"/);
   assert.match(bookmarks, /button\.dataset\.bookmarkCompany/);
+  assert.match(bookmarks, /new URL\(parsedUrl\.pathname, "https:\/\/dpsagovernmentjobs\.co\.za"\)\.href/);
+  assert.match(bookmarks, /SAVED_VACANCY_HOSTS\.has\(parsedUrl\.hostname\)/);
   assert.match(bookmarks, /SAVED_VACANCY_HOSTS\.has\(parsedUrl\.hostname\)/);
 });
 

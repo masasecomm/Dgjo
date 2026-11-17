@@ -995,7 +995,7 @@ function bookmarkButtonMarkup(url, title, job = {}, { image = "", location = "",
     company: job.company,
     province: job.province,
     circular: canonicalCircularName(job.circularName),
-    image,
+    image: image ? new URL(image, SITE_URL).href : "",
     location,
     employmentType: displayEmploymentType(job),
     scope

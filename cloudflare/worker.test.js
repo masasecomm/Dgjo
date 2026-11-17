@@ -292,6 +292,7 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /<button class="bookmark-button"[^>]+data-bookmark-url="https:\/\/jobs\.example\/assistant-director-example-1-1-example-1\/"/);
   assert.match(html, /data-bookmark-company="Department of Health"/);
   assert.match(html, /data-bookmark-employment-type="Contract"/);
+  assert.match(html, /data-bookmark-image="https:\/\/dpsagovernmentjobs\.co\.za\/province-limpopo\.png"/);
   assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example/${slug}/">`));
   assert.match(html, /<strong>Reference:<\/strong> EXAMPLE\/1/);
   assert.match(html, /<strong>Post number:<\/strong> 1\/1/);
