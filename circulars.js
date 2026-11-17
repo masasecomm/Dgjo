@@ -33,9 +33,17 @@ export function compareCircularNames(leftValue, rightValue) {
 export function sortJobsByCircular(jobs) {
   return jobs
     .map((job, index) => ({ job, index }))
-    .sort((left, right) =>
-      compareCircularNames(left.job?.circularName, right.job?.circularName) || left.index - right.index
-    )
+    .sort((left, right) => {
+      const leftName = canonicalCircularName(left.job?.circularName);
+      const rightName = canonicalCircularName(right.job?.circularName);
+      const hasLeftCircular = /^Circular \d+ of 20\d{2}$/.test(leftName);
+      const hasRightCircular = /^Circular \d+ of 20\d{2}$/.test(rightName);
+      if (hasLeftCircular && hasRightCircular) {
+        return compareCircularNames(rightName, leftName) || left.index - right.index;
+      }
+      if (hasLeftCircular !== hasRightCircular) return hasLeftCircular ? -1 : 1;
+      return left.index - right.index;
+    })
     .map(({ job }) => job);
 }
 

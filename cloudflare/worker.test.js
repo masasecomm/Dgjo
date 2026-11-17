@@ -280,6 +280,8 @@ test("vacancy route renders unique metadata, full details and valid structured d
 
   assert.equal(response.status, 200);
   assert.match(html, /<title>Assistant Director: Example at Department of Health \| DPSA Government Jobs<\/title>/);
+  assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.svg">/);
+  assert.match(html, /<nav class="breadcrumb" aria-label="Breadcrumb"><a href="https:\/\/dpsagovernmentjobs\.co\.za\/">Home<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/limpopo\/">Limpopo<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/\?department=Department%20of%20Health#listings">Department of Health<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/dpsa-vacancy-circulars\/circular-1-of-2099\/">Circular 1 of 2099<\/a> › <a href="https:\/\/dpsagovernmentjobs\.co\.za\/\?employmentType=Contract#listings">Contract<\/a> › Assistant Director: Example<\/nav>/);
   assert.equal(html.split("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347").length - 1, 1);
   const adLoaderIndex = html.indexOf('<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');
   assert.ok(html.indexOf('<link rel="preconnect" href="https://pagead2.googlesyndication.com"') < adLoaderIndex);
@@ -299,15 +301,22 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /href="https:\/\/za\.pinterest\.com\/dpsavacancies\/"/);
   assert.match(html, /Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002/);
   assert.match(html, /href="https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/">Vacancies by province/);
+  assert.match(html, /href="https:\/\/jobs\.example\/saved-vacancies\/"[^>]*>Saved vacancies/);
   assert.match(html, /href="https:\/\/dpsagovernmentjobs\.co\.za\/how-to-apply\/">How to apply/);
   assert.match(html, /<img src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-facebook\.svg" alt="">/);
   assert.match(html, /<img src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-x\.svg" alt="">/);
   assert.match(html, /<img src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-pinterest\.svg" alt="">/);
   assert.match(html, /<h2 id="share-post-title">Share this post<\/h2>/);
+  assert.match(html, /<img class="post-share-icon" src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-facebook\.svg" alt="">Facebook/);
+  assert.match(html, /<img class="post-share-icon" src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-x\.svg" alt="">X/);
+  assert.match(html, /<img class="post-share-icon" src="https:\/\/dpsagovernmentjobs\.co\.za\/footer-pinterest\.svg" alt="">Pinterest/);
+  assert.doesNotMatch(html, /class="post-share-icon"[^>]*>[^<]+<\/span>/);
   assert.match(html, /href="https:\/\/www\.facebook\.com\/sharer\/sharer\.php\?u=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F"/);
   assert.match(html, /href="https:\/\/twitter\.com\/intent\/tweet\?url=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F&amp;text=Assistant\+Director%3A\+Example"/);
   assert.match(html, /href="https:\/\/pinterest\.com\/pin\/create\/button\/\?url=https%3A%2F%2Fjobs\.example%2Fassistant-director-example-1-1-example-1%2F&amp;media=https%3A%2F%2Fdpsagovernmentjobs\.co\.za%2Fprovince-limpopo\.png&amp;description=Assistant\+Director%3A\+Example"/);
   assert.match(html, /<meta property="og:image" content="https:\/\/dpsagovernmentjobs\.co\.za\/province-limpopo\.png">/);
+  assert.match(html, /<li>Online application portal: <a href="https:\/\/department\.gov\.za\/apply"[^>]*target="_blank"[^>]*>https:\/\/department\.gov\.za\/apply<\/a><\/li>/);
+  assert.doesNotMatch(html, /<li><a href="https:\/\/department\.gov\.za\/apply"[^>]*>Online application portal<\/a><\/li>/);
   assert.match(html, /font-family:"Jost",Arial,Helvetica,sans-serif/);
   assert.match(html, /\.job-title\{[^}]*font-size:20px/);
   assert.match(html, /\.meta\{[^}]*font-size:16px/);
@@ -320,16 +329,32 @@ test("vacancy route renders unique metadata, full details and valid structured d
   const requirementsIndex = html.indexOf("<h2>Requirements</h2>");
   assert.ok(adIndex >= 0 && adIndex < requirementsIndex);
   assert.equal(html.split('data-ad-slot="3081508385"').length - 1, 1);
-  assert.match(html, /data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385"><\/ins><script>\(adsbygoogle = window\.adsbygoogle \|\| \[\]\)\.push\(\{\}\);<\/script>/);
+  assert.match(html, /data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385" data-ad-format="auto" data-full-width-responsive="true"><\/ins><script>\(adsbygoogle = window\.adsbygoogle \|\| \[\]\)\.push\(\{\}\);<\/script>/);
   assert.match(html, /<ul><li>A relevant qualification\.<\/li><li>At least three years of experience\.<\/li><\/ul>/);
   assert.match(html, /id="how-to-apply"/);
   assert.match(html, /<ul><li>Manage the service\.<\/li><li>Support staff and prepare reports\.<\/li><\/ul>/);
-  assert.match(html, /<h2>Links in the official circular<\/h2><ul><li><a href="https:\/\/department\.gov\.za\/apply"[^>]*>Online application portal<\/a><\/li><li><a href="https:\/\/department\.gov\.za\/form\.pdf"[^>]*>Download application form<\/a><\/li><\/ul>/);
+  assert.match(html, /<h2>Links in the official circular<\/h2><ul><li>Online application portal: <a href="https:\/\/department\.gov\.za\/apply"[^>]*target="_blank"[^>]*>https:\/\/department\.gov\.za\/apply<\/a><\/li><li>Download application form: <a href="https:\/\/department\.gov\.za\/form\.pdf"[^>]*target="_blank"[^>]*>https:\/\/department\.gov\.za\/form\.pdf<\/a><\/li><\/ul>/);
   assert.match(html, /Hiring department:<\/strong> Department of Health/);
   const jsonLd = html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/);
   assert.ok(jsonLd);
   const structuredData = JSON.parse(jsonLd[1]);
   assert.equal(structuredData["@type"], "JobPosting");
+  const jsonLdValues = [...html.matchAll(/<script(?: id="website-structured-data")? type="application\/ld\+json">([^<]+)<\/script>/g)]
+    .map(([, data]) => JSON.parse(data))
+  const breadcrumbData = jsonLdValues.find(data => data["@type"] === "BreadcrumbList");
+  const articleData = jsonLdValues.find(data => data["@type"] === "Article");
+  const websiteData = jsonLdValues.find(data => data["@type"] === "WebSite");
+  assert.equal(articleData.headline, "Assistant Director: Example");
+  assert.equal(articleData.mainEntityOfPage, `https://jobs.example/${slug}/`);
+  assert.equal(websiteData.name, "DPSA Government Jobs");
+  assert.deepEqual(breadcrumbData.itemListElement.map(item => item.name), [
+    "Home", "Limpopo", "Department of Health", "Circular 1 of 2099", "Contract", "Assistant Director: Example"
+  ]);
+  assert.equal(breadcrumbData.itemListElement[1].item, "https://dpsagovernmentjobs.co.za/government-vacancies/limpopo/");
+  assert.equal(breadcrumbData.itemListElement[2].item, "https://dpsagovernmentjobs.co.za/?department=Department%20of%20Health#listings");
+  assert.equal(breadcrumbData.itemListElement[3].item, "https://dpsagovernmentjobs.co.za/dpsa-vacancy-circulars/circular-1-of-2099/");
+  assert.equal(breadcrumbData.itemListElement[4].item, "https://dpsagovernmentjobs.co.za/?employmentType=Contract#listings");
+  assert.equal(breadcrumbData.itemListElement[5].item, `https://jobs.example/${slug}/`);
   assert.equal(structuredData.hiringOrganization.name, job.company);
   assert.equal(structuredData.jobLocation.address.addressLocality, "Polokwane");
   assert.equal(structuredData.jobLocation.address.addressRegion, "Limpopo");
@@ -337,15 +362,74 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(structuredData.description, /<ul><li>A relevant qualification/);
 });
 
+test("removes trailing annexure content from previously published vacancy details", async () => {
+  const job = makeJob({
+    enquiries: "Contact the listed office.\n6\nANNEXURE B\nDEPARTMENT OF ELECTRICITY AND ENERGY"
+  });
+  const env = createEnv([job]);
+  const pageResponse = await worker.fetch(
+    new Request("https://jobs.example/assistant-director-example-1-1-example-1/"),
+    env
+  );
+  const html = await pageResponse.text();
+  assert.match(html, /Contact the listed office\./);
+  assert.doesNotMatch(html, /ANNEXURE B|DEPARTMENT OF ELECTRICITY AND ENERGY/);
+
+  const [storedJob] = await env.JOBS.get("published-jobs", "json");
+  assert.equal(storedJob.enquiries, "Contact the listed office.");
+  const apiResponse = await worker.fetch(new Request("https://jobs.example/api/jobs"), env);
+  const [publicJob] = await apiResponse.json();
+  assert.equal(publicJob.enquiries, "Contact the listed office.");
+});
+
+test("keeps the responsive ad unit when a vacancy has no requirements section", async () => {
+  const job = makeJob({ requirements: "" });
+  const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
+  const html = await response.text();
+
+  assert.equal(html.split('data-ad-slot="3081508385"').length - 1, 1);
+  assert.match(html, /data-ad-format="auto" data-full-width-responsive="true"/);
+  const adIndex = html.indexOf('<aside class="content-ad"');
+  assert.ok(adIndex > html.indexOf("<h2>Duties</h2>") && adIndex < html.indexOf('<section id="how-to-apply">'));
+});
+
 test("How to apply URLs and email addresses render as active links", async () => {
   const job = makeJob({
-    applications: "Apply online at https://department.gov.za/apply or email applications@example.gov.za."
+    applications: "Apply online at https://department.gov.za/apply. Email applications@example.gov.za."
   });
   const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([job]));
   const html = await response.text();
 
-  assert.match(html, /<a href="https:\/\/department\.gov\.za\/apply" rel="noopener noreferrer">https:\/\/department\.gov\.za\/apply<\/a>/);
-  assert.match(html, /<a href="mailto:applications@example\.gov\.za" rel="noopener noreferrer">applications@example\.gov\.za<\/a>/);
+  assert.match(html, /<a href="https:\/\/department\.gov\.za\/apply"[^>]*target="_blank"[^>]*>https:\/\/department\.gov\.za\/apply<\/a>/);
+  assert.match(html, /<a href="mailto:applications@example\.gov\.za"[^>]*>applications@example\.gov\.za<\/a>/);
+  assert.match(html, /<section id="how-to-apply"><h2>How to apply<\/h2><ul><li>Apply online at <a href="https:\/\/department\.gov\.za\/apply"[^>]*target="_blank"[^>]*>https:\/\/department\.gov\.za\/apply<\/a>\.<\/li><li>Email <a href="mailto:applications@example\.gov\.za"[^>]*>applications@example\.gov\.za<\/a>\.<\/li><\/ul><\/section>/);
+});
+
+test("internship wording in a vacancy title overrides its recorded appointment type", async () => {
+  const job = makeJob({
+    title: "INTERNSHIP PROGRAMME: DATA CAPTURING",
+    type: "Contract",
+    natureOfAppointment: "Permanent"
+  });
+
+  test("external links open in a new tab while internal links remain in the current tab", async () => {
+    const response = await worker.fetch(new Request("https://jobs.example/assistant-director-example-1-1-example-1/"), createEnv([makeJob()]));
+    const html = await response.text();
+
+    assert.match(html, /href="https:\/\/www\.dpsa\.gov\.za\/example\.pdf"[^>]*target="_blank"/);
+    assert.match(html, /href="https:\/\/dpsagovernmentjobs\.co\.za\/how-to-apply\/">How to apply/);
+    assert.match(html, /id="website-structured-data" type="application\/ld\+json">\{"@context":"https:\/\/schema\.org","@type":"WebSite"/);
+  });
+  const response = await worker.fetch(new Request(
+    "https://jobs.example/internship-programme-data-capturing-1-1-example-1/"
+  ), createEnv([job]));
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(html, /<strong>Employment type:<\/strong> <a href="https:\/\/dpsagovernmentjobs\.co\.za\/\?employmentType=Internship#listings">Internship<\/a>/);
+  assert.match(html, /<a href="https:\/\/dpsagovernmentjobs\.co\.za\/\?employmentType=Internship#listings">Internship<\/a> › Internship Programme: Data Capturing/);
+  assert.match(html, /"employmentType":"INTERN"/);
+  assert.doesNotMatch(html, /<strong>Employment type:<\/strong> (?:Contract|Permanent)/);
 });
 
 test("trims invitation copy from a job title without changing its existing URL", async () => {
@@ -470,6 +554,19 @@ test("renders vacancy-specific FAQs and matching FAQ schema with gross and estim
   assert.match(html, /href="https:\/\/www\.sars\.gov\.za\/tax-rates\/income-tax\/rates-of-tax-for-individuals\/"/);
   assert.ok(faqSchema.mainEntity.some(question => question.name.startsWith("How much is the estimated monthly pay after South African tax")));
   assert.ok(faqSchema.mainEntity.some(question => question.acceptedAnswer.text.includes("R21 619 per month")));
+});
+
+test("serves a browser-local saved-vacancies page on the jobs origin", async () => {
+  const response = await worker.fetch(new Request("https://jobs.example/saved-vacancies/"), createEnv([]));
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow");
+  assert.match(html, /<title>Saved Vacancies \| DPSA Government Jobs<\/title>/);
+  assert.match(html, /data-saved-vacancies-list/);
+  assert.match(html, /rel="icon" type="image\/svg\+xml" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.svg"/);
+  assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js" defer/);
+  assert.match(html, /This list is separate from bookmarks saved on the main DPSA Government Jobs website/);
 });
 
 test("does not invent salary or qualification answers when vacancy data is absent", async () => {

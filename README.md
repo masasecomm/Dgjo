@@ -2,6 +2,8 @@
 
 The public site is an independent guide to South African public service vacancy circulars and applications. It links to the official DPSA circular page and Z83 form. Any job summaries added through the manager must be checked against the linked department advert.
 
+The static site build adds the site favicon and validates published HTML for titles, descriptions, canonical URLs, page headings, image alt attributes and parseable JSON-LD. The application guide uses `HowTo` structured data; vacancy pages include applicable `JobPosting`, `Article`, breadcrumb and FAQ structured data. These technical checks do not guarantee search rankings or rich-result display.
+
 ## Set up the Cloudflare Worker
 
 From the `cloudflare` directory (use `npm.cmd` / `npx.cmd` in Windows PowerShell if script execution blocks the `.ps1` launchers):

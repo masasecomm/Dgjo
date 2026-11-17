@@ -16,8 +16,9 @@ import {
   renderSitemapWithCircularArchives,
   groupJobsByProvince
 } from "./build-site.mjs";
-import { groupJobsByCircular, MAX_ACTIVE_CIRCULARS, retainLatestCircularJobs } from "../circulars.js";
+import { groupJobsByCircular, MAX_ACTIVE_CIRCULARS, retainLatestCircularJobs, sortJobsByCircular } from "../circulars.js";
 import { isFeedRequest, legacyCircularRedirectTarget } from "../redirects.js";
+import { displayEmploymentType, employmentTypeCategory } from "../employment-type.js";
 import {
   estimateAnnualIncomeTax,
   extractJobLevel,
@@ -37,6 +38,7 @@ test("renders crawlable vacancy cards with safe text and root-level job links", 
     centre: "Bellville",
     province: "Western Cape",
     salaryText: "R338 106 per annum",
+    level: "Level 7",
     type: "Contract",
     closingDate: "2099-12-31 @16:00 (Online)"
   }]);
@@ -50,9 +52,29 @@ test("renders crawlable vacancy cards with safe text and root-level job links", 
   assert.match(html, /<button class="bookmark-button"[^>]+data-bookmark-url="https:\/\/jobs\.dpsagovernmentjobs\.co\.za\/provisioning-officer-41-30-ref\/"[^>]+aria-pressed="false"/);
   assert.ok(html.includes('aria-label="Closing: 31 December 2099">'));
   assert.match(html, /M5\.5 4\.5 3 7/);
+  assert.match(html, /M4 20h16 M6 20v-5h4v5 M14 20V9h4v11/);
+  assert.match(html, /Job level: <a class="listing-salary-link" href="\/national-treasury-salary-scales\/#level-7">Level 7<\/a>/);
   assert.match(html, />Closing: 31 December 2099<\/span>/);
   assert.doesNotMatch(html, /16:00 \(Online\)/);
   assert.match(html, /href="https:\/\/jobs\.dpsagovernmentjobs\.co\.za\/provisioning-officer-41-30-ref\/#how-to-apply"/);
+});
+
+test("classifies internships by post title and makes employment categories filterable", () => {
+  const internship = {
+    id: "internship-post",
+    title: "INTERNSHIP PROGRAMME: INFORMATION TECHNOLOGY",
+    company: "Department",
+    type: "Contract",
+    natureOfAppointment: "Permanent"
+  };
+  assert.equal(employmentTypeCategory(internship), "Internship");
+  assert.equal(displayEmploymentType(internship), "Internship");
+  const html = renderJobListings([internship]);
+  assert.match(html, /<a class="listing-card-type" href="\/\?employmentType=Internship#listings">Internship<\/a>/);
+  assert.doesNotMatch(html, />Contract<\/a>|>Permanent<\/a>/);
+  assert.equal(employmentTypeCategory({ title: "Farm worker", type: "Seasonal" }), "Contract");
+  assert.equal(employmentTypeCategory({ title: "Analyst", type: "Permanent" }), "Permanent");
+  assert.equal(employmentTypeCategory({ title: "Clerk", type: "Sessional" }), "Sessional");
 });
 
 test("places the CV matcher after four initial crawlable cards and keeps every vacancy available elsewhere", () => {
@@ -72,7 +94,9 @@ test("places the CV matcher after four initial crawlable cards and keeps every v
   assert.match(continuation, /Vacancy 5/);
   assert.match(continuation, /Vacancy 10/);
   assert.doesNotMatch(continuation, /Vacancy 11/);
-  assert.match(renderCircularArchivePage("Circular 1 of 2026", jobs), /Vacancy 15/);
+  const archive = renderCircularArchivePage("Circular 1 of 2026", jobs);
+  assert.match(archive, /Vacancy 15/);
+  assert.equal((archive.match(/data-ad-slot="3081508385"/g) ?? []).length, 1);
 });
 
 test("keeps circulars and application guidance on their own pages", async () => {
@@ -85,11 +109,39 @@ test("keeps circulars and application guidance on their own pages", async () => 
   const continuationIndex = homepage.indexOf('id="job-list-continuation"');
   const homepageNavStart = homepage.indexOf('<nav class="nav shell"');
   const homepageNav = homepage.slice(homepageNavStart, homepage.indexOf("</nav>", homepageNavStart));
+  const homepageNavItems = [
+    homepageNav.indexOf('aria-current="page">Home</a>'),
+    homepageNav.indexOf('<summary>Circulars</summary>'),
+    homepageNav.indexOf('href="/saved-vacancies/">Saved vacancies</a>'),
+    homepageNav.indexOf('href="#cv-job-matcher">CV job match</a>')
+  ];
 
   assert.ok(cvSectionIndex > initialListingsIndex && cvSectionIndex < continuationIndex, "the CV matcher separates the first four jobs from the next six");
+  assert.ok(homepageNavItems.every((position, index) => position >= 0 && (index === 0 || position > homepageNavItems[index - 1])), "main navigation is ordered Home, Circulars, Saved vacancies, CV job match");
   assert.match(homepage, /id="load-more-jobs"[^>]*>Show 10 more vacancies/);
   assert.match(homepage, /const JOBS_PER_PAGE = 10/);
   assert.match(homepage, /const INITIAL_JOB_COUNT = 4/);
+  assert.match(homepage, /<h2 id="listings-heading">GOVERNMENT VACANCIES<\/h2>/);
+  assert.match(homepage, /level: "M4 20h16/);
+  assert.match(homepage, /levelItem\.append\(metadataIcon\("level"\)/);
+  assert.match(homepage, /property="og:image" content="https:\/\/dpsagovernmentjobs\.co\.za\/south-african-coat-of-arms\.png"/);
+  assert.match(homepage, /params\.get\("employmentType"\)/);
+  assert.match(homepage, /employmentTypeCategory\(job\) !== selectedEmploymentType/);
+  assert.match(homepage, /filteredJobs = sortJobsByCircular\(allJobs\.filter\(job => \{/);
+  assert.match(homepage, /id="listing-breadcrumb" class="breadcrumb" aria-label="Breadcrumb" hidden/);
+  assert.match(homepage, /id="employment-type-filters" class="province-filters employment-type-filters"/);
+  assert.match(homepage, /EMPLOYMENT_TYPE_CATEGORIES\.map\(category => \[category, 0\]\)/);
+  assert.match(homepage, /link\.textContent = `\$\{category\} \(\$\{employmentTypeCounts\.get\(category\)\}\)`/);
+  assert.match(homepage, /const headingCategories = \[selectedEmploymentType, departmentName, province\]/);
+  assert.match(homepage, /headingCategories\.join\(" · "\).*GOVERNMENT VACANCIES/);
+  assert.match(homepage, /function updateCvMatcherPosition\(\) \{\s*if \(jobProvince\.value \|\| jobDepartment\.value \|\| selectedEmploymentType\) \{\s*continuationSection\.after\(cvMatcherSection\);\s*\} else \{\s*continuationSection\.before\(cvMatcherSection\);/);
+  assert.match(homepage, /updateCvMatcherPosition\(\);\s*const departmentName/);
+  assert.match(homepage, /jobQuery\.value = "";\s*jobDepartment\.value = "";\s*jobProvince\.value = link\.dataset\.province/);
+  assert.match(homepage, /const params = new URLSearchParams\(\);\s*if \(jobProvince\.value\) params\.set\("province", jobProvince\.value\)/);
+  assert.match(homepage, /provinceFilters\.scrollIntoView\(\{ behavior: "smooth", block: "start" \}\)/);
+  assert.match(homepage, /history\.replaceState\(null, "", `\$\{location\.pathname\}\$\{params\.size \? `\?\$\{params\}` : ""\}#listings`\)/);
+  assert.match(homepage, /id="back-to-top" class="back-to-top"[^>]+aria-label="Back to top"/);
+  assert.match(homepage, /window\.scrollTo\(\{ top: 0, behavior: "smooth" \}\)/);
   assert.doesNotMatch(homepage, /id="circulars-heading"|id="steps-heading"|A clear application process/);
   assert.match(homepage, /href="\/dpsa-vacancy-circulars\/"/);
   assert.match(homepage, /href="\/how-to-apply\/">How to apply<\/a>/);
@@ -129,12 +181,15 @@ test("renders a consistent footer with the verified address, grouped links and s
     const nav = source.slice(navStart, source.indexOf("</nav>", navStart));
     assert.match(footer, /Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002/);
     assert.match(footer, /aria-label="Vacancies"[\s\S]*>Vacancies<\/h2>[\s\S]*href="\/government-vacancies\/"/);
+    assert.match(footer, /href="\/saved-vacancies\/">Saved vacancies<\/a>/);
     assert.match(footer, /aria-label="Job seeker resources"[\s\S]*>Job seeker resources<\/h2>[\s\S]*href="\/how-to-apply\/"/);
     assert.match(footer, /href="https:\/\/www\.dpsa\.gov\.za\/newsroom\/psvc\/"/);
-    assert.match(footer, /href="\/#questions-heading">Contact<\/a>/);
+    assert.match(footer, /href="https:\/\/www\.dpsa\.gov\.za\/newsroom\/psvc\/" target="_blank" rel="noopener noreferrer"/);
+    assert.doesNotMatch(footer, /Contact/);
     assert.doesNotMatch(footer, /Independent guide to South African public service vacancies\. Verify details with the official advert and hiring department\./);
     assert.doesNotMatch(nav, /href="\/how-to-apply\/"|href="\/government-vacancies\/"[^>]*>Province/);
-    if (pagePath !== "../index.html") assert.match(nav, /href="\/#questions-heading">Contact<\/a>/);
+    assert.doesNotMatch(nav, /Contact/);
+    assert.match(nav, /href="\/saved-vacancies\/">Saved vacancies<\/a>|href="\/saved-vacancies\/" aria-current="page">Saved vacancies<\/a>/);
     assert.match(footer, /<img src="\/footer-facebook\.svg" alt="">/);
     assert.match(footer, /<img src="\/footer-x\.svg" alt="">/);
     assert.match(footer, /<img src="\/footer-pinterest\.svg" alt="">/);
@@ -149,8 +204,9 @@ test("renders a consistent footer with the verified address, grouped links and s
     assert.match(page, /<img src="\/footer-facebook\.svg" alt="">/);
     assert.match(page, /<img src="\/footer-x\.svg" alt="">/);
     assert.match(page, /<img src="\/footer-pinterest\.svg" alt="">/);
-    assert.match(page, /href="\/#questions-heading">Contact<\/a>/);
+    assert.doesNotMatch(page, /Contact/);
     assert.doesNotMatch(nav, /href="\/how-to-apply\/"|href="\/government-vacancies\/"[^>]*>Province/);
+    assert.match(nav, /href="\/saved-vacancies\/">Saved vacancies<\/a>/);
   }
 
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
@@ -271,6 +327,10 @@ test("builds a circular archive with canonical metadata, linked jobs and a colle
   assert.match(html, /<div class="site-post">/);
   assert.match(html, /<a class="brand home-brand" href="\/" aria-label="DPSA Government Jobs home"><img src="\/south-african-flag\.png"/);
   assert.match(html, /"@type":"CollectionPage"/);
+  assert.match(html, /"@type":"BreadcrumbList"/);
+  assert.match(html, /property="og:image" content="https:\/\/dpsagovernmentjobs\.co\.za\/south-african-coat-of-arms\.png"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
+  assert.match(html, /DPSA circulars<\/a> › Circular 1 of 2026/);
   assert.match(html, /"@type":"ItemList"/);
   assert.doesNotMatch(html, /listing-card-circular/);
 });
@@ -345,17 +405,38 @@ test("removes stale generated circular and province pages on rebuild", async () 
       access(path.join(output, "pdf.worker.min.mjs")),
       access(path.join(output, "scripts", "cv-matcher.js")),
       access(path.join(output, "bookmark.js")),
+      access(path.join(output, "employment-type.js")),
+      access(path.join(output, "favicon.svg")),
       access(path.join(output, "footer-facebook.svg")),
       access(path.join(output, "footer-location.svg")),
       access(path.join(output, "footer-pinterest.svg")),
       access(path.join(output, "footer-x.svg"))
     ]);
     const homepage = await readFile(path.join(output, "index.html"), "utf8");
+    const termsPage = await readFile(path.join(output, "job-alert-terms.html"), "utf8");
+    const circularPage = await readFile(path.join(output, "dpsa-vacancy-circulars", "circular-42-of-2026", "index.html"), "utf8");
+    const savedVacancies = await readFile(path.join(output, "saved-vacancies", "index.html"), "utf8");
+    const howToPage = await readFile(path.join(output, "how-to-apply", "index.html"), "utf8");
     assert.match(homepage, /id="cv-job-matcher"/);
+    assert.match(homepage, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
+    assert.match(termsPage, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
+    assert.match(homepage, /"@type"\s*:\s*"WebSite"/);
+    assert.match(termsPage, /"@type"\s*:\s*"WebSite"/);
+    assert.match(circularPage, /"@type"\s*:\s*"WebSite"/);
+    assert.match(circularPage, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
+    assert.match(savedVacancies, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
+    const howToSchema = [...howToPage.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+      .map(([, schema]) => JSON.parse(schema))
+      .find(schema => schema["@type"] === "HowTo");
+    assert.equal(howToSchema.step.length, 4);
+    assert.equal(howToSchema.step[0].name, "Read the complete advert");
+    assert.match(homepage, /href="https:\/\/www\.dpsa\.gov\.za\/newsroom\/psvc\/" target="_blank" rel="noopener noreferrer"/);
     assert.match(homepage, /id="job-alert-form"/);
     assert.match(homepage, /src="\/bookmark\.js" defer/);
     assert.doesNotMatch(homepage, /id="province-guides-heading"/);
     await access(path.join(output, "job-alert-terms.html"));
+    assert.match(savedVacancies, /data-saved-vacancies-list/);
+    assert.match(savedVacancies, /src="\/bookmark\.js" defer/);
     const provinceHub = await readFile(path.join(output, "government-vacancies", "index.html"), "utf8");
     assert.match(provinceHub, /href="\/government-vacancies\/gauteng\/">Gauteng government vacancies<\/a><span>1 current vacancy/);
     const sitemap = await readFile(path.join(output, "sitemap.xml"), "utf8");
@@ -434,7 +515,10 @@ test("builds province vacancy guides from canonicalized locations", () => {
   assert.match(gautengPage, /not a complete list of all Gauteng Provincial Government or municipal recruitment/);
   assert.match(gautengPage, /Gauteng role/);
   assert.match(gautengPage, /"@type":"CollectionPage"/);
+  assert.match(gautengPage, /"@type":"BreadcrumbList"/);
+  assert.match(gautengPage, /Government vacancies by province<\/a> › Gauteng/);
   assert.match(gautengPage, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
+  assert.equal((gautengPage.match(/data-ad-slot="3081508385"/g) ?? []).length, 1);
   assert.match(nationalPage, /<title>National Government Vacancies \| Current DPSA Jobs<\/title>/);
   assert.match(nationalPage, /not assigned to a specific province/i);
   assert.match(nationalPage, /Unknown location/);
@@ -473,16 +557,19 @@ test("retains only the four newest circulars and keeps uncategorized jobs", () =
   assert.deepEqual(result.jobs.map(job => job.id), ["uncategorized", "circular-2", "circular-3", "circular-4", "circular-5"]);
 });
 
-test("shows vacancies from earlier circulars first while preserving order within each circular", () => {
-  const html = renderHomeJobListings([
-    { id: "circ-2-a", slug: "circular-2-a", title: "Circular 2 A", company: "Department", circularName: "Circular 2 of 2026" },
-    { id: "circ-1-a", slug: "circular-1-a", title: "Circular 1 A", company: "Department", circularName: "Circular 1 of 2026" },
-    { id: "circ-1-b", slug: "circular-1-b", title: "Circular 1 B", company: "Department", circularName: "Circular 1 of 2026" },
-    { id: "circ-1-last-year", slug: "circular-1-last-year", title: "Circular 1 Last Year", company: "Department", circularName: "Circular 1 of 2025" }
-  ]);
+test("shows vacancies from the latest circular first while preserving order within each circular", () => {
+  const jobs = [
+    { id: "circ-2-a", slug: "circular-2-a", title: "Circular 2 A", company: "Department", category: "Health", circularName: "Circular 2 of 2026" },
+    { id: "circ-1-a", slug: "circular-1-a", title: "Circular 1 A", company: "Department", category: "Health", circularName: "Circular 1 of 2026" },
+    { id: "circ-1-b", slug: "circular-1-b", title: "Circular 1 B", company: "Department", category: "Health", circularName: "Circular 1 of 2026" },
+    { id: "circ-1-last-year", slug: "circular-1-last-year", title: "Circular 1 Last Year", company: "Department", category: "Health", circularName: "Circular 1 of 2025" },
+    { id: "other-category", slug: "other-category", title: "Other Category", company: "Department", category: "Education", circularName: "Circular 1 of 2026" },
+    { id: "uncategorized", slug: "uncategorized", title: "Uncategorized", company: "Department", category: "Health" }
+  ];
+  const html = renderJobListings(jobs.filter(job => job.category === "Health"));
   const titleOrder = [...html.matchAll(/<h3><a [^>]+>([^<]+)<\/a><\/h3>/g)].map(match => match[1]);
 
-  assert.deepEqual(titleOrder, ["Circular 1 Last Year", "Circular 1 A", "Circular 1 B", "Circular 2 A"]);
+  assert.deepEqual(titleOrder, ["Circular 2 A", "Circular 1 A", "Circular 1 B", "Circular 1 Last Year", "Uncategorized"]);
 });
 
 test("publishes the supplied salary table with a readable level guide and PDF actions", async () => {
@@ -506,9 +593,9 @@ test("publishes the supplied salary table with a readable level guide and PDF ac
   assert.match(page, /<iframe src="\.\/salary-adjustment-table\.pdf#view=FitH"/);
 });
 
-test("refreshes the homepage stylesheet cache for footer and mobile CV form updates", async () => {
+test("refreshes the homepage stylesheet cache for category scroll and back-to-top updates", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-mobile-cv-form">/);
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-category-scroll-top">/);
 });
 
 test("discloses and gates CV and alert data sharing to the Google Sheet", async () => {
@@ -535,15 +622,20 @@ test("discloses and gates CV and alert data sharing to the Google Sheet", async 
   assert.doesNotMatch(footer, /I agree to receive job-alert emails for these preferences|Alert details are recorded in the DPSAWebsite Google Sheet/);
   assert.doesNotMatch(cvForm, /job-alert-form|Get new government job alerts by email/);
   const terms = await readFile(new URL("../job-alert-terms.html", import.meta.url), "utf8");
-  assert.match(terms, /recorded in the website owner’s <strong>DPSAWebsite<\/strong> Google Sheet/);
-  assert.match(terms, /If you use CV matching and agree to these terms/);
-  assert.match(terms, /Unsubscribing stops further alert emails and updates your subscription status in the sheet/);
-  assert.match(terms, /does not automatically delete the record/);
+  assert.match(terms, /the original CV file is not uploaded to or stored by this website/);
+  assert.match(terms, /your name, email address and extracted CV text are sent to our CV matching service and retained/);
+  assert.match(terms, /Uploading a CV does not subscribe you to job alerts/);
+  assert.match(terms, /confirm your email address/);
+  assert.match(terms, /Unsubscribing stops future alerts but does not automatically delete the associated record/);
+  assert.match(terms, /official advert and hiring department’s instructions take precedence/);
+  assert.match(terms, /except where liability cannot lawfully be excluded/);
+  assert.doesNotMatch(terms, /Google Sheets|Google Sheet|DPSAWebsite/);
+  assert.match(terms, /does not automatically delete the associated record/);
   assert.match(page, /province: "all",\s+department: "all"/);
   assert.match(page, /api\/cv-matches/);
 });
 
-test("loads the AdSense script on every public static HTML page", async () => {
+test("loads AdSense once and provides a responsive ad unit on monetizable static pages", async () => {
   const pages = [
     "../index.html",
     "../404.html",
@@ -558,9 +650,29 @@ test("loads the AdSense script on every public static HTML page", async () => {
   for (const pagePath of pages) {
     const html = await readFile(new URL(pagePath, import.meta.url), "utf8");
     assert.equal(html.split(loaderUrl).length - 1, 1, `${pagePath} must load AdSense exactly once`);
+    const expectedAdUnits = pagePath === "../404.html" ? 0 : 1;
+    assert.equal(html.split('data-ad-slot="3081508385"').length - 1, expectedAdUnits, `${pagePath} must have the intended number of manual ad units`);
+    if (expectedAdUnits) {
+      assert.match(html, /data-ad-format="auto" data-full-width-responsive="true"/, `${pagePath} must use a responsive ad unit`);
+    }
     assert.match(html, /<body class="post-theme(?: home-page)?"(?: [^>]*)?>/, `${pagePath} must use the shared post theme`);
     assert.match(html, /<script type="module" src="\/redirects\.js"><\/script>/, `${pagePath} must include URL redirects`);
   }
+});
+
+test("provides a noindex saved-vacancies page connected to the existing bookmark store", async () => {
+  const page = await readFile(new URL("../saved-vacancies/index.html", import.meta.url), "utf8");
+  const bookmarks = await readFile(new URL("../bookmark.js", import.meta.url), "utf8");
+
+  assert.match(page, /<meta name="robots" content="noindex, nofollow">/);
+  assert.match(page, /href="\/saved-vacancies\/">Saved vacancies<\/a>/);
+  assert.match(page, /data-saved-vacancies-list/);
+  assert.match(page, /data-saved-vacancies-status/);
+  assert.match(page, /src="\/bookmark\.js" defer/);
+  assert.match(bookmarks, /localStorage\.getItem\(STORAGE_KEY\)/);
+  assert.match(bookmarks, /renderSavedVacancies\(\);/);
+  assert.match(bookmarks, /link\.textContent = vacancy\.title/);
+  assert.match(bookmarks, /SAVED_VACANCY_HOSTS\.has\(parsedUrl\.hostname\)/);
 });
 
 test("adds the circular navigation slot to every static page and embeds the application video", async () => {

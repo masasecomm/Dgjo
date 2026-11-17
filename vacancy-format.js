@@ -28,6 +28,18 @@ function splitColonSubpoints(sentence) {
 }
 
 const REQUIREMENTS_LABEL = /\bREQ(?:UIRE|UIR)MENTS?\s*[:.\u2013\u2014-]\s*/i;
+const CIRCULAR_ANNEXURE_HEADING = /(?:^|\n)\s*(?:\d{1,4}\s*)?ANNEXURE\s+[A-Z]\s*[:.]?\s*(?=(?:\n\s*)?(?:(?:NATIONAL|PROVINCIAL)\s+)?DEPARTMENT\s+OF\b|\n|$)/i;
+
+export function findCircularAnnexureBoundary(value) {
+  return CIRCULAR_ANNEXURE_HEADING.exec(String(value ?? ""))?.index ?? -1;
+}
+
+export function trimCircularAnnexureContent(value) {
+  const text = String(value ?? "");
+  const boundary = findCircularAnnexureBoundary(text);
+  if (boundary < 0) return text;
+  return text.slice(0, boundary).replace(/(?:^|\n)\s*\d{1,4}\s*$/, "").trimEnd();
+}
 
 export function cleanVacancyTitle(value) {
   const title = String(value ?? "").replace(/\s+/g, " ").trim();

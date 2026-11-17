@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta name="theme-color" content="#17499e">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="description" content="Find current government vacancies and DPSA vacancies in South Africa for {{CURRENT_YEAR}}. Browse public service circulars, check closing dates and get Z83 application guidance.">
@@ -11,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261117-mobile-cv-form">
+  <link rel="stylesheet" href="styles.css?v=20261117-category-scroll-top">
   <title>Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
@@ -19,9 +20,12 @@
   <meta property="og:title" content="Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}">
   <meta property="og:description" content="Find current government vacancies and DPSA vacancies in South Africa for {{CURRENT_YEAR}}. Browse public service circulars and check closing dates.">
   <meta property="og:url" content="https://dpsagovernmentjobs.co.za/">
+  <meta property="og:image" content="https://dpsagovernmentjobs.co.za/south-african-coat-of-arms.png">
+  <meta property="og:image:alt" content="South African coat of arms">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}">
   <meta name="twitter:description" content="Find current government vacancies and DPSA vacancies in South Africa for {{CURRENT_YEAR}}. Browse public service circulars and check closing dates.">
+  <meta name="twitter:image" content="https://dpsagovernmentjobs.co.za/south-african-coat-of-arms.png">
   <script type="module" src="/redirects.js"></script>
   <script src="/bookmark.js" defer></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
@@ -51,6 +55,7 @@
       <div class="nav-links">
         <a href="/" aria-current="page">Home</a>
         <details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a><!-- CIRCULAR_NAV_ITEMS --></div></details>
+        <a href="/saved-vacancies/">Saved vacancies</a>
         <a href="#cv-job-matcher">CV job match</a>
       </div>
     </nav>
@@ -80,6 +85,7 @@
             </label>
             <button type="submit">Find Jobs <span aria-hidden="true">→</span></button>
           </form>
+          <nav id="employment-type-filters" class="province-filters employment-type-filters" aria-label="Browse jobs by employment type"></nav>
         </div>
       </div>
     </section>
@@ -88,6 +94,7 @@
       <div class="home-section-heading">
           <div>
             <p class="home-kicker">TAKE THE NEXT STEP</p>
+            <nav id="listing-breadcrumb" class="breadcrumb" aria-label="Breadcrumb" hidden></nav>
             <h2 id="listings-heading">GOVERNMENT VACANCIES</h2>
             <p>Explore current public service roles and find the right opportunity for you.</p>
           </div>
@@ -105,6 +112,7 @@
         <p class="listing-empty">Loading South African job listings…</p>
         <!-- JOB_LISTINGS_END -->
       </div>
+      <aside class="content-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>
     </section>
 
     <section class="section cv-matcher-section" id="cv-job-matcher" aria-labelledby="cv-job-matcher-heading">
@@ -209,6 +217,7 @@
           <nav class="footer-column" aria-label="Vacancies">
             <h2>Vacancies</h2>
             <a href="/">All vacancies</a>
+            <a href="/saved-vacancies/">Saved vacancies</a>
             <a href="/government-vacancies/">Vacancies by province</a>
             <a href="/dpsa-vacancy-circulars/">DPSA circulars</a>
           </nav>
@@ -221,7 +230,6 @@
           <nav class="footer-column footer-social-column" aria-label="About and social media">
             <h2>Official information</h2>
             <a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a>
-            <a href="/#questions-heading">Contact</a>
             <span class="footer-follow-label">Follow us</span>
             <div class="social-links">
               <a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook">
@@ -252,6 +260,12 @@
       salaryLevelHref
     } from "./salary-scales.js";
     import { cleanVacancyLocation, cleanVacancyTitle } from "./vacancy-format.js";
+    import {
+      displayEmploymentType,
+      EMPLOYMENT_TYPE_CATEGORIES,
+      employmentTypeCategory,
+      isEmploymentTypeCategory
+    } from "./employment-type.js";
 
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
     const alertsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/alerts/subscribe";
@@ -268,6 +282,11 @@
     const jobProvince = document.querySelector("#job-province");
     const jobDepartment = document.querySelector("#job-department");
     const provinceFilters = document.querySelector("#province-filters");
+    const employmentTypeFilters = document.querySelector("#employment-type-filters");
+    const listingsHeading = document.querySelector("#listings-heading");
+    const listingBreadcrumb = document.querySelector("#listing-breadcrumb");
+    const cvMatcherSection = document.querySelector("#cv-job-matcher");
+    const continuationSection = document.querySelector(".home-job-continuation");
     const cvMatchForm = document.querySelector("#cv-match-form");
     const cvMatchName = document.querySelector("#cv-match-name");
     const cvMatchEmail = document.querySelector("#cv-match-email");
@@ -285,6 +304,7 @@
     const CV_MATCHES_PER_PAGE = 20;
     let allJobs = [];
     let filteredJobs = [];
+    let selectedEmploymentType = "";
     let cvMatches = [];
     let visibleJobCount = JOBS_PER_PAGE;
     const monthNumbers = new Map([
@@ -312,13 +332,36 @@
       const departments = [...new Set(jobs.map(job => String(job.company ?? "").trim()).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
       const selectedProvince = normalizeProvince(new URLSearchParams(location.search).get("province"));
-      const selectedDepartment = new URLSearchParams(location.search).get("department") ?? "";
-      const selectedQuery = new URLSearchParams(location.search).get("q") ?? "";
+      const params = new URLSearchParams(location.search);
+      const selectedDepartment = params.get("department") ?? "";
+      const selectedQuery = params.get("q") ?? "";
+      const requestedEmploymentType = params.get("employmentType") ?? "";
+      selectedEmploymentType = isEmploymentTypeCategory(requestedEmploymentType) ? requestedEmploymentType : "";
       jobQuery.value = selectedQuery;
       jobProvince.replaceChildren(new Option("All Provinces", ""), ...provinces.map(name => new Option(name, name)));
       jobDepartment.replaceChildren(new Option("All Departments", ""), ...departments.map(name => new Option(name, name)));
       if (selectedProvince) jobProvince.value = selectedProvince;
       if (departments.includes(selectedDepartment)) jobDepartment.value = selectedDepartment;
+
+      const employmentTypeCounts = new Map(EMPLOYMENT_TYPE_CATEGORIES.map(category => [category, 0]));
+      for (const job of jobs) {
+        const category = employmentTypeCategory(job);
+        if (employmentTypeCounts.has(category)) {
+          employmentTypeCounts.set(category, employmentTypeCounts.get(category) + 1);
+        }
+      }
+      employmentTypeFilters.replaceChildren();
+      for (const category of EMPLOYMENT_TYPE_CATEGORIES) {
+        const link = document.createElement("a");
+        link.className = "province-filter";
+        link.href = `/?employmentType=${encodeURIComponent(category)}#listings`;
+        link.textContent = `${category} (${employmentTypeCounts.get(category)})`;
+        if (category === selectedEmploymentType) {
+          link.classList.add("is-active");
+          link.setAttribute("aria-current", "page");
+        }
+        employmentTypeFilters.append(link);
+      }
 
       provinceFilters.replaceChildren();
       const filters = [{ name: "All Provinces", value: "", count: jobs.length },
@@ -343,23 +386,68 @@
       filterJobListings();
     }
 
+    function updateCvMatcherPosition() {
+      if (jobProvince.value || jobDepartment.value || selectedEmploymentType) {
+        continuationSection.after(cvMatcherSection);
+      } else {
+        continuationSection.before(cvMatcherSection);
+      }
+    }
+
     function filterJobListings() {
       const query = jobQuery.value.trim().toLowerCase();
       const province = jobProvince.value;
       const department = jobDepartment.value.toLowerCase();
-      filteredJobs = allJobs.filter(job => {
+      updateCvMatcherPosition();
+      const departmentName = jobDepartment.value.trim();
+      const headingCategories = [selectedEmploymentType, departmentName, province]
+        .filter(Boolean)
+        .map(category => category.toLocaleUpperCase("en-ZA"));
+      listingsHeading.textContent = headingCategories.length
+        ? `${headingCategories.join(" · ")} GOVERNMENT VACANCIES`
+        : "GOVERNMENT VACANCIES";
+      const breadcrumbItems = [
+        { name: "Home", href: "/" },
+        ...(province ? [{ name: province, href: `/?province=${encodeURIComponent(province)}#listings` }] : []),
+        ...(departmentName ? [{ name: departmentName, href: `/?department=${encodeURIComponent(departmentName)}#listings` }] : []),
+        ...(selectedEmploymentType ? [{ name: `${selectedEmploymentType} vacancies` }] : [])
+      ];
+      listingBreadcrumb.hidden = breadcrumbItems.length === 1;
+      listingBreadcrumb.replaceChildren();
+      breadcrumbItems.forEach((item, index) => {
+        if (index) listingBreadcrumb.append(document.createTextNode(" › "));
+        if (item.href && index < breadcrumbItems.length - 1) {
+          const link = document.createElement("a");
+          link.href = item.href;
+          link.textContent = item.name;
+          listingBreadcrumb.append(link);
+        } else {
+          listingBreadcrumb.append(document.createTextNode(item.name));
+        }
+      });
+      filteredJobs = sortJobsByCircular(allJobs.filter(job => {
         if (province && String(job.province ?? "").trim() !== province) return false;
         if (department && String(job.company ?? "").trim().toLowerCase() !== department) return false;
+        if (selectedEmploymentType && employmentTypeCategory(job) !== selectedEmploymentType) return false;
         if (!query) return true;
         return [
           job.title, job.company, job.location, job.province, job.refNo,
           job.category, job.type, job.salaryText, job.requirements, job.duties
         ].some(value => String(value ?? "").toLowerCase().includes(query));
-      });
+      }));
       provinceFilters.querySelectorAll(".province-filter").forEach(link => {
         link.classList.toggle("is-active", link.dataset.province === province);
       });
+      employmentTypeFilters.querySelectorAll(".province-filter").forEach(link => {
+        link.classList.toggle("is-active", new URL(link.href).searchParams.get("employmentType") === selectedEmploymentType);
+        if (new URL(link.href).searchParams.get("employmentType") === selectedEmploymentType) {
+          link.setAttribute("aria-current", "page");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
       const criteria = [query && `matching “${jobQuery.value.trim()}”`, province, jobDepartment.value].filter(Boolean);
+      if (selectedEmploymentType) criteria.unshift(selectedEmploymentType);
       jobCount.textContent = `${filteredJobs.length} ${filteredJobs.length === 1 ? "opportunity" : "opportunities"}${criteria.length ? ` · ${criteria.join(" · ")}` : ""}`;
       visibleJobCount = JOBS_PER_PAGE;
       showJobListings(filteredJobs);
@@ -424,6 +512,7 @@
         department: "M3 8h18v12H3z M8 8V5h8v3 M3 12h18 M10 12v2h4v-2",
         location: "M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0 M12 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5",
         salary: "M3 6h18v12H3z M3 9h18 M3 15h18 M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4",
+        level: "M4 20h16 M6 20v-5h4v5 M14 20V9h4v11 M8 15V9h8 M10 9V4h4v5",
         clock: "M12 8v4l2 2 M5.5 4.5 3 7 M18.5 4.5 21 7 M6 20l-2 2 M18 20l2 2 M12 22a9 9 0 1 0 0-18 9 9 0 0 0 0 18"
       };
       path.setAttribute("d", shapes[type]);
@@ -548,7 +637,7 @@
         if (jobLevel) {
           const levelItem = document.createElement("span");
           levelItem.className = "listing-meta-item";
-          levelItem.append(metadataIcon("salary"), document.createTextNode("Job level: "));
+          levelItem.append(metadataIcon("level"), document.createTextNode("Job level: "));
           const levelLink = document.createElement("a");
           levelLink.className = "listing-salary-link";
           levelLink.href = salaryLevelHref(jobLevel);
@@ -567,11 +656,17 @@
 
         const bottom = document.createElement("div");
         bottom.className = "listing-card-bottom";
-        const employmentType = String(job.natureOfAppointment ?? "").trim() || String(job.type ?? "").trim();
+        const employmentType = displayEmploymentType(job);
         const scope = isDpsaJob ? (PROVINCE_CRESTS[job.province] ? "Provincial" : "National") : "";
         const circularName = canonicalCircularName(job.circularName);
         const badges = [
-          { label: employmentType, className: "listing-card-type" },
+          {
+            label: employmentType,
+            className: "listing-card-type",
+            href: employmentTypeCategory(job)
+              ? `/?employmentType=${encodeURIComponent(employmentTypeCategory(job))}#listings`
+              : ""
+          },
           { label: scope, className: `listing-card-type listing-card-scope-${scope.toLowerCase()}` },
           { label: circularName, className: "listing-card-type listing-card-circular", href: circularArchivePath(circularName) },
           { label: expiry, className: "listing-card-type listing-card-expiry" }
@@ -781,6 +876,7 @@
       if (jobQuery.value.trim()) params.set("q", jobQuery.value.trim());
       if (jobProvince.value) params.set("province", jobProvince.value);
       if (jobDepartment.value) params.set("department", jobDepartment.value);
+      if (selectedEmploymentType) params.set("employmentType", selectedEmploymentType);
       history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}#listings`);
       filterJobListings();
       document.querySelector("#listings").scrollIntoView({ behavior: "smooth" });
@@ -790,8 +886,15 @@
       const link = event.target.closest(".province-filter");
       if (!link) return;
       event.preventDefault();
+      jobQuery.value = "";
+      jobDepartment.value = "";
       jobProvince.value = link.dataset.province ?? "";
+      selectedEmploymentType = "";
       filterJobListings();
+      const params = new URLSearchParams();
+      if (jobProvince.value) params.set("province", jobProvince.value);
+      history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}#listings`);
+      provinceFilters.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
     async function loadJobListings() {
@@ -841,6 +944,19 @@
     }
 
     loadJobListings();
+    const backToTopButton = document.querySelector("#back-to-top");
+    const updateBackToTopVisibility = () => {
+      backToTopButton.hidden = window.scrollY < 500;
+    };
+    window.addEventListener("scroll", updateBackToTopVisibility, { passive: true });
+    updateBackToTopVisibility();
+    backToTopButton.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
   </script>
+  <button id="back-to-top" class="back-to-top" type="button" aria-label="Back to top" title="Back to top" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg>
+    <span>Top</span>
+  </button>
 </body>
 </html>

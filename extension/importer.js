@@ -1,4 +1,8 @@
-import { cleanSalaryText, formatVacancyText } from "../vacancy-format.js";
+import {
+  cleanSalaryText,
+  findCircularAnnexureBoundary,
+  formatVacancyText
+} from "../vacancy-format.js";
 
 const MAX_PDF_BYTES = 40 * 1024 * 1024;
 const MAX_PDF_PAGES = 500;
@@ -78,14 +82,17 @@ function readField(text, matches, key) {
 }
 
 function parseAppointmentType(value, text) {
-  const match = value.match(/\b(Permanent|Contract|Sessional|Internship|Temporary|Full[\s-]?Time|Part[\s-]?Time)\b/i);
+  const match = value.match(/\b(Permanent|Contract|Sessional|Internship|Seasonal|Temporary|Full[\s-]?Time|Part[\s-]?Time)\b/i);
   if (match) {
     const type = match[1].toLowerCase().replace(/[\s-]/g, "");
     if (type === "internship") return "Internship";
-    if (["contract", "sessional", "temporary", "parttime"].includes(type)) return "Contract";
+    if (type === "seasonal") return "Seasonal";
+    if (type === "sessional") return "Sessional";
+    if (["contract", "temporary", "parttime"].includes(type)) return "Contract";
     return "Permanent";
   }
-  if (/\bsessional\b|\bcontract\b/i.test(text)) return "Contract";
+  if (/\bsessional\b/i.test(text)) return "Sessional";
+  if (/\bcontract\b/i.test(text)) return "Contract";
   if (/\bstipend\b/i.test(text)) return "Internship";
   return "Permanent";
 }
@@ -247,7 +254,11 @@ export function parseDpsaCircular(text, { fileName = "", sourceUrl = "", links =
   const vacancies = [];
   for (let index = 0; index < matches.length; index++) {
     const match = matches[index];
-    const end = matches[index + 1]?.index ?? normalized.length;
+    const bodyStart = match.index + match[0].length;
+    const nextPostStart = matches[index + 1]?.index ?? normalized.length;
+    const nextPostBody = normalized.slice(bodyStart, nextPostStart);
+    const annexureBoundary = findCircularAnnexureBoundary(nextPostBody);
+    const end = annexureBoundary < 0 ? nextPostStart : bodyStart + annexureBoundary;
     const previousPageMarker = [...normalized.slice(0, match.index).matchAll(/__PAGE_(\d+)__/g)].at(-1);
     const departmentContext = departmentHeadingBefore(normalized, match.index);
     const pageNumbers = [
@@ -256,7 +267,7 @@ export function parseDpsaCircular(text, { fileName = "", sourceUrl = "", links =
     ];
     const vacancy = parsePost(
       match[1].trim(),
-      normalized.slice(match.index + match[0].length, end),
+      normalized.slice(bodyStart, end),
       circular,
       sourceUrl,
       links,

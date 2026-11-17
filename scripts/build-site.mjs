@@ -27,6 +27,7 @@ import {
   salaryLevelHref
 } from "../salary-scales.js";
 import { cleanVacancyLocation, cleanVacancyTitle } from "../vacancy-format.js";
+import { displayEmploymentType, employmentTypeCategory } from "../employment-type.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const extensionRequire = createRequire(new URL("../extension/package.json", import.meta.url));
@@ -50,6 +51,7 @@ const PAST_CIRCULARS_END = "<!-- PAST_CIRCULARS_END -->";
 const PROVINCE_GUIDES_START = "<!-- PROVINCE_GUIDES_START -->";
 const PROVINCE_GUIDES_END = "<!-- PROVINCE_GUIDES_END -->";
 const CIRCULAR_NAV_ITEMS = "<!-- CIRCULAR_NAV_ITEMS -->";
+const AD_UNIT_MARKUP = '<aside class="content-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>';
 const SNAPSHOT_FIELDS = [
   "id", "slug", "title", "company", "circularName", "sourceUrl", "centre", "province",
   "location", "salaryText", "level", "natureOfAppointment", "type", "closingDate", "refNo", "category"
@@ -137,6 +139,7 @@ function metadataIcon(type) {
     department: "M3 8h18v12H3z M8 8V5h8v3 M3 12h18 M10 12v2h4v-2",
     location: "M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0 M12 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5",
     salary: "M3 6h18v12H3z M3 9h18 M3 15h18 M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4",
+    level: "M4 20h16 M6 20v-5h4v5 M14 20V9h4v11 M8 15V9h8 M10 9V4h4v5",
     clock: "M12 8v4l2 2 M5.5 4.5 3 7 M18.5 4.5 21 7 M6 20l-2 2 M18 20l2 2 M12 22a9 9 0 1 0 0-18 9 9 0 0 0 0 18"
   };
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${shapes[type]}"></path></svg>`;
@@ -155,7 +158,7 @@ function isDisplayableJob(job) {
 }
 
 export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
-  const displayableJobs = jobs.filter(isDisplayableJob);
+  const displayableJobs = sortJobsByCircular(jobs.filter(isDisplayableJob));
   if (!displayableJobs.length) {
     return '<p class="listing-empty">There are no current job listings. Please check back soon.</p>';
   }
@@ -187,17 +190,18 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
       `<span class="listing-meta-item">${metadataIcon("department")}${department}</span>`,
       location ? `<span class="listing-meta-item">${metadataIcon("location")}${escapeHtml(location)}</span>` : "",
       job.salaryText ? `<span class="listing-meta-item">${metadataIcon("salary")}${salary}</span>` : "",
-      jobLevel ? `<span class="listing-meta-item">${metadataIcon("salary")}Job level: <a class="listing-salary-link" href="${salaryLevelHref(jobLevel)}">${jobLevel}</a></span>` : "",
+      jobLevel ? `<span class="listing-meta-item">${metadataIcon("level")}Job level: <a class="listing-salary-link" href="${salaryLevelHref(jobLevel)}">${jobLevel}</a></span>` : "",
       closingDate
         ? `<span class="listing-meta-item" aria-label="Closing: ${escapeHtml(closingDate)}">${metadataIcon("clock")}Closing: ${escapeHtml(closingDate)}</span>`
         : ""
     ].filter(Boolean).join("");
-    const employmentType = String(job.natureOfAppointment ?? "").trim() || String(job.type ?? "").trim();
+    const employmentType = displayEmploymentType(job);
+    const employmentCategory = employmentTypeCategory(job);
     const expiry = expiryLabel(job.closingDate);
     const circularName = canonicalCircularName(job.circularName);
     const circularPath = includeCircularBadge ? circularArchivePath(circularName) : "";
     const badges = [
-      employmentType && `<span class="listing-card-type">${escapeHtml(employmentType)}</span>`,
+      employmentType && `<${employmentCategory ? "a" : "span"} class="listing-card-type"${employmentCategory ? ` href="/?employmentType=${encodeURIComponent(employmentCategory)}#listings"` : ""}>${escapeHtml(employmentType)}</${employmentCategory ? "a" : "span"}>`,
       scope && `<span class="listing-card-type listing-card-scope-${scope.toLowerCase()}">${scope}</span>`,
       circularName && circularPath
         ? `<a class="listing-card-type listing-card-circular" href="${circularPath}">${escapeHtml(circularName)}</a>`
@@ -277,10 +281,10 @@ function renderSiteFooter() {
       <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
       <address class="footer-address"><img src="/footer-location.svg" alt=""><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address>
     </div>
-    <nav class="footer-column" aria-label="Vacancies"><h2>Vacancies</h2><a href="/">All vacancies</a><a href="/government-vacancies/">Vacancies by province</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a></nav>
+    <nav class="footer-column" aria-label="Vacancies"><h2>Vacancies</h2><a href="/">All vacancies</a><a href="/saved-vacancies/">Saved vacancies</a><a href="/government-vacancies/">Vacancies by province</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a></nav>
     <nav class="footer-column" aria-label="Job seeker resources"><h2>Job seeker resources</h2><a href="/how-to-apply/">How to apply</a><a href="/national-treasury-salary-scales/">National Treasury salary scales</a><a href="/job-alert-terms.html">Job alert terms</a></nav>
     <nav class="footer-column footer-social-column" aria-label="Official information and social media">
-      <h2>Official information</h2><a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a><a href="/#questions-heading">Contact</a><span class="footer-follow-label">Follow us</span>
+      <h2>Official information</h2><a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a><span class="footer-follow-label">Follow us</span>
       <div class="social-links">
         <a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><img src="/footer-facebook.svg" alt=""></a>
         <a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><img src="/footer-x.svg" alt=""></a>
@@ -341,6 +345,12 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
       url: `${SITE_URL}/`
     }
   };
+  const breadcrumbs = breadcrumbStructuredData([
+    ["Home", `${SITE_URL}/`],
+    ["Government vacancies by province", `${SITE_URL}/government-vacancies/`],
+    [province, canonicalUrl]
+  ]);
+  const shareImageUrl = `${SITE_URL}${PROVINCE_CRESTS[province] || "/south-african-coat-of-arms.png"}`;
 
   return `<!doctype html>
 <html lang="en-ZA">
@@ -362,15 +372,23 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonicalUrl}">
+  <meta property="og:image" content="${shareImageUrl}">
+  <meta property="og:image:alt" content="${escapeHtml(province)} government vacancies">
+  <meta property="og:locale" content="en_ZA">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${shareImageUrl}">
   <script type="module" src="/redirects.js"></script>
   <script src="/bookmark.js" defer></script>
   <script type="application/ld+json">${jsonLd(structuredData)}</script>
+  <script type="application/ld+json">${jsonLd(breadcrumbs)}</script>
 </head>
 <body class="post-theme">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
     <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/#questions-heading">Contact</a></div>
+    <div class="nav-links"><a href="/">Vacancies</a><a href="/saved-vacancies/">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details></div>
   </nav></header>
   <main id="main">
     <div class="site-post">
@@ -378,13 +396,14 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
       <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> South African public service vacancies</p>
       <h1>${isGauteng ? "Gauteng Government Vacancies" : isNational ? "National Government Vacancies" : `Government vacancies in ${escapeHtml(province)}`}</h1>
       <p class="lead">${escapeHtml(intro)}</p>
-      <a class="button" href="https://www.dpsa.gov.za/newsroom/psvc/" rel="noopener noreferrer">Check the official DPSA circulars</a>
+      <a class="button" href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Check the official DPSA circulars</a>
     </div></section>
     <section class="content-section"><div class="shell">
-      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> › Government vacancies › ${escapeHtml(province)}</nav>
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/government-vacancies/">Government vacancies by province</a> › ${escapeHtml(province)}</nav>
       <h2>${isNational ? "Current national government vacancies" : `Current government jobs in ${escapeHtml(province)}`}</h2>
       <p>${jobs.length} current ${jobs.length === 1 ? "vacancy is" : "vacancies are"} listed for ${isNational ? "the national category" : `this province`}. Confirm that the advertised location and deadline meet your needs before applying.</p>
       <div class="listing-grid">${renderJobListings(jobs)}</div>
+      ${jobs.length ? AD_UNIT_MARKUP : ""}
       <h2>Before you apply</h2>
       <ol>
         <li>Read the full official department advert, including qualifications and reference number.</li>
@@ -408,6 +427,19 @@ function jsonLd(value) {
     "\u2028": "\\u2028",
     "\u2029": "\\u2029"
   })[character]);
+}
+
+function breadcrumbStructuredData(items) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map(([name, itemUrl], index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name,
+      item: itemUrl
+    }))
+  };
 }
 
 export function renderCircularArchivePage(circularName, jobs) {
@@ -445,6 +477,12 @@ export function renderCircularArchivePage(circularName, jobs) {
       url: `${SITE_URL}/`
     }
   };
+  const breadcrumbs = breadcrumbStructuredData([
+    ["Home", `${SITE_URL}/`],
+    ["DPSA circulars", `${SITE_URL}/dpsa-vacancy-circulars/`],
+    [name, canonicalUrl]
+  ]);
+  const shareImageUrl = `${SITE_URL}/south-african-coat-of-arms.png`;
   const sourceUrl = jobs.find(job =>
     typeof job.sourceUrl === "string" && /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(job.sourceUrl)
   )?.sourceUrl;
@@ -470,15 +508,23 @@ export function renderCircularArchivePage(circularName, jobs) {
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonicalUrl}">
+  <meta property="og:image" content="${shareImageUrl}">
+  <meta property="og:image:alt" content="South African coat of arms">
+  <meta property="og:locale" content="en_ZA">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${shareImageUrl}">
   <script type="module" src="/redirects.js"></script>
   <script src="/bookmark.js" defer></script>
   <script type="application/ld+json">${jsonLd(structuredData)}</script>
+  <script type="application/ld+json">${jsonLd(breadcrumbs)}</script>
 </head>
 <body class="post-theme">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
     <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/#questions-heading">Contact</a></div>
+    <div class="nav-links"><a href="/">Vacancies</a><a href="/saved-vacancies/">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details></div>
   </nav></header>
   <main id="main">
     <div class="site-post">
@@ -492,6 +538,7 @@ export function renderCircularArchivePage(circularName, jobs) {
       <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/dpsa-vacancy-circulars/">DPSA circulars</a> › ${escapeHtml(name)}</nav>
       <h2>Current jobs in ${escapeHtml(name)}</h2>
       <div class="listing-grid">${jobsMarkup}</div>
+      ${jobs.length ? AD_UNIT_MARKUP : ""}
       <p class="independent-note">This is an independent vacancy guide. Verify every job with the official circular and the hiring department.</p>
     </div></section>
     </div>
@@ -549,6 +596,98 @@ function replaceUniqueMarker(source, marker, replacement) {
     throw new Error(`Expected one ${marker} marker.`);
   }
   return `${source.slice(0, index)}${replacement}${source.slice(index + marker.length)}`;
+}
+
+function addWebsiteStructuredData(html) {
+  const hasStandaloneWebsiteSchema = /<script\b(?=[^>]*\btype=["']application\/ld\+json["'])[^>]*>\s*\{\s*"@context"\s*:\s*"https:\/\/schema\.org"\s*,\s*"@type"\s*:\s*"WebSite"/i.test(html);
+  if (hasStandaloneWebsiteSchema) return html;
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "DPSA Government Jobs",
+    url: `${SITE_URL}/`,
+    description: "An independent guide to South African public service vacancy circulars and applications.",
+    inLanguage: "en-ZA"
+  };
+  const markup = `<script id="website-structured-data" type="application/ld+json">${jsonLd(schema)}</script>`;
+  return html.replace("</head>", `${markup}</head>`);
+}
+
+function addFaviconLink(html) {
+  if (/<link\b(?=[^>]*\brel=["'][^"']*\bicon\b)(?=[^>]*\bhref=["'][^"']*favicon\.svg["'])[^>]*>/i.test(html)) return html;
+  return html.replace("</head>", '<link rel="icon" type="image/svg+xml" href="/favicon.svg"></head>');
+}
+
+function validatePublishedSeo(html, filePath) {
+  const isNoIndex = /<meta\b[^>]*\bname=["']robots["'][^>]*\bcontent=["'][^"']*\bnoindex\b/i.test(html);
+  const pageLabel = path.relative(ROOT, filePath);
+  const errors = [];
+  if (!/<link\b(?=[^>]*\brel=["'][^"']*\bicon\b)(?=[^>]*\bhref=["'][^"']*favicon\.svg["'])[^>]*>/i.test(html)) {
+    errors.push("missing favicon link");
+  }
+  if (!/<img\b[^>]*\balt\s*=/i.test(html) && /<img\b/i.test(html)) {
+    errors.push("image is missing alt text");
+  }
+  for (const image of html.matchAll(/<img\b[^>]*>/gi)) {
+    if (!/\balt\s*=/i.test(image[0])) errors.push("image is missing alt text");
+  }
+  if (!isNoIndex) {
+    if (!/<title>[^<]+\S[^<]*<\/title>/i.test(html)) errors.push("missing page title");
+    if (!/<meta\b(?=[^>]*\bname=["']description["'])(?=[^>]*\bcontent=["'][^"']+\S[^"']*["'])[^>]*>/i.test(html)) {
+      errors.push("missing meta description");
+    }
+    if (!/<link\b(?=[^>]*\brel=["']canonical["'])(?=[^>]*\bhref=["']https?:\/\/[^"']+["'])[^>]*>/i.test(html)) {
+      errors.push("missing absolute canonical URL");
+    }
+    if (!/<h1\b[^>]*>[\s\S]*?\S[\s\S]*?<\/h1>/i.test(html)) errors.push("missing page heading");
+  }
+  for (const [, jsonLd] of html.matchAll(/<script\b(?=[^>]*\btype=["']application\/ld\+json["'])[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      JSON.parse(jsonLd);
+    } catch {
+      errors.push("invalid JSON-LD structured data");
+    }
+  }
+  if (errors.length) throw new Error(`SEO validation failed for ${pageLabel}: ${[...new Set(errors)].join(", ")}.`);
+}
+
+function openExternalLinksInNewTabs(html) {
+  const internalHosts = new Set(["dpsagovernmentjobs.co.za", "www.dpsagovernmentjobs.co.za", "jobs.dpsagovernmentjobs.co.za"]);
+  return html.replace(/<a\b[^>]*>/gi, anchor => {
+    const href = anchor.match(/\bhref\s*=\s*(["'])(.*?)\1/i)?.[2];
+    if (!href) return anchor;
+    let url;
+    try {
+      url = new URL(href.replace(/&amp;/g, "&"), SITE_URL);
+    } catch {
+      return anchor;
+    }
+    if (!/^https?:$/.test(url.protocol) || internalHosts.has(url.hostname.toLowerCase())) return anchor;
+
+    let updated = /\btarget\s*=/i.test(anchor)
+      ? anchor.replace(/\btarget\s*=\s*(["']).*?\1/i, 'target="_blank"')
+      : anchor.replace(/>$/, ' target="_blank">');
+    const relMatch = updated.match(/\brel\s*=\s*(["'])(.*?)\1/i);
+    if (!relMatch) return updated.replace(/>$/, ' rel="noopener noreferrer">');
+    const relTokens = new Set(relMatch[2].split(/\s+/).filter(Boolean));
+    relTokens.add("noopener");
+    relTokens.add("noreferrer");
+    return updated.replace(relMatch[0], `rel="${[...relTokens].join(" ")}"`);
+  });
+}
+
+async function enhancePublishedHtml(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await enhancePublishedHtml(entryPath);
+    } else if (entry.isFile() && entry.name.endsWith(".html")) {
+      const html = await readFile(entryPath, "utf8");
+      const enhancedHtml = openExternalLinksInNewTabs(addWebsiteStructuredData(addFaviconLink(html)));
+      validatePublishedSeo(enhancedHtml, entryPath);
+      await writeFile(entryPath, enhancedHtml);
+    }
+  }
 }
 
 export async function buildSite() {
@@ -615,11 +754,11 @@ export async function buildSite() {
   await cp(path.join(ROOT, "scripts", "cv-matcher.js"), path.join(output, "scripts", "cv-matcher.js"), { force: true });
   await writeFile(path.join(output, "index.html"), index);
   const files = [
-    "404.html", "CNAME", "ads.txt", "job-alert-terms.html", "jobs.json", "robots.txt", "sitemap.xml",
+    "404.html", "CNAME", "ads.txt", "favicon.svg", "job-alert-terms.html", "jobs.json", "robots.txt", "sitemap.xml",
     "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
     "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
     "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",
-    "bookmark.js", "circulars.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
+    "bookmark.js", "circulars.js", "employment-type.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
     "footer-facebook.svg", "footer-location.svg", "footer-pinterest.svg", "footer-x.svg",
     "south-african-flag.png", "styles.css", "vacancy-format.js"
   ];
@@ -629,7 +768,7 @@ export async function buildSite() {
   const notFoundPath = path.join(output, "404.html");
   const notFoundPage = await readFile(notFoundPath, "utf8");
   await writeFile(notFoundPath, replaceUniqueMarker(notFoundPage, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
-  for (const directory of ["dpsa-vacancy-circulars", "government-vacancies", "how-to-apply", "national-treasury-salary-scales"]) {
+  for (const directory of ["dpsa-vacancy-circulars", "government-vacancies", "how-to-apply", "national-treasury-salary-scales", "saved-vacancies"]) {
     await cp(path.join(ROOT, directory), path.join(output, directory), { recursive: true, force: true });
   }
 
@@ -695,6 +834,7 @@ export async function buildSite() {
   const sitemapPath = path.join(output, "sitemap.xml");
   const sitemap = await readFile(sitemapPath, "utf8");
   await writeFile(sitemapPath, renderSitemapWithCircularArchives(sitemap, circularGroups, new Date().toISOString().slice(0, 10), provinceGroups));
+  await enhancePublishedHtml(output);
   console.log(`Built homepage with ${validJobs.length} listings, ${circularGroups.length} circular archives and ${provinceGroups.length} province guides.`);
 }
 

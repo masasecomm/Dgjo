@@ -250,12 +250,25 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .home-section-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 24px; }
 .home-text-link { display: inline-flex; align-items: center; gap: 8px; color: #087ad2; font-size: 13px; font-weight: 700; text-decoration: none; }
 .home-text-link:hover { gap: 12px; color: #13377f; }
-.province-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 9px; margin: 0 0 18px; }
+.province-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 9px; margin: 0 0 18px; scroll-margin-top: 16px; }
 .province-filter { display: inline-flex; min-height: 39px; align-items: center; justify-content: center; padding: 0 17px; border: 1px solid transparent; border-radius: 999px; color: #28323c; background: #eff3f5; font-size: 11px; font-weight: 700; text-decoration: none; transition: background .16s ease, box-shadow .16s ease; }
 .province-filter:hover { background: #e5ebee; }
 .province-filter.is-active { border-color: #e8edf0; color: #17499e; background: #fff; box-shadow: 0 5px 16px rgba(23,35,31,.08); }
+.back-to-top { position: fixed; right: 22px; bottom: 22px; z-index: 20; display: grid; width: 54px; min-height: 54px; place-content: center; justify-items: center; gap: 1px; padding: 5px; border: 0; border-radius: 50%; color: #fff; background: #17499e; box-shadow: 0 5px 18px rgba(12,35,78,.28); cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; line-height: 1; }
+.back-to-top[hidden] { display: none; }
+.back-to-top svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+.back-to-top:hover { background: #13377f; }
+.back-to-top:focus-visible { outline: 3px solid #8ab8f0; outline-offset: 3px; }
 .job-count { margin: 0 0 13px; color: #78838d; font-size: 11px; text-align: right; }
 .listing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.saved-vacancies-list { margin-top: 20px; }
+.saved-vacancy-card { min-height: 120px; justify-content: center; }
+.saved-vacancy-card > .bookmark-button { position: absolute; top: 16px; right: 16px; }
+.saved-vacancy-card .listing-card-content { padding-right: 38px; }
+.saved-vacancy-card h3 { margin: 0; font-size: 19px; line-height: 1.35; overflow-wrap: anywhere; }
+.saved-vacancy-card h3 a { color: #32373c; text-decoration: none; }
+.saved-vacancy-card h3 a:hover { color: #17499e; }
+.saved-vacancy-note, .saved-vacancy-storage-note { color: #737d85 !important; font-size: 13px; }
 .listing-card {
   position: relative;
   display: grid;
@@ -451,6 +464,8 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .site-post .salary-guide { padding: 18px 0 0; }
 .site-post .salary-guide .shell { width: 100%; max-width: none; margin-inline: 0; }
 .site-post .breadcrumb { margin-top: 0; }
+.content-ad { display: flex; justify-content: center; max-width: 100%; margin: 24px auto; overflow: hidden; }
+.content-ad .adsbygoogle { width: 100%; max-width: 970px; min-height: 100px; }
 .site-post.not-found { min-height: 56vh; display: grid; align-content: center; }
 
 .home-page #main { padding: 0 0 24px; }
