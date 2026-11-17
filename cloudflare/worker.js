@@ -929,9 +929,15 @@ function relatedJobsMarkup(job, jobs, origin) {
   const cards = relatedJobs.map(related => {
     const province = normalizeProvince(related.province) || "National";
     const href = new URL(jobPagePath(related), origin).href;
-    return `<a class="related-job-card" href="${escapeHtml(href)}"><strong>${escapeHtml(displayJobTitle(related.title))}</strong><span>Province: ${escapeHtml(province)}</span></a>`;
+    const title = displayJobTitle(related.title);
+    return `<article class="related-job-card">${bookmarkButtonMarkup(href, title)}<a class="related-job-link" href="${escapeHtml(href)}"><strong>${escapeHtml(title)}</strong><span>Province: ${escapeHtml(province)}</span></a></article>`;
   }).join("");
   return `<section class="related-jobs" aria-labelledby="related-jobs-heading"><h2 id="related-jobs-heading">Similar current vacancies</h2><div class="related-job-grid">${cards}</div></section>`;
+}
+
+function bookmarkButtonMarkup(url, title) {
+  const safeTitle = escapeHtml(title);
+  return `<button class="bookmark-button" type="button" data-bookmark-url="${escapeHtml(url)}" data-bookmark-title="${safeTitle}" aria-label="Save ${safeTitle} to saved vacancies" aria-pressed="false" title="Save vacancy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z"/></svg></button>`;
 }
 
 function faqEvidencePoints(value) {
@@ -1272,6 +1278,7 @@ function vacancyPage(job, requestUrl, jobs) {
 <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
 <link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
+<script src="${SITE_URL}/bookmark.js" defer></script>
 <title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(metaDescription)}">
 <meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="article"><meta property="og:site_name" content="DPSA Government Jobs">
@@ -1299,7 +1306,15 @@ a{color:#087ad2;text-underline-offset:3px}.shell{width:min(1120px,calc(100% - 40
 .nav-links .nav-dropdown-menu>a{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 10px;border-radius:6px;color:#32373c;font-size:13px;font-weight:600;white-space:nowrap}
 .nav-links .nav-dropdown-menu>a:hover,.nav-links .nav-dropdown-menu>a:focus-visible{background:#f1f5fa;color:#17499e}.nav-links .nav-dropdown-menu>a:first-child{margin-bottom:4px;padding-bottom:11px;border-bottom:1px solid #e6eaf0;border-radius:0}.nav-dropdown-menu span{color:#6b747c;font-size:11px;font-weight:500}
 main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size:12px}
-.vacancy-card{display:grid;grid-template-columns:58px minmax(0,1fr);gap:18px;padding:26px;border:1px solid #e6eaf0;border-radius:12px;background:#fff;box-shadow:0 8px 26px rgba(26,52,94,.045)}
+.vacancy-card{position:relative;display:grid;grid-template-columns:58px minmax(0,1fr);gap:18px;padding:26px 72px 26px 26px;border:1px solid #e6eaf0;border-radius:12px;background:#fff;box-shadow:0 8px 26px rgba(26,52,94,.045)}
+.bookmark-button{display:grid;width:36px;height:36px;place-items:center;padding:0;border:1px solid #dce3ed;border-radius:50%;color:#647184;background:#fff;cursor:pointer;transition:color .16s ease,border-color .16s ease,background .16s ease}
+.vacancy-card>.bookmark-button{position:absolute;top:16px;right:16px}
+.bookmark-button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}
+.bookmark-button:hover,.bookmark-button:focus-visible{border-color:#17499e;color:#17499e;background:#f1f6fc}
+.bookmark-button:focus-visible{outline:3px solid rgba(23,73,158,.25);outline-offset:2px}
+.bookmark-button.is-saved{border-color:#17499e;color:#17499e;background:#e0ebfb}
+.bookmark-button.is-saved svg{fill:currentColor}
+.bookmark-button:disabled{cursor:not-allowed;opacity:.55}
 .job-mark{display:grid;width:58px;height:58px;place-items:center;overflow:hidden;border:1px solid #e6eaf0;border-radius:11px;background:#fff}
 .job-mark img{width:100%;height:100%;object-fit:contain}.job-mark-generic{display:grid;width:100%;height:100%;place-items:center;border-color:transparent;color:#fff;background:#2193e9;font-size:28px}
 .job-content{min-width:0}.job-title{margin:0 0 14px;color:#17499e;font-size:20px;line-height:1.2;letter-spacing:-.035em;overflow-wrap:anywhere}
@@ -1311,10 +1326,12 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .related-jobs{margin:28px 0 0;padding:24px;border:1px solid #e6eaf0;border-radius:12px;background:#fff}
 .related-jobs h2{margin:0 0 16px;color:#17499e;font-size:20px;line-height:1.3}
 .related-job-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.related-job-card{display:flex;min-width:0;flex-direction:column;gap:8px;padding:15px;border:1px solid #e6eaf0;border-radius:9px;color:#32373c;background:#f8fbff;text-decoration:none}
-.related-job-card:hover{border-color:#b9c9e2;background:#f1f6fc}
-.related-job-card strong{line-height:1.35;overflow-wrap:anywhere}
-.related-job-card span{color:#66717c;font-size:13px}
+.related-job-card{position:relative;min-width:0;padding:15px 56px 15px 15px;border:1px solid #e6eaf0;border-radius:9px;background:#f8fbff}
+.related-job-card>.bookmark-button{position:absolute;top:10px;right:10px}
+.related-job-link{display:flex;min-height:100%;flex-direction:column;gap:8px;color:#32373c;text-decoration:none}
+.related-job-link:hover strong{color:#17499e}
+.related-job-link strong{line-height:1.35;overflow-wrap:anywhere}
+.related-job-link span{color:#66717c;font-size:13px}
 .vacancy-faq{margin:28px 0 0;padding:24px;border:1px solid #e6eaf0;border-radius:12px;background:#fff}
 .vacancy-faq h2{margin:0 0 8px;color:#17499e;font-size:22px;line-height:1.3}
 .faq-intro{margin:0 0 16px;color:#66717c;font-size:14px}
@@ -1339,14 +1356,14 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .social-links{display:flex;align-items:center;gap:9px}.social-links a{display:grid;width:34px;height:34px;place-items:center;border:1px solid rgba(255,255,255,.48);border-radius:50%;color:#fff;text-decoration:none}.social-links a:hover{border-color:#fff;background:rgba(255,255,255,.14)}.social-links img{width:16px;height:16px}
 @media(max-width:980px){.footer-main{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 20px}.footer-contact{grid-column:1/-1;max-width:460px}.footer-bottom{flex-direction:column;margin-top:24px}}
 @media(max-width:700px){.related-job-grid{grid-template-columns:1fr}}
-@media(max-width:600px){.shell{width:min(100% - 28px,1120px)}.nav{min-height:70px;gap:12px}.brand img{width:36px;height:36px}.nav-links{gap:12px;font-size:11px}main{padding-block:22px 38px}.vacancy-card{grid-template-columns:48px minmax(0,1fr);gap:13px;padding:17px}.job-mark{width:48px;height:48px;border-radius:9px}.meta-grid{grid-template-columns:1fr;gap:7px}.sections{margin-top:0}.related-jobs,.vacancy-faq{padding:17px}}
+@media(max-width:600px){.shell{width:min(100% - 28px,1120px)}.nav{min-height:70px;gap:12px}.brand img{width:36px;height:36px}.nav-links{gap:12px;font-size:11px}main{padding-block:22px 38px}.vacancy-card{grid-template-columns:48px minmax(0,1fr);gap:13px;padding:17px 58px 17px 17px}.job-mark{width:48px;height:48px;border-radius:9px}.meta-grid{grid-template-columns:1fr;gap:7px}.sections{margin-top:0}.related-jobs,.vacancy-faq{padding:17px}}
 </style></head>
 <body><header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
 <div class="nav-links"><a href="${SITE_URL}/">Home</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a href="${SITE_URL}/dpsa-vacancy-circulars/">All circulars</a>${circularNavigation}</div></details><a href="${SITE_URL}/#listings">Vacancies</a></div>
 </nav></header><main class="shell">
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="${SITE_URL}/">Home</a> › ${escapeHtml(title)}</nav>
-<article class="vacancy-card"><div class="job-mark">${jobMark}</div><div class="job-content">
+<article class="vacancy-card">${bookmarkButtonMarkup(pageUrl, title)}<div class="job-mark">${jobMark}</div><div class="job-content">
 <h1 class="job-title">${escapeHtml(title)}</h1><p class="intro">${employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`}</p>
 <div class="meta-grid"><p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
 ${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${escapeHtml(location)}</p>` : ""}

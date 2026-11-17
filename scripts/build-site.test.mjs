@@ -47,6 +47,7 @@ test("renders crawlable vacancy cards with safe text and root-level job links", 
   assert.match(html, /Expires in \d+ days/);
   assert.match(html, /listing-card-scope-provincial">Provincial/);
   assert.match(html, /<a class="listing-card-type listing-card-circular" href="\/dpsa-vacancy-circulars\/circular-41-of-2026\/">Circular 41 of 2026<\/a>/);
+  assert.match(html, /<button class="bookmark-button"[^>]+data-bookmark-url="https:\/\/jobs\.dpsagovernmentjobs\.co\.za\/provisioning-officer-41-30-ref\/"[^>]+aria-pressed="false"/);
   assert.ok(html.includes('aria-label="Closing: 31 December 2099">'));
   assert.match(html, /M5\.5 4\.5 3 7/);
   assert.match(html, />Closing: 31 December 2099<\/span>/);
@@ -92,8 +93,10 @@ test("keeps circulars and application guidance on their own pages", async () => 
   assert.doesNotMatch(homepage, /id="circulars-heading"|id="steps-heading"|A clear application process/);
   assert.match(homepage, /href="\/dpsa-vacancy-circulars\/"/);
   assert.match(homepage, /href="\/how-to-apply\/">How to apply<\/a>/);
-  assert.match(homepageNav, /href="\/#questions-heading">Contact<\/a>/);
-  assert.doesNotMatch(homepageNav, /href="\/how-to-apply\/"|href="\/government-vacancies\/">Province/);
+  assert.doesNotMatch(homepageNav, /href="\/#questions-heading">Contact<\/a>|href="\/how-to-apply\/"|href="\/government-vacancies\/">Province/);
+  assert.match(homepage, /Find government jobs that matches your CV/);
+  assert.match(homepage, /Upload your CV to find vacancies that match your skills and experience\./);
+  assert.doesNotMatch(homepage, /Find government jobs that fit your CV|Upload a CV to compare its job-related skills and experience with current vacancies across all provinces and departments/);
   assert.doesNotMatch(homepage, /id="province-guides-heading"|Government vacancies by province or national category/);
   assert.match(circulars, /<h1>Find current DPSA vacancy circulars<\/h1>/);
   assert.match(applicationGuide, /A clear application process/);
@@ -131,7 +134,7 @@ test("renders a consistent footer with the verified address, grouped links and s
     assert.match(footer, /href="\/#questions-heading">Contact<\/a>/);
     assert.doesNotMatch(footer, /Independent guide to South African public service vacancies\. Verify details with the official advert and hiring department\./);
     assert.doesNotMatch(nav, /href="\/how-to-apply\/"|href="\/government-vacancies\/"[^>]*>Province/);
-    assert.match(nav, /href="\/#questions-heading">Contact<\/a>/);
+    if (pagePath !== "../index.html") assert.match(nav, /href="\/#questions-heading">Contact<\/a>/);
     assert.match(footer, /<img src="\/footer-facebook\.svg" alt="">/);
     assert.match(footer, /<img src="\/footer-x\.svg" alt="">/);
     assert.match(footer, /<img src="\/footer-pinterest\.svg" alt="">/);
@@ -155,6 +158,8 @@ test("renders a consistent footer with the verified address, grouped links and s
   assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*?\.footer-newsletter > p span \+ span \{ display: block; \}/);
   assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*?\.cv-match-contact-row \{ display: grid/);
   assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*?\.footer-newsletter \.footer-subscribe-row \{ display: grid/);
+  assert.match(styles, /\.cv-match-contact-row \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: 4px; min-height: 0; padding: 8px; border-radius: 20px; \}/);
+  assert.match(styles, /\.footer-newsletter \.footer-subscribe-row \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: 4px; min-height: 0; padding: 8px; border-radius: 20px; \}/);
 });
 
 test("escapes vacancy content and renders an empty state without listings", () => {
@@ -339,6 +344,7 @@ test("removes stale generated circular and province pages on rebuild", async () 
       access(path.join(output, "cv-docx-reader.js")),
       access(path.join(output, "pdf.worker.min.mjs")),
       access(path.join(output, "scripts", "cv-matcher.js")),
+      access(path.join(output, "bookmark.js")),
       access(path.join(output, "footer-facebook.svg")),
       access(path.join(output, "footer-location.svg")),
       access(path.join(output, "footer-pinterest.svg")),
@@ -347,6 +353,7 @@ test("removes stale generated circular and province pages on rebuild", async () 
     const homepage = await readFile(path.join(output, "index.html"), "utf8");
     assert.match(homepage, /id="cv-job-matcher"/);
     assert.match(homepage, /id="job-alert-form"/);
+    assert.match(homepage, /src="\/bookmark\.js" defer/);
     assert.doesNotMatch(homepage, /id="province-guides-heading"/);
     await access(path.join(output, "job-alert-terms.html"));
     const provinceHub = await readFile(path.join(output, "government-vacancies", "index.html"), "utf8");
@@ -499,9 +506,9 @@ test("publishes the supplied salary table with a readable level guide and PDF ac
   assert.match(page, /<iframe src="\.\/salary-adjustment-table\.pdf#view=FitH"/);
 });
 
-test("refreshes the homepage stylesheet cache for footer and mobile layout updates", async () => {
+test("refreshes the homepage stylesheet cache for footer and mobile CV form updates", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-footer-mobile-nav">/);
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-mobile-cv-form">/);
 });
 
 test("discloses and gates CV and alert data sharing to the Google Sheet", async () => {

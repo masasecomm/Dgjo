@@ -142,6 +142,11 @@ function metadataIcon(type) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${shapes[type]}"></path></svg>`;
 }
 
+function bookmarkButtonMarkup(jobUrl, title) {
+  const safeTitle = escapeHtml(title);
+  return `<button class="bookmark-button" type="button" data-bookmark-url="${escapeHtml(jobUrl)}" data-bookmark-title="${safeTitle}" aria-label="Save ${safeTitle} to saved vacancies" aria-pressed="false" title="Save vacancy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z"/></svg></button>`;
+}
+
 function isDisplayableJob(job) {
   return job &&
     typeof job.title === "string" &&
@@ -200,7 +205,8 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
       expiry && `<span class="listing-card-type listing-card-expiry">${escapeHtml(expiry)}</span>`
     ].filter(Boolean).join("");
 
-    return `<article class="listing-card"><div class="listing-card-mark">${mark}</div><div class="listing-card-content"><div class="listing-card-title"><h3><a href="${jobUrl}">${escapeHtml(displayJobTitle(job.title))}</a></h3></div><div class="listing-card-meta">${metadata}</div><div class="listing-card-bottom">${badges}<a class="listing-card-apply" href="${jobUrl}#how-to-apply">Apply</a></div></div></article>`;
+    const title = displayJobTitle(job.title);
+    return `<article class="listing-card">${bookmarkButtonMarkup(jobUrl, title)}<div class="listing-card-mark">${mark}</div><div class="listing-card-content"><div class="listing-card-title"><h3><a href="${jobUrl}">${escapeHtml(title)}</a></h3></div><div class="listing-card-meta">${metadata}</div><div class="listing-card-bottom">${badges}<a class="listing-card-apply" href="${jobUrl}#how-to-apply">Apply</a></div></div></article>`;
   }).join("");
 }
 
@@ -357,6 +363,7 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonicalUrl}">
   <script type="module" src="/redirects.js"></script>
+  <script src="/bookmark.js" defer></script>
   <script type="application/ld+json">${jsonLd(structuredData)}</script>
 </head>
 <body class="post-theme">
@@ -464,6 +471,7 @@ export function renderCircularArchivePage(circularName, jobs) {
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonicalUrl}">
   <script type="module" src="/redirects.js"></script>
+  <script src="/bookmark.js" defer></script>
   <script type="application/ld+json">${jsonLd(structuredData)}</script>
 </head>
 <body class="post-theme">
@@ -611,7 +619,7 @@ export async function buildSite() {
     "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
     "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
     "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",
-    "circulars.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
+    "bookmark.js", "circulars.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
     "footer-facebook.svg", "footer-location.svg", "footer-pinterest.svg", "footer-x.svg",
     "south-african-flag.png", "styles.css", "vacancy-format.js"
   ];

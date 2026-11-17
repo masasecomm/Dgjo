@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261117-footer-mobile-nav">
+  <link rel="stylesheet" href="styles.css?v=20261117-mobile-cv-form">
   <title>Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
@@ -23,6 +23,7 @@
   <meta name="twitter:title" content="Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}">
   <meta name="twitter:description" content="Find current government vacancies and DPSA vacancies in South Africa for {{CURRENT_YEAR}}. Browse public service circulars and check closing dates.">
   <script type="module" src="/redirects.js"></script>
+  <script src="/bookmark.js" defer></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
   <script async src="https://www.googletagmanager.com/gtm.js?id=GT-NMDDFKGP"></script>
   <script>
@@ -51,7 +52,6 @@
         <a href="/" aria-current="page">Home</a>
         <details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a><!-- CIRCULAR_NAV_ITEMS --></div></details>
         <a href="#cv-job-matcher">CV job match</a>
-        <a href="/#questions-heading">Contact</a>
       </div>
     </nav>
   </header>
@@ -112,8 +112,8 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Personalised job search</p>
-            <h2 id="cv-job-matcher-heading">Find government jobs that fit your CV</h2>
-            <p class="section-intro">Upload a CV to compare its job-related skills and experience with current vacancies across all provinces and departments.</p>
+            <h2 id="cv-job-matcher-heading">Find government jobs that matches your CV</h2>
+            <p class="section-intro">Upload your CV to find vacancies that match your skills and experience.</p>
           </div>
         </div>
         <form id="cv-match-form" class="cv-match-form">
@@ -492,6 +492,15 @@
         const titleRow = document.createElement("div");
         titleRow.className = "listing-card-title";
         titleRow.append(title);
+        const bookmark = document.createElement("button");
+        bookmark.className = "bookmark-button";
+        bookmark.type = "button";
+        bookmark.dataset.bookmarkUrl = jobLink.href;
+        bookmark.dataset.bookmarkTitle = displayTitle;
+        bookmark.setAttribute("aria-label", `Save ${displayTitle} to saved vacancies`);
+        bookmark.setAttribute("aria-pressed", "false");
+        bookmark.title = "Save vacancy";
+        bookmark.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z"></path></svg>';
         const expiry = expiryLabel(job.closingDate);
 
         const metadata = document.createElement("div");
@@ -581,7 +590,7 @@
         applyButton.textContent = "Apply";
         bottom.append(applyButton);
         content.append(titleRow, metadata, bottom);
-        card.append(mark, content);
+        card.append(mark, content, bookmark);
         const jobIndex = startIndex + index;
         (jobIndex < INITIAL_JOB_COUNT ? jobsList : jobsContinuation).append(card);
       });

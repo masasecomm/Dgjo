@@ -284,6 +284,8 @@ test("vacancy route renders unique metadata, full details and valid structured d
   const adLoaderIndex = html.indexOf('<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');
   assert.ok(html.indexOf('<link rel="preconnect" href="https://pagead2.googlesyndication.com"') < adLoaderIndex);
   assert.ok(adLoaderIndex < html.indexOf("https://fonts.googleapis.com/css2?family=Jost"));
+  assert.match(html, /<script src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js" defer><\/script>/);
+  assert.match(html, /<button class="bookmark-button"[^>]+data-bookmark-url="https:\/\/jobs\.example\/assistant-director-example-1-1-example-1\/"/);
   assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example/${slug}/">`));
   assert.match(html, /<strong>Reference:<\/strong> EXAMPLE\/1/);
   assert.match(html, /<strong>Post number:<\/strong> 1\/1/);
@@ -541,6 +543,8 @@ test("links the job level to its salary guide section and shows three similar cu
   assert.match(html, /<strong>Job level:<\/strong> <a class="salary-scales-link" href="https:\/\/dpsagovernmentjobs\.co\.za\/national-treasury-salary-scales\/#level-9">Level 9<\/a>/);
   assert.match(html, /<h2 id="related-jobs-heading">Similar current vacancies<\/h2>/);
   assert.equal((html.match(/class="related-job-card"/g) ?? []).length, 3);
+  assert.equal((html.match(/class="bookmark-button"/g) ?? []).length, 4);
+  assert.equal((html.match(/class="related-job-link"/g) ?? []).length, 3);
   assert.match(html, /Assistant Director: Example Operations/);
   assert.match(html, /Province: Limpopo/);
   assert.doesNotMatch(html, /EXAMPLE CLOSED/);
