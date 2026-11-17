@@ -124,7 +124,9 @@ function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers,
   const links = pdfLinks.filter(link => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
   const fields = fieldMatches(text);
   const titleEnd = fields.length ? fields[0].start : Math.min(text.length, text.indexOf("\n") > 0 ? text.indexOf("\n") : 500);
-  const title = cleanText(text.slice(0, titleEnd)).replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
+  const title = cleanText(text.slice(0, titleEnd))
+    .replace(/^[\s:–—-]+|[\s:–—-]+$/g, "")
+    .replace(/\s*[\[(]\s*$/, "");
   if (title.length < 4 || isDemographicGroupHeading(title)) return null;
 
   const values = Object.fromEntries(FIELD_LABELS.map(([key]) => [key, readField(text, fields, key)]));

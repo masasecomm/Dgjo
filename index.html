@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261117-hero-category-gap">
+  <link rel="stylesheet" href="styles.css?v=20261117-search-highlight">
   <title>Government Vacancies | DPSA Vacancies in South Africa {{CURRENT_YEAR}}</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
@@ -69,7 +69,7 @@
         <div class="home-hero-copy">
           <p class="home-eyebrow"><span aria-hidden="true"></span> SOUTH AFRICAN PUBLIC SERVICE OPPORTUNITIES</p>
           <h1>South African Government Vacancies</h1>
-          <p>Find current DPSA jobs and government vacancies by job title, province or department. Confirm every requirement and closing date in the official advert.</p>
+          <p>Find current DPSA jobs and government vacancies by job title, province or department.<br>Confirm every requirement and closing date in the official advert.</p>
           <form id="job-search" class="home-search" action="#listings">
             <label class="home-search-field home-search-keywords">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.5 4.5"></path></svg>
@@ -113,7 +113,6 @@
         <!-- JOB_LISTINGS_END -->
       </div>
       <aside class="content-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>
-    </section>
 
     <section class="section cv-matcher-section" id="cv-job-matcher" aria-labelledby="cv-job-matcher-heading">
       <div class="shell">
@@ -153,7 +152,7 @@
       </div>
     </section>
 
-    <section class="home-section home-job-continuation" aria-label="More current government vacancies">
+    <div class="home-job-continuation" role="region" aria-label="More current government vacancies">
       <div class="listing-grid" id="job-list-continuation" aria-live="polite">
         <!-- JOB_LISTINGS_CONTINUATION_START -->
         <!-- JOB_LISTINGS_CONTINUATION_END -->
@@ -162,6 +161,7 @@
         <button class="button listing-load-more" id="load-more-jobs" type="button" hidden>Show 10 more vacancies</button>
         <p class="listing-pagination-status" id="listing-pagination-status" aria-live="polite" hidden></p>
       </div>
+    </div>
     </section>
     <!-- JOB_DATA -->
 
@@ -286,6 +286,7 @@
     const listingsHeading = document.querySelector("#listings-heading");
     const listingBreadcrumb = document.querySelector("#listing-breadcrumb");
     const cvMatcherSection = document.querySelector("#cv-job-matcher");
+    const listingsSection = document.querySelector(".home-featured");
     const continuationSection = document.querySelector(".home-job-continuation");
     const cvMatchForm = document.querySelector("#cv-match-form");
     const cvMatchName = document.querySelector("#cv-match-name");
@@ -388,7 +389,7 @@
 
     function updateCvMatcherPosition() {
       if (jobProvince.value || jobDepartment.value || selectedEmploymentType) {
-        continuationSection.after(cvMatcherSection);
+        listingsSection.after(cvMatcherSection);
       } else {
         continuationSection.before(cvMatcherSection);
       }
@@ -431,8 +432,9 @@
         if (selectedEmploymentType && employmentTypeCategory(job) !== selectedEmploymentType) return false;
         if (!query) return true;
         return [
-          job.title, job.company, job.location, job.province, job.refNo,
-          job.category, job.type, job.salaryText, job.requirements, job.duties
+          job.title, job.company, job.location, job.centre, job.province, job.refNo,
+          job.category, job.type, displayEmploymentType(job), job.salaryText, extractJobLevel(job),
+          job.closingDate, job.circularName, job.requirements, job.duties
         ].some(value => String(value ?? "").toLowerCase().includes(query));
       }));
       provinceFilters.querySelectorAll(".province-filter").forEach(link => {
@@ -451,6 +453,30 @@
       jobCount.textContent = `${filteredJobs.length} ${filteredJobs.length === 1 ? "opportunity" : "opportunities"}${criteria.length ? ` · ${criteria.join(" · ")}` : ""}`;
       visibleJobCount = JOBS_PER_PAGE;
       showJobListings(filteredJobs);
+    }
+
+    function appendSearchHighlight(container, value, query) {
+      const text = String(value ?? "");
+      const term = String(query ?? "").trim();
+      container.replaceChildren();
+      if (!term) {
+        container.textContent = text;
+        return;
+      }
+      const lowerText = text.toLowerCase();
+      const lowerTerm = term.toLowerCase();
+      let start = 0;
+      let match = lowerText.indexOf(lowerTerm, start);
+      while (match !== -1) {
+        container.append(document.createTextNode(text.slice(start, match)));
+        const highlight = document.createElement("mark");
+        highlight.className = "search-highlight";
+        highlight.textContent = text.slice(match, match + term.length);
+        container.append(highlight);
+        start = match + term.length;
+        match = lowerText.indexOf(lowerTerm, start);
+      }
+      container.append(document.createTextNode(text.slice(start)));
     }
 
     function displayJobTitle(value) {
@@ -575,8 +601,10 @@
         const displayTitle = displayJobTitle(job.title);
         const title = document.createElement("h3");
         const jobLink = document.createElement("a");
-        jobLink.href = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/`;
-        jobLink.textContent = displayTitle;
+        const searchTerm = jobQuery.value.trim();
+        const jobPath = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/`;
+        jobLink.href = `${jobPath}${searchTerm ? `?q=${encodeURIComponent(searchTerm)}` : ""}`;
+        appendSearchHighlight(jobLink, displayTitle, searchTerm);
         title.append(jobLink);
         const titleRow = document.createElement("div");
         titleRow.className = "listing-card-title";
@@ -584,7 +612,7 @@
         const bookmark = document.createElement("button");
         bookmark.className = "bookmark-button";
         bookmark.type = "button";
-        bookmark.dataset.bookmarkUrl = jobLink.href;
+        bookmark.dataset.bookmarkUrl = jobPath;
         bookmark.dataset.bookmarkTitle = displayTitle;
         bookmark.setAttribute("aria-label", `Save ${displayTitle} to saved vacancies`);
         bookmark.setAttribute("aria-pressed", "false");
@@ -602,7 +630,7 @@
           const departmentLink = document.createElement("a");
           departmentLink.className = "listing-department-link";
           departmentLink.href = `/?department=${encodeURIComponent(job.company)}#listings`;
-          departmentLink.textContent = job.company;
+          appendSearchHighlight(departmentLink, job.company, searchTerm);
           departmentItem.append(departmentLink);
         } else {
           departmentItem.append(document.createTextNode("Department: see official advert"));
@@ -615,7 +643,9 @@
         if (locationLabel) {
           const locationItem = document.createElement("span");
           locationItem.className = "listing-meta-item";
-          locationItem.append(metadataIcon("location"), document.createTextNode(locationLabel));
+          const locationText = document.createElement("span");
+          appendSearchHighlight(locationText, locationLabel, searchTerm);
+          locationItem.append(metadataIcon("location"), locationText);
           metadata.append(locationItem);
         }
         if (job.salaryText) {
@@ -626,10 +656,12 @@
             const salaryLink = document.createElement("a");
             salaryLink.className = "listing-salary-link";
             salaryLink.href = SALARY_SCALES_PATH;
-            salaryLink.textContent = SALARY_SCALES_LINK_LABEL;
+            appendSearchHighlight(salaryLink, SALARY_SCALES_LINK_LABEL, searchTerm);
             salaryItem.append(salaryLink);
           } else {
-            salaryItem.append(document.createTextNode(job.salaryText));
+            const salaryText = document.createElement("span");
+            appendSearchHighlight(salaryText, job.salaryText, searchTerm);
+            salaryItem.append(salaryText);
           }
           metadata.append(salaryItem);
         }
@@ -641,7 +673,7 @@
           const levelLink = document.createElement("a");
           levelLink.className = "listing-salary-link";
           levelLink.href = salaryLevelHref(jobLevel);
-          levelLink.textContent = jobLevel;
+          appendSearchHighlight(levelLink, jobLevel, searchTerm);
           levelItem.append(levelLink);
           metadata.append(levelItem);
         }
@@ -650,7 +682,9 @@
           const closingDateItem = document.createElement("span");
           closingDateItem.className = "listing-meta-item";
           closingDateItem.setAttribute("aria-label", `Closing: ${closingDate}`);
-          closingDateItem.append(metadataIcon("clock"), document.createTextNode(`Closing: ${closingDate}`));
+          const closingDateText = document.createElement("span");
+          appendSearchHighlight(closingDateText, `Closing: ${closingDate}`, searchTerm);
+          closingDateItem.append(metadataIcon("clock"), closingDateText);
           metadata.append(closingDateItem);
         }
 
@@ -684,13 +718,13 @@
           if (!label) continue;
           const badge = document.createElement(href ? "a" : "span");
           badge.className = className;
-          badge.textContent = label;
+          appendSearchHighlight(badge, label, searchTerm);
           if (href) badge.href = href;
           bottom.append(badge);
         }
         const applyButton = document.createElement("a");
         applyButton.className = "listing-card-apply";
-        applyButton.href = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/#how-to-apply`;
+        applyButton.href = `${jobsPageOrigin}/${encodeURIComponent(String(job.slug || job.id))}/${searchTerm ? `?q=${encodeURIComponent(searchTerm)}` : ""}#how-to-apply`;
         applyButton.textContent = "Apply";
         bottom.append(applyButton);
         content.append(titleRow, metadata, bottom);
@@ -890,6 +924,8 @@
       filterJobListings();
       document.querySelector("#listings").scrollIntoView({ behavior: "smooth" });
     });
+
+    jobQuery.addEventListener("input", filterJobListings);
 
     provinceFilters.addEventListener("click", event => {
       const link = event.target.closest(".province-filter");

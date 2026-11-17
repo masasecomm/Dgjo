@@ -118,7 +118,10 @@ test("keeps circulars and application guidance on their own pages", async () => 
     homepageNav.indexOf('href="#cv-job-matcher">CV job match</a>')
   ];
 
-  assert.ok(cvSectionIndex > initialListingsIndex && cvSectionIndex < continuationIndex, "the CV matcher separates the first four jobs from the next six");
+  assert.ok(cvSectionIndex > initialListingsIndex && cvSectionIndex < continuationIndex, "the CV matcher initially follows the first four jobs");
+  assert.ok(homepage.indexOf('<section class="home-section home-featured"') < cvSectionIndex);
+  assert.ok(homepage.indexOf('<div class="home-job-continuation"') > cvSectionIndex);
+  assert.match(homepage, /const listingsSection = document\.querySelector\("\.home-featured"\)/);
   assert.ok(homepageNavItems.every((position, index) => position >= 0 && (index === 0 || position > homepageNavItems[index - 1])), "main navigation is ordered Home, Circulars, Saved vacancies, CV job match");
   assert.match(homepage, /id="load-more-jobs"[^>]*>Show 10 more vacancies/);
   assert.match(homepage, /const JOBS_PER_PAGE = 10/);
@@ -136,7 +139,7 @@ test("keeps circulars and application guidance on their own pages", async () => 
   assert.match(homepage, /link\.textContent = `\$\{category\} \(\$\{employmentTypeCounts\.get\(category\)\}\)`/);
   assert.match(homepage, /const headingCategories = \[selectedEmploymentType, departmentName, province\]/);
   assert.match(homepage, /headingCategories\.join\(" · "\).*GOVERNMENT VACANCIES/);
-  assert.match(homepage, /function updateCvMatcherPosition\(\) \{\s*if \(jobProvince\.value \|\| jobDepartment\.value \|\| selectedEmploymentType\) \{\s*continuationSection\.after\(cvMatcherSection\);\s*\} else \{\s*continuationSection\.before\(cvMatcherSection\);/);
+  assert.match(homepage, /function updateCvMatcherPosition\(\) \{\s*if \(jobProvince\.value \|\| jobDepartment\.value \|\| selectedEmploymentType\) \{\s*listingsSection\.after\(cvMatcherSection\);\s*\} else \{\s*continuationSection\.before\(cvMatcherSection\);/);
   assert.match(homepage, /updateCvMatcherPosition\(\);\s*const departmentName/);
   assert.match(homepage, /jobQuery\.value = "";\s*jobDepartment\.value = "";\s*jobProvince\.value = link\.dataset\.province/);
   assert.match(homepage, /const params = new URLSearchParams\(\);\s*if \(jobProvince\.value\) params\.set\("province", jobProvince\.value\)/);
@@ -600,11 +603,33 @@ test("publishes the supplied salary table with a readable level guide and PDF ac
 
 test("keeps hero employment filters visibly separated from the search form", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-hero-category-gap">/);
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261117-search-highlight">/);
   const stylesheet = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(stylesheet, /\.employment-type-filters \{ margin: 36px 0 18px; \}/);
   assert.match(stylesheet, /-webkit-text-size-adjust: 100%; text-size-adjust: 100%;/);
   assert.match(stylesheet, /button, input, select, textarea \{ font: inherit; \}/);
+});
+
+test("highlights every visible vacancy-card match while typing a search", async () => {
+  const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.match(page, /function appendSearchHighlight\(container, value, query\)/);
+  assert.match(page, /jobQuery\.addEventListener\("input", filterJobListings\)/);
+  assert.match(page, /job\.title, job\.company, job\.location, job\.centre, job\.province, job\.refNo,[\s\S]*job\.closingDate, job\.circularName, job\.requirements, job\.duties/);
+  assert.match(page, /jobLink\.href = `\$\{jobPath\}\$\{searchTerm \? `\?q=/);
+  assert.match(page, /bookmark\.dataset\.bookmarkUrl = jobPath/);
+  for (const target of [
+    "jobLink, displayTitle",
+    "departmentLink, job.company",
+    "locationText, locationLabel",
+    "salaryText, job.salaryText",
+    "levelLink, jobLevel",
+    "closingDateText, `Closing: ${closingDate}`",
+    "badge, label"
+  ]) {
+    assert.ok(page.includes(`appendSearchHighlight(${target}, searchTerm)`), `expected search highlighting for ${target}`);
+  }
+  assert.match(stylesheet, /\.search-highlight \{[^}]*background: rgba\(56,189,248,.3\)/);
 });
 
 test("discloses and gates CV and alert data sharing to the Google Sheet", async () => {

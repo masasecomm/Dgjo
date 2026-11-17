@@ -642,6 +642,15 @@ function escapeHtml(value) {
   })[character]);
 }
 
+function highlightMarkupText(markup, query) {
+  const term = String(query ?? "").trim();
+  if (!term) return markup;
+  const expression = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  return String(markup).split(/(<[^>]*>)/g).map(part =>
+    part.startsWith("<") ? part : part.replace(expression, match => `<mark class="search-highlight">${match}</mark>`)
+  ).join("");
+}
+
 function displayJobTitle(value) {
   const title = cleanVacancyTitle(value);
   return titleCaseJobTitle(title);
@@ -804,12 +813,32 @@ function slugifyJobPart(value) {
     .replace(/^-|-$/g, "");
 }
 
-function jobSlug(job) {
+function legacyJobSlug(job) {
   const identity = [job.postNo, job.refNo].filter(value => String(value ?? "").trim());
   return [titleCaseJobTitle(job.title), ...identity]
     .map(slugifyJobPart)
     .filter(Boolean)
     .join("-") || slugifyJobPart(job.id);
+}
+
+const JOB_TITLE_SLUG_STOP_WORDS = new Set(["a", "an", "and", "at", "by", "for", "in", "of", "on", "or", "the", "to", "with"]);
+
+function jobTitleSlug(value) {
+  const title = String(value ?? "")
+    .split(":", 1)[0]
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, " ");
+  const words = slugifyJobPart(title).split("-")
+    .filter(word => word && !JOB_TITLE_SLUG_STOP_WORDS.has(word) && !/^(?:19|20)\d{2}$/.test(word))
+    .slice(0, 5);
+  return words.join("-");
+}
+
+function jobSlug(job) {
+  const title = jobTitleSlug(job.title);
+  const identity = [job.postNo, job.refNo]
+    .map(slugifyJobPart)
+    .filter(Boolean);
+  return [title, ...identity].filter(Boolean).join("-") || slugifyJobPart(job.id) || "vacancy";
 }
 
 function jobPagePath(job) {
@@ -974,17 +1003,19 @@ function selectRelatedJobs(job, jobs) {
     .map(({ candidate }) => candidate);
 }
 
-function relatedJobsMarkup(job, jobs, origin) {
+function relatedJobsMarkup(job, jobs, origin, query = "") {
   const relatedJobs = selectRelatedJobs(job, jobs);
   if (!relatedJobs.length) return "";
   const cards = relatedJobs.map(related => {
     const province = normalizeProvince(related.province) || "National";
     const href = new URL(jobPagePath(related), origin).href;
+    const relatedPageUrl = new URL(href);
+    if (query) relatedPageUrl.searchParams.set("q", query);
     const title = displayJobTitle(related.title);
     const isCircularJob = Boolean(related.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(related.sourceUrl ?? ""));
     const image = isCircularJob ? PROVINCE_CRESTS[province] || "/south-african-coat-of-arms.png" : "";
     const scope = isCircularJob ? (PROVINCE_CRESTS[province] ? "Provincial" : "National") : "";
-    return `<article class="related-job-card">${bookmarkButtonMarkup(href, title, related, { image, location: province, scope })}<a class="related-job-link" href="${escapeHtml(href)}"><strong>${escapeHtml(title)}</strong><span>Province: ${escapeHtml(province)}</span></a></article>`;
+    return `<article class="related-job-card">${bookmarkButtonMarkup(href, title, related, { image, location: province, scope })}<a class="related-job-link" href="${escapeHtml(relatedPageUrl.href)}"><strong>${highlightMarkupText(escapeHtml(title), query)}</strong><span>${highlightMarkupText(`Province: ${escapeHtml(province)}`, query)}</span></a></article>`;
   }).join("");
   return `<section class="related-jobs" aria-labelledby="related-jobs-heading"><h2 id="related-jobs-heading">Similar current vacancies</h2><div class="related-job-grid">${cards}</div></section>`;
 }
@@ -1326,6 +1357,7 @@ function savedVacanciesPage(requestUrl) {
 
 function vacancyPage(job, requestUrl, jobs) {
   const title = displayJobTitle(job.title);
+  const searchTerm = requestUrl.searchParams.get("q")?.trim() ?? "";
   const pageUrl = new URL(jobPagePath(job), requestUrl.origin).href;
   const employer = hiringOrganizationName(job);
   const address = locationDetails(job);
@@ -1341,22 +1373,15 @@ function vacancyPage(job, requestUrl, jobs) {
   const requirementsIndex = jobDetails.findIndex(([label]) => label === "Requirements");
   const adIndex = requirementsIndex >= 0 ? requirementsIndex : Math.min(1, jobDetails.length);
   const sections = jobDetails.map(([label, value], index) =>
-    `${index === adIndex ? adUnitMarkup : ""}<section${label === "How to apply" ? ' id="how-to-apply"' : label === "Requirements" ? ' id="requirements"' : label === "Skills and competencies" ? ' id="skills-and-competencies"' : label === "Duties" ? ' id="duties"' : label === "Job purpose" ? ' id="job-purpose"' : ""}><h2>${escapeHtml(label)}</h2>${vacancySectionMarkup(label, value)}</section>`
+    `${index === adIndex ? adUnitMarkup : ""}<section${label === "How to apply" ? ' id="how-to-apply"' : label === "Requirements" ? ' id="requirements"' : label === "Skills and competencies" ? ' id="skills-and-competencies"' : label === "Duties" ? ' id="duties"' : label === "Job purpose" ? ' id="job-purpose"' : ""}><h2>${escapeHtml(label)}</h2>${highlightMarkupText(vacancySectionMarkup(label, value), searchTerm)}</section>`
   ).join("") || adUnitMarkup;
   const schema = schemaForJob(job, pageUrl);
   const schemaMarkup = schema ? `<script type="application/ld+json">${jsonLdScript(schema)}</script>` : "";
   const circularName = canonicalCircularName(job.circularName);
   const circularPath = circularArchivePath(circularName);
   const department = hiringOrganizationName(job);
-  const provinceName = normalizeProvince(job.province) || "National";
-  const provinceSlug = provinceName.toLocaleLowerCase("en-ZA").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const breadcrumbItems = [
     { name: "Home", item: `${SITE_URL}/` },
-    { name: provinceName, item: `${SITE_URL}/government-vacancies/${provinceSlug}/` },
-    ...(department ? [{
-      name: department,
-      item: `${SITE_URL}/?department=${encodeURIComponent(department)}#listings`
-    }] : []),
     ...(circularName && circularPath ? [{
       name: circularName,
       item: `${SITE_URL}${circularPath}`
@@ -1364,6 +1389,10 @@ function vacancyPage(job, requestUrl, jobs) {
     ...(employmentTypeCategory(job) ? [{
       name: employmentTypeCategory(job),
       item: `${SITE_URL}/?employmentType=${encodeURIComponent(employmentTypeCategory(job))}#listings`
+    }] : []),
+    ...(department ? [{
+      name: department,
+      item: `${SITE_URL}/?department=${encodeURIComponent(department)}#listings`
     }] : []),
     { name: title, item: pageUrl }
   ];
@@ -1508,6 +1537,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .related-job-link:hover strong{color:#17499e}
 .related-job-link strong{line-height:1.35;overflow-wrap:anywhere}
 .related-job-link span{color:#66717c;font-size:13px}
+.search-highlight{padding:0 .04em;border-radius:2px;color:inherit;background:rgba(56,189,248,.3)}
 .vacancy-faq{margin:28px 0 0;padding:24px;border:1px solid #e6eaf0;border-radius:12px;background:#fff}
 .vacancy-faq h2{margin:0 0 8px;color:#17499e;font-size:22px;line-height:1.3}
 .faq-intro{margin:0 0 16px;color:#66717c;font-size:14px}
@@ -1540,18 +1570,18 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 </nav></header><main class="shell">
 <nav class="breadcrumb" aria-label="Breadcrumb">${breadcrumbMarkup}</nav>
 <article class="vacancy-card">${bookmarkButtonMarkup(pageUrl, title, job, { image: isCircularJob ? coatOfArmsPath : "", location: [job.centre, province, job.location].filter(Boolean).join(", "), scope: isCircularJob ? (PROVINCE_CRESTS[province] ? "Provincial" : "National") : "" })}<div class="job-mark">${jobMark}</div><div class="job-content">
-<h1 class="job-title">${escapeHtml(title)}</h1><p class="intro">${employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`}</p>
-<div class="meta-grid"><p class="meta"><strong>Hiring department:</strong> ${escapeHtml(employer || "Check the official advert")}</p>
-${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${escapeHtml(location)}</p>` : ""}
+<h1 class="job-title">${highlightMarkupText(escapeHtml(title), searchTerm)}</h1><p class="intro">${highlightMarkupText(employer ? `The ${escapeHtml(employer)} invites applications for ${escapeHtml(title)}.` : `Applications are invited for ${escapeHtml(title)}. Check the official advert for the hiring department.`, searchTerm)}</p>
+<div class="meta-grid"><p class="meta"><strong>Hiring department:</strong> ${highlightMarkupText(escapeHtml(employer || "Check the official advert"), searchTerm)}</p>
+${location ? `<p class="meta"><strong>Location/centre in advert:</strong> ${highlightMarkupText(escapeHtml(location), searchTerm)}</p>` : ""}
 <p class="meta"><strong>Employment type:</strong> ${employmentTypeCategory(job)
-    ? `<a href="${SITE_URL}/?employmentType=${encodeURIComponent(employmentTypeCategory(job))}#listings">${escapeHtml(displayEmploymentType(job))}</a>`
-    : escapeHtml(displayEmploymentType(job))}</p><p class="meta" id="salary-details"><strong>Salary:</strong> ${salaryMarkup}</p>
-${jobLevel ? `<p class="meta"><strong>Job level:</strong> ${jobLevelMarkup}</p>` : ""}
-<p class="meta"><strong>Closing date:</strong> ${escapeHtml(deadline)}</p>${referenceDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}
-${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${label === "Published" && circularPath
+   ? `<a href="${SITE_URL}/?employmentType=${encodeURIComponent(employmentTypeCategory(job))}#listings">${highlightMarkupText(escapeHtml(displayEmploymentType(job)), searchTerm)}</a>`
+   : highlightMarkupText(escapeHtml(displayEmploymentType(job)), searchTerm)}</p><p class="meta" id="salary-details"><strong>Salary:</strong> ${highlightMarkupText(salaryMarkup, searchTerm)}</p>
+${jobLevel ? `<p class="meta"><strong>Job level:</strong> ${highlightMarkupText(jobLevelMarkup, searchTerm)}</p>` : ""}
+<p class="meta"><strong>Closing date:</strong> ${highlightMarkupText(escapeHtml(deadline), searchTerm)}</p>${referenceDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${highlightMarkupText(escapeHtml(value), searchTerm)}</p>`).join("")}
+${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHtml(label)}:</strong> ${highlightMarkupText(label === "Published" && circularPath
   ? `<a class="circular-pill" href="${SITE_URL}${circularPath}">${escapeHtml(value)}</a>`
-  : escapeHtml(value)}</p>`).join("")}</div>
-</div><div class="sections">${sections}${vacancyLinksSection(job)}${officialCircularLink}
+ : escapeHtml(value), searchTerm)}</p>`).join("")}</div>
+</div><div class="sections">${sections}${highlightMarkupText(vacancyLinksSection(job), searchTerm)}${highlightMarkupText(officialCircularLink, searchTerm)}
 <section class="share-post" aria-labelledby="share-post-title"><h2 id="share-post-title">Share this post</h2>
 <nav class="post-share-links" aria-label="Share this post">
 <a class="post-share-link" href="${escapeHtml(shareLinks.facebook)}" target="_blank" rel="noopener noreferrer"><img class="post-share-icon" src="${SITE_URL}/footer-facebook.svg" alt="">Facebook</a>
@@ -1559,7 +1589,7 @@ ${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHt
 <a class="post-share-link" href="${escapeHtml(shareLinks.pinterest)}" target="_blank" rel="noopener noreferrer"><img class="post-share-icon" src="${SITE_URL}/footer-pinterest.svg" alt="">Pinterest</a>
 </nav></section>
 <p class="important"><strong>Important:</strong> Confirm the department, eligibility, closing date and submission instructions in the official advert.</p></div>
-</article>${faq.markup}${relatedJobsMarkup(job, jobs, requestUrl.origin)}</main>
+</article>${highlightMarkupText(faq.markup, searchTerm)}${relatedJobsMarkup(job, jobs, requestUrl.origin, searchTerm)}</main>
 <footer class="site-footer"><div class="shell">
 <div class="footer-main">
 <div class="footer-contact"><a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
@@ -1675,7 +1705,11 @@ export default {
         } catch {
           return homeRedirect();
         }
-        const job = publicJobs.find(candidate => candidate.id === jobId || candidate.slug === jobId);
+        const jobIndex = jobs.findIndex(candidate =>
+          candidate.id === jobId || candidate.slug === jobId ||
+          jobSlug(candidate) === jobId || legacyJobSlug(candidate) === jobId
+        );
+        const job = publicJobs[jobIndex];
         if (!job) return homeRedirect(legacyCircularRedirectTarget(url) ?? "/");
         if (isExpired(job)) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>This vacancy has closed. Check the official advert for current opportunities.</body></html>", 410, "noindex");
         return new Response(null, {
@@ -1694,7 +1728,11 @@ export default {
         } catch {
           return homeRedirect();
         }
-        const job = publicJobs.find(candidate => candidate.slug === jobId || candidate.id === jobId);
+        const jobIndex = jobs.findIndex(candidate =>
+          candidate.slug === jobId || candidate.id === jobId ||
+          jobSlug(candidate) === jobId || legacyJobSlug(candidate) === jobId
+        );
+        const job = publicJobs[jobIndex];
         if (!job) return homeRedirect(legacyCircularRedirectTarget(url) ?? "/");
         if (isExpired(job)) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>This vacancy has closed. Check the official advert for current opportunities.</body></html>", 410, "noindex");
         if (jobId !== job.slug) {

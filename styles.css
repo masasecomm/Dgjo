@@ -252,6 +252,8 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .home-section-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 24px; }
 .home-text-link { display: inline-flex; align-items: center; gap: 8px; color: #087ad2; font-size: 13px; font-weight: 700; text-decoration: none; }
 .home-text-link:hover { gap: 12px; color: #13377f; }
+.home-job-continuation { margin-top: 20px; }
+.home-featured > .cv-matcher-section { margin: 28px 0; padding: 38px 26px; border-radius: 12px; }
 .province-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 9px; margin: 0 0 18px; scroll-margin-top: 16px; }
 .employment-type-filters { margin: 36px 0 18px; }
 .province-filter { display: inline-flex; min-height: 39px; align-items: center; justify-content: center; padding: 0 17px; border: 1px solid transparent; border-radius: 999px; color: #28323c; background: #eff3f5; font-size: 11px; font-weight: 700; text-decoration: none; transition: background .16s ease, box-shadow .16s ease; }
@@ -315,6 +317,7 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .listing-salary-link { color: #17499e; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .listing-card-apply { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; margin-left: auto; padding: 6px 18px; border-radius: 6px; color: #fff; background: #17499e; font-size: 12px; font-weight: 700; text-decoration: none; }
 .listing-card-apply:hover { color: #fff; background: #13377f; }
+.search-highlight { padding: 0 .04em; border-radius: 2px; color: inherit; background: rgba(56,189,248,.3); }
 .listing-empty { grid-column: 1 / -1; border-color: #c9d6e9; background: #f8fbff; }
 .listing-pagination { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 22px; }
 .listing-load-more { min-height: 44px; margin: auto; }

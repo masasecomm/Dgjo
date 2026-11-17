@@ -39,6 +39,17 @@ REQUIREMENTS: Grade 10 and physical fitness.`, { fileName: "Circular 41 of 2026.
   assert.equal(vacancies[0].type, "Sessional");
 });
 
+test("removes an unmatched opening bracket from a title before the level field", () => {
+  const { vacancies } = parseDpsaCircular(`DEPARTMENT OF CORRECTIONAL SERVICES
+POST 41/03: SECRETARY (
+LEVEL: 5
+REF NO: HO 2026/11/113
+REQUIREMENTS: Grade 12 and no experience required.`, { fileName: "Circular 41 of 2026.pdf" });
+
+  assert.equal(vacancies[0].title, "SECRETARY");
+  assert.equal(vacancies[0].level, "5");
+});
+
 test("department phrases inside vacancy text do not become employer fields", () => {
   const { vacancies } = parseDpsaCircular(`POST 1: SUPPLY CHAIN OFFICER
 REQUIREMENTS: Knowledge of Department of Higher Education mandate and BAS/LOGIS systems.
