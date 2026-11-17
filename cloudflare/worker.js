@@ -7,7 +7,7 @@ import {
   recoverVacancyRequirements,
   splitVacancyPoints
 } from "../vacancy-format.js";
-import { canonicalCircularName, circularArchivePath, compareCircularNames } from "../circulars.js";
+import { canonicalCircularName, circularArchivePath, compareCircularNames, groupJobsByCircular } from "../circulars.js";
 import { isFeedRequest, legacyCircularRedirectTarget } from "../redirects.js";
 import { normalizeProvince, PROVINCE_CRESTS } from "../provinces.js";
 import {
@@ -568,7 +568,7 @@ function vacancyFaq(job) {
       links: [{ href: `#${requirementSectionId}`, label: requirementSectionLabel }]
     },
     {
-      question: `What does the ${title} post involve${job.province ? ` in ${normalizeProvince(job.province) || job.province}` : ""}?`,
+      question: `What does the ${title} do while at work${job.province ? ` in ${normalizeProvince(job.province) || job.province}` : ""}?`,
       answer: dutiesAnswer,
       links: [{ href: `#${dutySectionId}`, label: "Duties or job-purpose section in this post" }]
     },
@@ -714,6 +714,9 @@ function vacancyPage(job, requestUrl, jobs) {
   const circularPage = String(job.circularPage ?? "").replace(/^page\s*/i, "").trim();
   const circularName = canonicalCircularName(job.circularName);
   const circularPath = circularArchivePath(circularName);
+  const circularNavigation = groupJobsByCircular(jobs.filter(candidate => !isExpired(candidate)))
+    .map(group => `<a href="${SITE_URL}${group.path}">${escapeHtml(group.name)}<span>${group.jobs.length} ${group.jobs.length === 1 ? "job" : "jobs"}</span></a>`)
+    .join("");
   const publicationDetails = [
     circularName && ["Published", circularName],
     job.circularDate && ["Date", job.circularDate],
@@ -779,6 +782,11 @@ a{color:#087ad2;text-underline-offset:3px}.shell{width:min(1120px,calc(100% - 40
 .brand img{width:40px;height:40px;border:1px solid rgba(255,255,255,.32);border-radius:50%;object-fit:cover}
 .brand-copy{display:grid;line-height:1.15}.brand-title{font-size:15px;font-weight:800;letter-spacing:.05em}.brand-subtitle{color:#d7e5ff;font-size:10px}
 .nav-links{display:flex;gap:24px;font-size:13px;font-weight:700}.nav-links a{color:#f4f7ff;text-decoration:none}
+.nav-dropdown{position:relative;border:0}.nav-dropdown summary{display:inline-flex;align-items:center;gap:8px;padding:0;color:#f4f7ff;cursor:pointer;font-size:inherit;list-style:none;white-space:nowrap}.nav-dropdown summary::-webkit-details-marker{display:none}.nav-dropdown summary:after{width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;content:"";transform:rotate(45deg) translateY(-2px)}
+.nav-dropdown-menu{position:absolute;top:calc(100% + 13px);left:0;z-index:30;display:none;width:max-content;min-width:250px;max-width:min(300px,calc(100vw - 32px));max-height:min(65vh,420px);overflow-y:auto;padding:8px;border:1px solid #e6eaf0;border-radius:9px;background:#fff;box-shadow:0 12px 30px rgba(20,40,70,.18)}
+.nav-dropdown[open]>.nav-dropdown-menu,.nav-dropdown:hover>.nav-dropdown-menu,.nav-dropdown:focus-within>.nav-dropdown-menu{display:grid}
+.nav-links .nav-dropdown-menu>a{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 10px;border-radius:6px;color:#32373c;font-size:13px;font-weight:600;white-space:nowrap}
+.nav-links .nav-dropdown-menu>a:hover,.nav-links .nav-dropdown-menu>a:focus-visible{background:#f1f5fa;color:#17499e}.nav-links .nav-dropdown-menu>a:first-child{margin-bottom:4px;padding-bottom:11px;border-bottom:1px solid #e6eaf0;border-radius:0}.nav-dropdown-menu span{color:#6b747c;font-size:11px;font-weight:500}
 main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size:12px}
 .vacancy-card{display:grid;grid-template-columns:58px minmax(0,1fr);gap:18px;padding:26px;border:1px solid #e6eaf0;border-radius:12px;background:#fff;box-shadow:0 8px 26px rgba(26,52,94,.045)}
 .job-mark{display:grid;width:58px;height:58px;place-items:center;overflow:hidden;border:1px solid #e6eaf0;border-radius:11px;background:#fff}
@@ -823,7 +831,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 </style></head>
 <body><header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
-<div class="nav-links"><a href="${SITE_URL}/">Home</a><a href="${SITE_URL}/dpsa-vacancy-circulars/">Circulars</a><a href="${SITE_URL}/#listings">Vacancies</a></div>
+<div class="nav-links"><a href="${SITE_URL}/">Home</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a href="${SITE_URL}/dpsa-vacancy-circulars/">All circulars</a>${circularNavigation}</div></details><a href="${SITE_URL}/#listings">Vacancies</a></div>
 </nav></header><main class="shell">
 <nav class="breadcrumb" aria-label="Breadcrumb"><a href="${SITE_URL}/">Home</a> › ${escapeHtml(title)}</nav>
 <article class="vacancy-card"><div class="job-mark">${jobMark}</div><div class="job-content">

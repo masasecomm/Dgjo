@@ -35,6 +35,7 @@ const PAST_CIRCULARS_START = "<!-- PAST_CIRCULARS_START -->";
 const PAST_CIRCULARS_END = "<!-- PAST_CIRCULARS_END -->";
 const PROVINCE_GUIDES_START = "<!-- PROVINCE_GUIDES_START -->";
 const PROVINCE_GUIDES_END = "<!-- PROVINCE_GUIDES_END -->";
+const CIRCULAR_NAV_ITEMS = "<!-- CIRCULAR_NAV_ITEMS -->";
 const SNAPSHOT_FIELDS = [
   "id", "slug", "title", "company", "circularName", "sourceUrl", "centre", "province",
   "location", "salaryText", "level", "natureOfAppointment", "type", "closingDate", "refNo", "category"
@@ -199,6 +200,15 @@ export function renderCircularArchiveLinks(circularGroups) {
   ).join("")}</ul>`;
 }
 
+export function renderCircularNavigationItems(circularGroups) {
+  return circularGroups
+    .filter(group => Array.isArray(group.jobs) && group.jobs.length > 0)
+    .map(group =>
+      `<a href="${escapeHtml(group.path)}">${escapeHtml(group.name)}<span class="nav-dropdown-count">${group.jobs.length} ${group.jobs.length === 1 ? "job" : "jobs"}</span></a>`
+    )
+    .join("");
+}
+
 export function renderPastCircularArchiveLinks(circularNames = SEARCH_CONSOLE_ARCHIVED_CIRCULARS) {
   if (!circularNames.length) return "<p>No previous circular issues are listed.</p>";
   return `<ul class="circular-archive-list">${circularNames.map(name =>
@@ -298,7 +308,7 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
     <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <div class="nav-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">Circulars</a><a href="/how-to-apply/">How to apply</a></div>
+    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/how-to-apply/">How to apply</a></div>
   </nav></header>
   <main id="main">
     <div class="site-post">
@@ -406,7 +416,7 @@ export function renderCircularArchivePage(circularName, jobs) {
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
     <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-    <div class="nav-links"><a href="/">Vacancies</a><a href="/dpsa-vacancy-circulars/">Circulars</a><a href="/how-to-apply/">How to apply</a></div>
+    <div class="nav-links"><a href="/">Vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details><a href="/how-to-apply/">How to apply</a></div>
   </nav></header>
   <main id="main">
     <div class="site-post">
@@ -486,6 +496,7 @@ export async function buildSite() {
   index = replaceMarkedContent(index, JOBS_START, JOBS_END, renderHomeJobListings(validJobs));
   index = replaceMarkedContent(index, COUNT_START, COUNT_END, `${validJobs.length} current ${validJobs.length === 1 ? "vacancy" : "vacancies"}`);
   index = replaceMarkedContent(index, PROVINCE_GUIDES_START, PROVINCE_GUIDES_END, renderProvinceGuideLinks(provinceGroups));
+  index = replaceUniqueMarker(index, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups));
   const snapshot = validJobs.map(job => Object.fromEntries(
     SNAPSHOT_FIELDS.filter(field => job[field] !== undefined).map(field => [field, job[field]])
   ));
@@ -511,6 +522,9 @@ export async function buildSite() {
   for (const file of files) {
     await cp(path.join(ROOT, file), path.join(output, file), { force: true });
   }
+  const notFoundPath = path.join(output, "404.html");
+  const notFoundPage = await readFile(notFoundPath, "utf8");
+  await writeFile(notFoundPath, replaceUniqueMarker(notFoundPage, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
   for (const directory of ["dpsa-vacancy-circulars", "how-to-apply", "national-treasury-salary-scales"]) {
     await cp(path.join(ROOT, directory), path.join(output, directory), { recursive: true, force: true });
   }
@@ -529,20 +543,29 @@ export async function buildSite() {
     PAST_CIRCULARS_END,
     renderPastCircularArchiveLinks()
   );
+  circularHub = replaceUniqueMarker(circularHub, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups));
   await writeFile(circularHubPath, circularHub);
+
+  for (const directory of ["how-to-apply", "national-treasury-salary-scales"]) {
+    const pagePath = path.join(output, directory, "index.html");
+    const page = await readFile(pagePath, "utf8");
+    await writeFile(pagePath, replaceUniqueMarker(page, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
+  }
 
   for (const group of circularGroups) {
     const slug = group.path.split("/").filter(Boolean).at(-1);
     const archiveDirectory = path.join(output, "dpsa-vacancy-circulars", slug);
     await mkdir(archiveDirectory, { recursive: true });
-    await writeFile(path.join(archiveDirectory, "index.html"), renderCircularArchivePage(group.name, group.jobs));
+    const page = renderCircularArchivePage(group.name, group.jobs);
+    await writeFile(path.join(archiveDirectory, "index.html"), replaceUniqueMarker(page, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
   }
 
   for (const group of provinceGroups) {
     const slug = group.path.split("/").filter(Boolean).at(-1);
     const provinceDirectory = path.join(output, "government-vacancies", slug);
     await mkdir(provinceDirectory, { recursive: true });
-    await writeFile(path.join(provinceDirectory, "index.html"), renderProvinceLandingPage(group.name, group.jobs));
+    const page = renderProvinceLandingPage(group.name, group.jobs);
+    await writeFile(path.join(provinceDirectory, "index.html"), replaceUniqueMarker(page, CIRCULAR_NAV_ITEMS, renderCircularNavigationItems(circularGroups)));
   }
 
   const sitemapPath = path.join(output, "sitemap.xml");

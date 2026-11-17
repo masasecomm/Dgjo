@@ -88,6 +88,7 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /\.meta\{[^}]*font-size:16px/);
   assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/province-limpopo\.png" alt="Limpopo provincial coat of arms" width="58" height="58"/);
   assert.match(html, /class="site-header"/);
+  assert.match(html, /<details class="nav-dropdown"><summary>Circulars<\/summary><div class="nav-dropdown-menu"><a href="https:\/\/dpsagovernmentjobs\.co\.za\/dpsa-vacancy-circulars\/">All circulars<\/a><a href="https:\/\/dpsagovernmentjobs\.co\.za\/dpsa-vacancy-circulars\/circular-1-of-2099\/">Circular 1 of 2099<span>1 job<\/span><\/a>/);
   assert.doesNotMatch(html, /<link rel="stylesheet"/);
   assert.match(html, /Requirements/);
   const adIndex = html.indexOf('<aside class="content-ad" aria-label="Advertisement">');
@@ -238,6 +239,7 @@ test("renders vacancy-specific FAQs and matching FAQ schema with gross and estim
   assert.match(html, /It excludes UIF, pension\/GEPF contributions, medical aid credits/);
   assert.match(html, /At least two years of experience in administrative work/);
   assert.match(html, /A Grade 12 certificate/);
+  assert.match(html, /What does the Administration Clerk do while at work in Limpopo\?/);
   assert.match(html, /Provide administrative support and maintain the office records/);
   assert.match(html, /href="#requirements">Requirements section in this post<\/a>/);
   assert.match(html, /href="https:\/\/www\.sars\.gov\.za\/tax-rates\/income-tax\/rates-of-tax-for-individuals\/"/);

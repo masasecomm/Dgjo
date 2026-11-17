@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   renderCircularArchiveLinks,
   renderCircularArchivePage,
+  renderCircularNavigationItems,
   renderHomeJobListings,
   renderJobListings,
   renderPastCircularArchiveLinks,
@@ -192,9 +193,22 @@ test("renders circular archive links and adds their routes to the sitemap", () =
   assert.match(sitemap, /<lastmod>2026-11-17<\/lastmod>/);
 });
 
+test("renders navigation links only for circulars that have published jobs", () => {
+  const links = renderCircularNavigationItems([
+    { name: "Circular 1 of 2026", path: "/dpsa-vacancy-circulars/circular-1-of-2026/", jobs: [{}] },
+    { name: "Circular 2 of 2026", path: "/dpsa-vacancy-circulars/circular-2-of-2026/", jobs: [{}, {}] },
+    { name: "Circular 3 of 2026", path: "/dpsa-vacancy-circulars/circular-3-of-2026/", jobs: [] }
+  ]);
+
+  assert.match(links, /href="\/dpsa-vacancy-circulars\/circular-1-of-2026\/">Circular 1 of 2026<span class="nav-dropdown-count">1 job<\/span>/);
+  assert.match(links, /href="\/dpsa-vacancy-circulars\/circular-2-of-2026\/">Circular 2 of 2026<span class="nav-dropdown-count">2 jobs<\/span>/);
+  assert.doesNotMatch(links, /Circular 3 of 2026/);
+});
+
 test("keeps historical circular references available and maps old URLs to their section", () => {
   const links = renderPastCircularArchiveLinks();
 
+  assert.doesNotMatch(links, /2025/);
   assert.match(links, /id="circular-1-of-2026"><strong>Circular 1 of 2026<\/strong>/);
   assert.match(links, /id="circular-18-of-2026"/);
   assert.match(links, /href="https:\/\/www\.dpsa\.gov\.za\/newsroom\/psvc\/"/);
@@ -288,6 +302,27 @@ test("loads the AdSense script on every public static HTML page", async () => {
     assert.match(html, /<body class="post-theme(?: home-page)?"(?: [^>]*)?>/, `${pagePath} must use the shared post theme`);
     assert.match(html, /<script type="module" src="\/redirects\.js"><\/script>/, `${pagePath} must include URL redirects`);
   }
+});
+
+test("adds the circular navigation slot to every static page and embeds the application video", async () => {
+  const pages = [
+    "../index.html",
+    "../404.html",
+    "../dpsa-vacancy-circulars/index.html",
+    "../how-to-apply/index.html",
+    "../national-treasury-salary-scales/index.html"
+  ];
+
+  for (const pagePath of pages) {
+    const html = await readFile(new URL(pagePath, import.meta.url), "utf8");
+    assert.match(html, /<details class="nav-dropdown"><summary>Circulars<\/summary>/, `${pagePath} must use the circular dropdown`);
+    assert.equal(html.split("<!-- CIRCULAR_NAV_ITEMS -->").length - 1, 1, `${pagePath} must have one build-time circular list`);
+  }
+
+  const guide = await readFile(new URL("../how-to-apply/index.html", import.meta.url), "utf8");
+  assert.match(guide, /youtube-nocookie\.com\/embed\/8oNXApid12s/);
+  assert.match(guide, /title="How to apply for a government vacancy" loading="lazy"/);
+  assert.match(guide, /https:\/\/www\.youtube\.com\/watch\?v=8oNXApid12s/);
 });
 
 test("redirects common feed URLs and query forms without treating the sitemap as a feed", () => {

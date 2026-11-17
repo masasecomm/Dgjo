@@ -59,13 +59,7 @@ export const SEARCH_CONSOLE_ARCHIVED_CIRCULARS = [
   "Circular 4 of 2026",
   "Circular 3 of 2026",
   "Circular 2 of 2026",
-  "Circular 1 of 2026",
-  "Circular 44 of 2025",
-  "Circular 43 of 2025",
-  "Circular 42 of 2025",
-  "Circular 41 of 2025",
-  "Circular 25 of 2025",
-  "Circular 22 of 2025"
+  "Circular 1 of 2026"
 ];
 
 export function groupJobsByCircular(jobs) {
