@@ -27,6 +27,8 @@ test("public pages have an accessible, wired mobile navigation toggle", () => {
   assert.match(navigationScript, /fetch\(jobsApiUrl\)/);
   assert.match(navigationScript, /groupJobsByCircular\(jobs\)/);
   assert.match(navigationScript, /circularNavigationPromise/);
+  assert.match(navigationScript, /circularNavigationLoaded/);
+  assert.match(navigationScript, /menu\.querySelectorAll\("a:not\(\.nav-dropdown-all\)"\)\.forEach\(link => link\.remove\(\)\)/);
   assert.match(navigationScript, /Loading published circulars…/);
   assert.match(navigationScript, /Published circulars could not be loaded/);
   assert.match(styles, /\.nav-dropdown-error, \.nav-dropdown-loading \{ margin: 0; padding: 10px; color: var\(--muted\); font-size: 13px; \}/);

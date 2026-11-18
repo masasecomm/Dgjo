@@ -783,7 +783,7 @@ export async function buildSite() {
     "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
     "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
     "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",
-    "bookmark.js", "circulars.js", "employment-type.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
+    "bookmark.js", "circulars.js", "employment-type.js", "navigation.js", "page-title.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
     "footer-facebook.svg", "footer-location.svg", "footer-pinterest.svg", "footer-x.svg",
     "south-african-flag.png", "styles.css", "vacancy-format.js"
   ];

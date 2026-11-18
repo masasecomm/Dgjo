@@ -410,6 +410,8 @@ test("removes stale generated circular and province pages on rebuild", async () 
       access(path.join(output, "pdf.worker.min.mjs")),
       access(path.join(output, "scripts", "cv-matcher.js")),
       access(path.join(output, "bookmark.js")),
+      access(path.join(output, "navigation.js")),
+      access(path.join(output, "page-title.js")),
       access(path.join(output, "employment-type.js")),
       access(path.join(output, "favicon.ico")),
       access(path.join(output, "apple-touch-icon.png")),
