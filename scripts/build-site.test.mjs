@@ -100,7 +100,7 @@ test("places the CV matcher after four initial crawlable cards and keeps every v
   const archive = renderCircularArchivePage("Circular 1 of 2026", jobs);
   assert.match(archive, /Vacancy 15/);
   assert.equal((archive.match(/data-ad-slot="4102953920"/g) ?? []).length, 2);
-  assert.doesNotMatch(archive, /data-ad-slot="3081508385"/);
+  assert.equal((archive.match(/data-ad-slot="3081508385"/g) ?? []).length, 1);
 });
 
 test("inserts a full-width listing ad after each six-card group without a trailing ad", () => {
@@ -130,6 +130,7 @@ test("keeps circulars and application guidance on their own pages", async () => 
   const cvSectionIndex = homepage.indexOf('<section class="section cv-matcher-section"');
   const initialListingsIndex = homepage.indexOf('id="job-list"');
   const continuationIndex = homepage.indexOf('id="job-list-continuation"');
+  const firstAdIndex = homepage.indexOf('data-ad-slot="3081508385"');
   const homepageNavStart = homepage.indexOf('<nav class="nav shell"');
   const homepageNav = homepage.slice(homepageNavStart, homepage.indexOf("</nav>", homepageNavStart));
   const homepageNavItems = [
@@ -140,6 +141,7 @@ test("keeps circulars and application guidance on their own pages", async () => 
   ];
 
   assert.ok(cvSectionIndex > initialListingsIndex && cvSectionIndex < continuationIndex, "the CV matcher initially follows the first four jobs");
+  assert.ok(firstAdIndex > initialListingsIndex && firstAdIndex < cvSectionIndex, "the original ad remains after the initial four-card grid and before the CV matcher");
   assert.ok(homepage.indexOf('<section class="home-section home-featured"') < cvSectionIndex);
   assert.ok(homepage.indexOf('<div class="home-job-continuation"') > cvSectionIndex);
   assert.match(homepage, /const listingsSection = document\.querySelector\("\.home-featured"\)/);
@@ -552,6 +554,7 @@ test("builds province vacancy guides from canonicalized locations", () => {
   assert.match(gautengPage, /Government vacancies by province<\/a> › Gauteng/);
   assert.match(gautengPage, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
   assert.equal((gautengPage.match(/data-ad-slot="4102953920"/g) ?? []).length, 0);
+  assert.equal((gautengPage.match(/data-ad-slot="3081508385"/g) ?? []).length, 1);
   assert.match(nationalPage, /<title>National Government Vacancies \| Current DPSA Jobs<\/title>/);
   assert.match(nationalPage, /not assigned to a specific province/i);
   assert.match(nationalPage, /Unknown location/);
@@ -725,7 +728,7 @@ test("loads AdSense once and provides a responsive ad unit on monetizable static
   for (const pagePath of pages) {
     const html = await readFile(new URL(pagePath, import.meta.url), "utf8");
     assert.equal(html.split(loaderUrl).length - 1, 1, `${pagePath} must load AdSense exactly once`);
-    const expectedExistingAdUnits = pagePath === "../404.html" || pagePath === "../index.html" ? 0 : 1;
+    const expectedExistingAdUnits = pagePath === "../404.html" ? 0 : 1;
     assert.equal(html.split('data-ad-slot="3081508385"').length - 1, expectedExistingAdUnits, `${pagePath} must have the intended number of existing manual ad units`);
     if (expectedExistingAdUnits) {
       assert.match(html, /data-ad-format="auto" data-full-width-responsive="true"/, `${pagePath} must use a responsive ad unit`);
