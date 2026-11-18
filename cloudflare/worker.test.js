@@ -280,6 +280,9 @@ test("vacancy route renders unique metadata, full details and valid structured d
 
   assert.equal(response.status, 200);
   assert.match(html, /<title>Assistant Director: Example at Department of Health \| DPSA Government Jobs<\/title>/);
+  assert.match(html, /class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"[^>]+aria-expanded="false"><span><\/span><span><\/span><span><\/span><\/button>/);
+  assert.match(html, /class="nav-links" id="main-nav-links"/);
+  assert.match(html, /\.content-ad iframe\{max-width:100%!important\}/);
   assert.match(html, /<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=G-69H0HQGRT9"><\/script>/);
   assert.match(html, /gtag\('config','G-69H0HQGRT9',\{page_location:"https:\/\/jobs\.example\/assistant-director-1-1-example-1\/"\}\)/);
   assert.match(html, /<link rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.ico">/);
@@ -595,6 +598,8 @@ test("serves a browser-local saved-vacancies page on the jobs origin", async () 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow");
   assert.match(html, /<title>Saved Vacancies \| DPSA Government Jobs<\/title>/);
+  assert.match(html, /class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"/);
+  assert.match(html, /navigation\.js\?v=20261118-mobile-nav/);
   assert.match(html, /data-saved-vacancies-list/);
   assert.match(html, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.ico"/);
   assert.match(html, /src="https:\/\/dpsagovernmentjobs\.co\.za\/bookmark\.js\?v=20261117-saved-card-layout" defer/);

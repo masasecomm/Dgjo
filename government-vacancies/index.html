@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=20261118-mobile-ux">
   <title>Government Vacancies by Province | DPSA Government Jobs</title>
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_ZA">
@@ -21,6 +21,7 @@
   <meta property="og:description" content="Browse current South African government vacancies by province or national category.">
   <meta property="og:url" content="https://dpsagovernmentjobs.co.za/government-vacancies/">
   <script type="module" src="/redirects.js"></script>
+  <script src="/navigation.js?v=20261118-mobile-nav" defer></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
 </head>
 <body class="post-theme">
@@ -28,7 +29,8 @@
   <header class="site-header">
     <nav class="nav shell" aria-label="Main navigation">
       <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-      <div class="nav-links">
+      <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-controls="main-nav-links" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div class="nav-links" id="main-nav-links">
         <a href="/">Vacancies</a>
         <a href="/saved-vacancies/">Saved vacancies</a>
         <details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a><!-- CIRCULAR_NAV_ITEMS --></div></details>

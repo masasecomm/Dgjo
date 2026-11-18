@@ -135,6 +135,28 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
   html { scroll-behavior: auto; }
 }
 
+.mobile-menu-toggle {
+  display: none;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.32);
+  border-radius: 8px;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+}
+.mobile-menu-toggle span {
+  width: 23px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+}
 .site-header {
   position: relative;
   border-bottom: 1px solid rgba(255,255,255,.13);
@@ -408,9 +430,18 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
   .footer-contact { grid-column: 1 / -1; max-width: 460px; }
   .footer-bottom { flex-direction: column; margin-top: 24px; }
 }
+@media (max-width: 760px) {
+  .nav { position: relative; min-height: 68px; align-items: center; flex-direction: row; justify-content: space-between; gap: 12px; padding-block: 10px; }
+  .mobile-menu-toggle { display: flex; margin-left: auto; }
+  .nav-links { position: absolute; top: calc(100% + 8px); right: 0; z-index: 31; display: none; width: min(320px, calc(100vw - 32px)); align-items: stretch; flex-direction: column; gap: 0; padding: 8px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: #17499e; box-shadow: 0 12px 30px rgba(13,42,95,.24); font-size: 14px; }
+  .site-header.is-menu-open .nav-links { display: flex; }
+  .nav-links > a, .nav-links > .nav-dropdown > summary { min-height: 44px; display: flex; align-items: center; padding: 0 12px; }
+  .nav-links .nav-dropdown-menu { position: static; width: 100%; max-width: none; max-height: 45vh; margin: 0 0 6px; box-shadow: none; }
+  .nav-links .nav-dropdown-menu > a { white-space: normal; }
+  .nav-links .nav-dropdown > summary { justify-content: space-between; }
+  .nav-links .nav-dropdown[open] > .nav-dropdown-menu { display: grid; }
+}
 @media (max-width: 390px) {
-  .nav { align-items: flex-start; flex-direction: column; padding-block: 12px; }
-  .nav-links { width: 100%; justify-content: space-between; gap: 8px; font-size: 10px; }
   .home-brand img { width: 36px; height: 36px; }
   .home-search-field { padding-inline: 7px; }
   .home-search-field > svg { width: 17px; height: 17px; }
@@ -465,8 +496,9 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
 .site-post .salary-guide { padding: 18px 0 0; }
 .site-post .salary-guide .shell { width: 100%; max-width: none; margin-inline: 0; }
 .site-post .breadcrumb { margin-top: 0; }
-.content-ad { display: flex; justify-content: center; max-width: 100%; margin: 24px auto; overflow: hidden; }
-.content-ad .adsbygoogle { width: 100%; max-width: 970px; min-height: 100px; }
+.content-ad { display: flex; justify-content: center; width: 100%; min-width: 0; max-width: 100%; margin: 24px auto; overflow: visible; }
+.content-ad .adsbygoogle { display: block; width: 100% !important; min-width: 0 !important; max-width: 970px; min-height: 100px; }
+.content-ad iframe { max-width: 100% !important; }
 .site-post.not-found { min-height: 56vh; display: grid; align-content: center; }
 
 .home-page #main { padding: 0 0 24px; }
