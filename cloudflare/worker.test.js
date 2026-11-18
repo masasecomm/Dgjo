@@ -998,6 +998,21 @@ test("accepts a published list containing up to 6000 jobs", async () => {
   assert.equal(result.count, 6000);
 });
 
+test("explains which job field caused publication validation to fail", async () => {
+  const response = await worker.fetch(new Request("https://jobs.example/api/jobs", {
+    method: "PUT",
+    headers: {
+      Authorization: "Bearer test-token",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify([makeJob({ category: "Invalid category" })])
+  }), createEnv([]));
+  const result = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(result.error, "Job 1 has an unsupported category.");
+});
+
 test("robots endpoint advertises the live Worker sitemap", async () => {
   const response = await worker.fetch(new Request("https://jobs.example/robots.txt"), createEnv([]));
   const body = await response.text();

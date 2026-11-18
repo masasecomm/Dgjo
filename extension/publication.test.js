@@ -5,7 +5,8 @@ import {
   comparePostNumbers,
   displayVacancyTitle,
   getCircularVacancies,
-  mergeVacancyLinks
+  mergeVacancyLinks,
+  sanitizePublishedJob
 } from "./publication.js";
 
 test("formats uppercase vacancy titles as readable text without changing mixed-case titles", () => {
@@ -56,4 +57,22 @@ test("keeps all existing and imported post links when merging a republished vaca
     { label: "Circular", url: "https://dpsa.gov.za/circular.pdf" },
     { label: "Application form", url: "https://department.gov.za/form.pdf" }
   ]);
+});
+
+test("removes unsupported legacy metadata before sending jobs to the Worker", () => {
+  const job = sanitizePublishedJob({
+    id: "vacancy-1",
+    title: "Vacancy",
+    circularName: "Circular 1 of 2026",
+    links: [{ label: "Apply", url: "https://department.gov.za/apply" }],
+    slug: "old-generated-slug",
+    createdAt: "2025-01-01"
+  });
+
+  assert.deepEqual(job, {
+    id: "vacancy-1",
+    title: "Vacancy",
+    circularName: "Circular 1 of 2026",
+    links: [{ label: "Apply", url: "https://department.gov.za/apply" }]
+  });
 });

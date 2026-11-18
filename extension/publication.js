@@ -2,6 +2,20 @@ function normalizeCircularName(value) {
   return String(value ?? "").trim().toLocaleLowerCase("en-ZA");
 }
 
+const PUBLISHABLE_JOB_FIELDS = new Set([
+  "id", "title", "company", "location", "type", "category", "salary",
+  "salaryText", "posted", "logo", "color", "logoColor", "sourceUrl",
+  "circularName", "circularDate", "circularPage", "postNo", "refNo",
+  "province", "natureOfAppointment", "branch", "chiefDirectorate",
+  "directorate", "cluster", "level", "centre", "closingDate", "requirements",
+  "duties", "jobPurpose", "skillsAndCompetencies", "enquiries", "applications",
+  "note", "links"
+]);
+
+export function sanitizePublishedJob(job) {
+  return Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
+}
+
 export function displayVacancyTitle(value) {
   const title = String(value ?? "").trim();
   const letters = title.match(/\p{L}/gu) ?? [];

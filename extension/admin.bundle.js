@@ -47355,6 +47355,46 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   function normalizeCircularName(value) {
     return String(value ?? "").trim().toLocaleLowerCase("en-ZA");
   }
+  var PUBLISHABLE_JOB_FIELDS = /* @__PURE__ */ new Set([
+    "id",
+    "title",
+    "company",
+    "location",
+    "type",
+    "category",
+    "salary",
+    "salaryText",
+    "posted",
+    "logo",
+    "color",
+    "logoColor",
+    "sourceUrl",
+    "circularName",
+    "circularDate",
+    "circularPage",
+    "postNo",
+    "refNo",
+    "province",
+    "natureOfAppointment",
+    "branch",
+    "chiefDirectorate",
+    "directorate",
+    "cluster",
+    "level",
+    "centre",
+    "closingDate",
+    "requirements",
+    "duties",
+    "jobPurpose",
+    "skillsAndCompetencies",
+    "enquiries",
+    "applications",
+    "note",
+    "links"
+  ]);
+  function sanitizePublishedJob(job) {
+    return Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
+  }
   function displayVacancyTitle(value) {
     const title = String(value ?? "").trim();
     const letters = title.match(new RegExp("\\p{L}", "gu")) ?? [];
@@ -48082,13 +48122,14 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     }
   }
   async function publishJobs(nextJobs) {
+    const publishableJobs = nextJobs.map(sanitizePublishedJob);
     const response = await fetch(apiUrl, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${adminToken}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(nextJobs)
+      body: JSON.stringify(publishableJobs)
     });
     if (!response.ok) {
       let message = `Could not publish jobs (HTTP ${response.status}).`;

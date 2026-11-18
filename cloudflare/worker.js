@@ -590,46 +590,59 @@ function isValidText(value) {
 }
 
 function validateJobs(value) {
-  if (!Array.isArray(value) || value.length > MAX_JOBS) return false;
+  if (!Array.isArray(value)) return "Job list must be an array.";
+  if (value.length > MAX_JOBS) return `Job list contains ${value.length} jobs; the limit is ${MAX_JOBS}.`;
   const ids = new Set();
-  return value.every(job => {
-    if (!job || typeof job !== "object" || Array.isArray(job)) return false;
-    if (Object.keys(job).some(field => !JOB_FIELDS.has(field))) return false;
+  for (const [index, job] of value.entries()) {
+    const prefix = `Job ${index + 1}`;
+    if (!job || typeof job !== "object" || Array.isArray(job)) return `${prefix} must be an object.`;
+    const unsupportedField = Object.keys(job).find(field => !JOB_FIELDS.has(field));
+    if (unsupportedField) return `${prefix} contains unsupported field "${unsupportedField}". Refresh the extension and retry.`;
     const textFields = ["id", "title", "company", "location", "salaryText", "posted", "logo"];
-    if (!textFields.every(field => isValidText(job[field]))) return false;
-    if (ids.has(job.id) || !CATEGORIES.has(job.category) || !TYPES.has(job.type)) return false;
-    if (!Number.isFinite(job.salary) || job.salary < 0 || job.salary > 100000000) return false;
-    if (!/^#[0-9a-f]{6}$/i.test(job.color) || !/^#[0-9a-f]{6}$/i.test(job.logoColor)) return false;
+    const invalidTextField = textFields.find(field => !isValidText(job[field]));
+    if (invalidTextField) return `${prefix} has a missing or invalid "${invalidTextField}" value.`;
+    if (ids.has(job.id)) return `${prefix} has a duplicate job ID. Refresh the extension and remove the duplicate before retrying.`;
+    if (!CATEGORIES.has(job.category)) return `${prefix} has an unsupported category.`;
+    if (!TYPES.has(job.type)) return `${prefix} has an unsupported appointment type.`;
+    if (!Number.isFinite(job.salary) || job.salary < 0 || job.salary > 100000000) return `${prefix} has an invalid salary amount.`;
+    if (!/^#[0-9a-f]{6}$/i.test(job.color)) return `${prefix} has an invalid card color.`;
+    if (!/^#[0-9a-f]{6}$/i.test(job.logoColor)) return `${prefix} has an invalid logo color.`;
     for (const [field, maxLength] of OPTIONAL_TEXT_FIELDS) {
-      if (job[field] !== undefined && (typeof job[field] !== "string" || job[field].length > maxLength)) return false;
+      if (job[field] !== undefined && (typeof job[field] !== "string" || job[field].length > maxLength)) {
+        return `${prefix} has an invalid "${field}" value (maximum ${maxLength} characters).`;
+      }
     }
     if (job.links !== undefined) {
-      if (!Array.isArray(job.links) || job.links.length > MAX_JOB_LINKS) return false;
-      if (!job.links.every(link => {
-        if (!link || typeof link !== "object" || Array.isArray(link)) return false;
-        if (Object.keys(link).some(field => !["label", "url"].includes(field))) return false;
-        if (typeof link.label !== "string" || link.label.length > 300) return false;
-        if (typeof link.url !== "string" || link.url.length > 2048) return false;
+      if (!Array.isArray(job.links) || job.links.length > MAX_JOB_LINKS) {
+        return `${prefix} has an invalid link list (maximum ${MAX_JOB_LINKS} links).`;
+      }
+      const invalidLink = job.links.some(link => {
+        if (!link || typeof link !== "object" || Array.isArray(link)) return true;
+        if (Object.keys(link).some(field => !["label", "url"].includes(field))) return true;
+        if (typeof link.label !== "string" || link.label.length > 300) return true;
+        if (typeof link.url !== "string" || link.url.length > 2048) return true;
         try {
           const parsedUrl = new URL(link.url);
-          return ["https:", "http:", "mailto:", "tel:"].includes(parsedUrl.protocol) && !parsedUrl.username && !parsedUrl.password;
+          return !["https:", "http:", "mailto:", "tel:"].includes(parsedUrl.protocol) ||
+            Boolean(parsedUrl.username || parsedUrl.password);
         } catch {
-          return false;
+          return true;
         }
-      })) return false;
+      });
+      if (invalidLink) return `${prefix} contains an invalid application link.`;
     }
     if (job.sourceUrl !== undefined) {
-      if (typeof job.sourceUrl !== "string" || job.sourceUrl.length > 2048) return false;
+      if (typeof job.sourceUrl !== "string" || job.sourceUrl.length > 2048) return `${prefix} has an invalid official source URL.`;
       try {
         const sourceUrl = new URL(job.sourceUrl);
-        if (sourceUrl.protocol !== "https:" || sourceUrl.username || sourceUrl.password) return false;
+        if (sourceUrl.protocol !== "https:" || sourceUrl.username || sourceUrl.password) return `${prefix} has an invalid official source URL.`;
       } catch {
-        return false;
+        return `${prefix} has an invalid official source URL.`;
       }
     }
     ids.add(job.id);
-    return true;
-  });
+  }
+  return "";
 }
 
 function escapeHtml(value) {
@@ -1787,8 +1800,9 @@ export default {
     } catch {
       return jsonResponse({ error: "Request body must be valid JSON." }, 400);
     }
-    if (!validateJobs(jobs)) {
-      return jsonResponse({ error: `Job list is invalid or exceeds the ${MAX_JOBS}-job limit.` }, 400);
+    const validationError = validateJobs(jobs);
+    if (validationError) {
+      return jsonResponse({ error: validationError }, 400);
     }
 
     const previousJobs = await loadPublishedJobs(env);

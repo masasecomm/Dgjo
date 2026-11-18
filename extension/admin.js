@@ -11,6 +11,7 @@ import {
   displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks,
+  sanitizePublishedJob,
   vacancyMatchKey
 } from "./publication.js";
 import {
@@ -704,13 +705,14 @@ async function publishImportedVacancies(publishAll = false) {
 }
 
 async function publishJobs(nextJobs) {
+  const publishableJobs = nextJobs.map(sanitizePublishedJob);
   const response = await fetch(apiUrl, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${adminToken}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(nextJobs)
+    body: JSON.stringify(publishableJobs)
   });
   if (!response.ok) {
     let message = `Could not publish jobs (HTTP ${response.status}).`;
