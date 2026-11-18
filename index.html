@@ -126,7 +126,10 @@
         <form id="cv-match-form" class="cv-match-form">
           <div class="cv-match-contact-row">
             <label class="cv-match-file-field">
-              <span class="cv-match-file-title">Upload CV</span>
+              <span class="cv-match-upload-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"></path><path d="M5 14.5v4A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-4"></path></svg>
+              </span>
+              <span id="cv-match-file-name" class="cv-match-file-name">Choose CV file</span>
               <input id="cv-match-file" name="cv" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" aria-label="Upload CV file (PDF, DOCX or text, up to 10 MB)" required>
             </label>
             <span class="footer-field-divider cv-match-file-divider" aria-hidden="true"></span>
@@ -293,6 +296,7 @@
     const cvMatchName = document.querySelector("#cv-match-name");
     const cvMatchEmail = document.querySelector("#cv-match-email");
     const cvMatchFile = document.querySelector("#cv-match-file");
+    const cvMatchFileName = document.querySelector("#cv-match-file-name");
     const cvMatchSheetConsent = document.querySelector("#cv-match-sheet-consent");
     const cvMatchStatus = document.querySelector("#cv-match-status");
     const cvMatchResults = document.querySelector("#cv-match-results");
@@ -861,6 +865,10 @@
       cvMatchLoadMore.textContent = `Show ${Math.min(CV_MATCHES_PER_PAGE, cvMatches.length - nextCount)} more matches`;
     });
 
+    cvMatchFile.addEventListener("change", () => {
+      cvMatchFileName.textContent = cvMatchFile.files?.[0]?.name || "Choose CV file";
+    });
+
     cvMatchForm.addEventListener("submit", async event => {
       event.preventDefault();
       const submitButton = cvMatchForm.querySelector('button[type="submit"]');
@@ -901,6 +909,7 @@
             : "No current vacancies matched closely enough. Your CV text and details were recorded in the DPSAWebsite sheet."
         );
         cvMatchFile.value = "";
+        cvMatchFileName.textContent = "Choose CV file";
       } catch (error) {
         setFormStatus(cvMatchStatus, error.message || "The CV could not be read.", true);
       } finally {
