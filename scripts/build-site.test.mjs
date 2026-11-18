@@ -96,9 +96,30 @@ test("places the CV matcher after four initial crawlable cards and keeps every v
   assert.match(continuation, /Vacancy 5/);
   assert.match(continuation, /Vacancy 10/);
   assert.doesNotMatch(continuation, /Vacancy 11/);
+  assert.equal((continuation.match(/data-ad-slot="4102953920"/g) ?? []).length, 0);
   const archive = renderCircularArchivePage("Circular 1 of 2026", jobs);
   assert.match(archive, /Vacancy 15/);
-  assert.equal((archive.match(/data-ad-slot="3081508385"/g) ?? []).length, 1);
+  assert.equal((archive.match(/data-ad-slot="4102953920"/g) ?? []).length, 2);
+  assert.doesNotMatch(archive, /data-ad-slot="3081508385"/);
+});
+
+test("inserts a full-width listing ad after each six-card group without a trailing ad", () => {
+  const jobs = Array.from({ length: 13 }, (_, index) => ({
+    id: `ad-position-${index + 1}`,
+    title: `Position ${index + 1}`,
+    company: "Department",
+    circularName: "Circular 1 of 2026"
+  }));
+  const html = renderJobListings(jobs);
+  const entries = [...html.matchAll(/(?:<article class="listing-card">[\s\S]*?<\/article>|<aside class="content-ad listing-ad"[\s\S]*?<\/aside>)/g)]
+    .map(([entry]) => entry);
+
+  assert.deepEqual(entries.filter(entry => entry.startsWith("<aside")).length, 2);
+  assert.ok(entries[5].includes("Position 6"));
+  assert.ok(entries[6].includes('data-ad-slot="4102953920"'));
+  assert.ok(entries[12].includes("Position 12"));
+  assert.ok(entries[13].includes('data-ad-slot="4102953920"'));
+  assert.ok(entries[14].includes("Position 13"));
 });
 
 test("keeps circulars and application guidance on their own pages", async () => {
@@ -126,6 +147,8 @@ test("keeps circulars and application guidance on their own pages", async () => 
   assert.match(homepage, /id="load-more-jobs"[^>]*>Show 10 more vacancies/);
   assert.match(homepage, /const JOBS_PER_PAGE = 10/);
   assert.match(homepage, /const INITIAL_JOB_COUNT = 4/);
+  assert.match(homepage, /if \(\(jobIndex \+ 1\) % 6 === 0/);
+  assert.match(homepage, /unit\.dataset\.adSlot = "4102953920"/);
   assert.match(homepage, /<h2 id="listings-heading">GOVERNMENT VACANCIES<\/h2>/);
   assert.match(homepage, /level: "M4 20h16/);
   assert.match(homepage, /levelItem\.append\(metadataIcon\("level"\)/);
@@ -528,7 +551,7 @@ test("builds province vacancy guides from canonicalized locations", () => {
   assert.match(gautengPage, /"@type":"BreadcrumbList"/);
   assert.match(gautengPage, /Government vacancies by province<\/a> › Gauteng/);
   assert.match(gautengPage, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
-  assert.equal((gautengPage.match(/data-ad-slot="3081508385"/g) ?? []).length, 1);
+  assert.equal((gautengPage.match(/data-ad-slot="4102953920"/g) ?? []).length, 0);
   assert.match(nationalPage, /<title>National Government Vacancies \| Current DPSA Jobs<\/title>/);
   assert.match(nationalPage, /not assigned to a specific province/i);
   assert.match(nationalPage, /Unknown location/);
@@ -702,10 +725,13 @@ test("loads AdSense once and provides a responsive ad unit on monetizable static
   for (const pagePath of pages) {
     const html = await readFile(new URL(pagePath, import.meta.url), "utf8");
     assert.equal(html.split(loaderUrl).length - 1, 1, `${pagePath} must load AdSense exactly once`);
-    const expectedAdUnits = pagePath === "../404.html" ? 0 : 1;
-    assert.equal(html.split('data-ad-slot="3081508385"').length - 1, expectedAdUnits, `${pagePath} must have the intended number of manual ad units`);
-    if (expectedAdUnits) {
+    const expectedExistingAdUnits = pagePath === "../404.html" || pagePath === "../index.html" ? 0 : 1;
+    assert.equal(html.split('data-ad-slot="3081508385"').length - 1, expectedExistingAdUnits, `${pagePath} must have the intended number of existing manual ad units`);
+    if (expectedExistingAdUnits) {
       assert.match(html, /data-ad-format="auto" data-full-width-responsive="true"/, `${pagePath} must use a responsive ad unit`);
+    }
+    if (pagePath === "../index.html") {
+      assert.match(html, /unit\.dataset\.adSlot = "4102953920"/, "homepage listings must use the supplied responsive ad unit");
     }
     assert.match(html, /<body class="post-theme(?: home-page)?"(?: [^>]*)?>/, `${pagePath} must use the shared post theme`);
     assert.match(html, /<script type="module" src="\/redirects\.js"><\/script>/, `${pagePath} must include URL redirects`);

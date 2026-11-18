@@ -51,7 +51,7 @@ const PAST_CIRCULARS_END = "<!-- PAST_CIRCULARS_END -->";
 const PROVINCE_GUIDES_START = "<!-- PROVINCE_GUIDES_START -->";
 const PROVINCE_GUIDES_END = "<!-- PROVINCE_GUIDES_END -->";
 const CIRCULAR_NAV_ITEMS = "<!-- CIRCULAR_NAV_ITEMS -->";
-const AD_UNIT_MARKUP = '<aside class="content-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>';
+const LISTING_AD_UNIT_MARKUP = '<aside class="content-ad listing-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="4102953920" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>';
 const SNAPSHOT_FIELDS = [
   "id", "slug", "title", "company", "circularName", "sourceUrl", "centre", "province",
   "location", "salaryText", "level", "natureOfAppointment", "type", "closingDate", "refNo", "category"
@@ -170,13 +170,13 @@ function isDisplayableJob(job) {
     (typeof job.slug === "string" || typeof job.id === "string");
 }
 
-export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
+export function renderJobListings(jobs, { includeCircularBadge = true, adInterval = 6 } = {}) {
   const displayableJobs = sortJobsByCircular(jobs.filter(isDisplayableJob));
   if (!displayableJobs.length) {
     return '<p class="listing-empty">There are no current job listings. Please check back soon.</p>';
   }
 
-  return displayableJobs.map(job => {
+  const cards = displayableJobs.map(job => {
     const slug = encodeURIComponent(String(job.slug || job.id));
     const jobUrl = `${JOBS_PAGE_ORIGIN}/${slug}/`;
     const isCircularJob = Boolean(job.circularName) || /^https:\/\/(?:www\.)?dpsa\.gov\.za\//i.test(String(job.sourceUrl ?? ""));
@@ -224,16 +224,26 @@ export function renderJobListings(jobs, { includeCircularBadge = true } = {}) {
 
     const title = displayJobTitle(job.title);
     return `<article class="listing-card">${bookmarkButtonMarkup(jobUrl, title, job, { image: isCircularJob ? crestPath : "", location, employmentType, scope })}<div class="listing-card-mark">${mark}</div><div class="listing-card-content"><div class="listing-card-title"><h3><a href="${jobUrl}">${escapeHtml(title)}</a></h3></div><div class="listing-card-meta">${metadata}</div><div class="listing-card-bottom">${badges}<a class="listing-card-apply" href="${jobUrl}#how-to-apply">Apply</a></div></div></article>`;
-  }).join("");
+  });
+  const markup = [];
+  cards.forEach((card, index) => {
+    markup.push(card);
+    if (adInterval > 0 && (index + 1) % adInterval === 0) {
+      markup.push(LISTING_AD_UNIT_MARKUP);
+    }
+  });
+  return markup.join("");
 }
 
 export function renderHomeJobListings(jobs) {
-  return renderJobListings(sortJobsByCircular(jobs).slice(0, INITIAL_LISTING_COUNT));
+  return renderJobListings(sortJobsByCircular(jobs).slice(0, INITIAL_LISTING_COUNT), { adInterval: 0 });
 }
 
 export function renderHomeJobContinuation(jobs) {
   const continuation = sortJobsByCircular(jobs).slice(INITIAL_LISTING_COUNT, INITIAL_VISIBLE_LISTING_COUNT);
-  return continuation.length ? renderJobListings(continuation) : "";
+  return continuation.length
+    ? renderJobListings(continuation, { adInterval: 0 })
+    : "";
 }
 
 export function renderCircularArchiveLinks(circularGroups) {
@@ -416,7 +426,6 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
       <h2>${isNational ? "Current national government vacancies" : `Current government jobs in ${escapeHtml(province)}`}</h2>
       <p>${jobs.length} current ${jobs.length === 1 ? "vacancy is" : "vacancies are"} listed for ${isNational ? "the national category" : `this province`}. Confirm that the advertised location and deadline meet your needs before applying.</p>
       <div class="listing-grid">${renderJobListings(jobs)}</div>
-      ${jobs.length ? AD_UNIT_MARKUP : ""}
       <h2>Before you apply</h2>
       <ol>
         <li>Read the full official department advert, including qualifications and reference number.</li>
@@ -551,7 +560,6 @@ export function renderCircularArchivePage(circularName, jobs) {
       <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/dpsa-vacancy-circulars/">DPSA circulars</a> › ${escapeHtml(name)}</nav>
       <h2>Current jobs in ${escapeHtml(name)}</h2>
       <div class="listing-grid">${jobsMarkup}</div>
-      ${jobs.length ? AD_UNIT_MARKUP : ""}
       <p class="independent-note">This is an independent vacancy guide. Verify every job with the official circular and the hiring department.</p>
     </div></section>
     </div>

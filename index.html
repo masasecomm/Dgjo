@@ -116,7 +116,6 @@
         <p class="listing-empty">Loading South African job listings…</p>
         <!-- JOB_LISTINGS_END -->
       </div>
-      <aside class="content-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>
 
     <section class="section cv-matcher-section" id="cv-job-matcher" aria-labelledby="cv-job-matcher-heading">
       <div class="shell">
@@ -585,6 +584,25 @@
       return svg;
     }
 
+    function createListingAd() {
+      const ad = document.createElement("aside");
+      ad.className = "content-ad listing-ad";
+      ad.setAttribute("aria-label", "Advertisement");
+      const unit = document.createElement("ins");
+      unit.className = "adsbygoogle";
+      unit.style.display = "block";
+      unit.dataset.adClient = "ca-pub-3860151941190347";
+      unit.dataset.adSlot = "4102953920";
+      unit.dataset.adFormat = "auto";
+      unit.dataset.fullWidthResponsive = "true";
+      ad.append(unit);
+      window.setTimeout(() => {
+        if (!ad.isConnected) return;
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      }, 500);
+      return ad;
+    }
+
     function showJobListings(jobs, append = false) {
       if (!append) {
         jobsList.replaceChildren();
@@ -769,7 +787,9 @@
         content.append(titleRow, metadata, bottom);
         card.append(mark, content, bookmark);
         const jobIndex = startIndex + index;
-        (jobIndex < INITIAL_JOB_COUNT ? jobsList : jobsContinuation).append(card);
+        const target = jobIndex < INITIAL_JOB_COUNT ? jobsList : jobsContinuation;
+        target.append(card);
+        if ((jobIndex + 1) % 6 === 0) target.append(createListingAd());
       });
       loadMoreJobsButton.hidden = visibleJobCount >= displayableJobs.length;
       listingPaginationStatus.hidden = displayableJobs.length <= JOBS_PER_PAGE;
