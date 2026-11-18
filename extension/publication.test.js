@@ -2,9 +2,24 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   circularPublicationStatus,
+  comparePostNumbers,
+  displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks
 } from "./publication.js";
+
+test("formats uppercase vacancy titles as readable text without changing mixed-case titles", () => {
+  assert.equal(displayVacancyTitle("ASSISTANT DIRECTOR: SECURITY MANAGEMENT"), "Assistant Director: Security Management");
+  assert.equal(displayVacancyTitle("SAPS HR OFFICER"), "SAPS HR Officer");
+  assert.equal(displayVacancyTitle("eThekwini Manager"), "eThekwini Manager");
+});
+
+test("sorts post numbers in numeric order", () => {
+  const postNumbers = ["41/10", "41/02", "41/01", "42/01"];
+  assert.deepEqual(postNumbers.sort(comparePostNumbers), ["41/01", "41/02", "41/10", "42/01"]);
+  assert.ok(comparePostNumbers("41/02", "41/10") < 0);
+  assert.ok(comparePostNumbers("", "41/01") > 0);
+});
 
 test("tracks published posts per circular and identifies posts that can be republished", () => {
   const imported = [

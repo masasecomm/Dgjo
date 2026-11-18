@@ -7,11 +7,19 @@ import {
 } from "./importer.js";
 import {
   circularPublicationStatus,
+  comparePostNumbers,
+  displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks,
   vacancyMatchKey
 } from "./publication.js";
-import { MAX_ACTIVE_CIRCULARS, retainLatestCircularJobs } from "../circulars.js";
+import {
+  canonicalCircularName,
+  compareCircularNames,
+  groupJobsByCircular,
+  MAX_ACTIVE_CIRCULARS,
+  retainLatestCircularJobs
+} from "../circulars.js";
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
@@ -31,6 +39,11 @@ const jobSearch = document.querySelector("#job-search");
 const sortJobs = document.querySelector("#sort-jobs");
 const jobList = document.querySelector("#job-list");
 const jobSummary = document.querySelector("#job-summary");
+const circularFilter = document.querySelector("#circular-filter");
+const selectAllJobs = document.querySelector("#select-all-jobs");
+const selectionCount = document.querySelector("#selection-count");
+const editSelectedButton = document.querySelector("#edit-selected");
+const deleteSelectedButton = document.querySelector("#delete-selected");
 const dialog = document.querySelector("#job-dialog");
 const form = document.querySelector("#job-form");
 const toast = document.querySelector("#toast");
@@ -50,7 +63,7 @@ const publishStatus = document.querySelector("#publish-status");
 let apiUrl;
 let adminToken;
 let jobs = [];
-let activeFilter = "All";
+const selectedJobIds = new Set();
 let toastTimer;
 const importedVacancies = new Map();
 let circularOptions = [];
@@ -124,6 +137,7 @@ async function connect(urlValue, tokenValue, askPermission) {
     apiUrl = url.href;
     adminToken = tokenValue;
     jobs = loadedJobs;
+    selectedJobIds.clear();
     await chrome.storage.local.set({
       [SETTINGS_KEY]: { apiUrl, adminToken, origin: url.origin }
     });
@@ -151,15 +165,57 @@ async function connect(urlValue, tokenValue, askPermission) {
   }
 }
 
-function renderJobs() {
+function updateCircularFilterOptions() {
+  const selectedCircular = circularFilter.value;
+  const groups = groupJobsByCircular(jobs)
+    .sort((left, right) => compareCircularNames(right.name, left.name));
+  circularFilter.replaceChildren(new Option("All published posts", ""));
+  for (const group of groups) {
+    circularFilter.add(new Option(`${group.name} (${group.jobs.length})`, group.name));
+  }
+  circularFilter.value = groups.some(group => group.name === selectedCircular) ? selectedCircular : "";
+  circularFilter.disabled = !adminToken || groups.length === 0;
+}
+
+function getVisibleJobs() {
   const query = jobSearch.value.trim().toLowerCase();
+  const selectedCircular = circularFilter.value;
   const filtered = jobs.filter(job => {
-    const matchesCategory = activeFilter === "All" || job.category === activeFilter;
-    const searchable = `${job.title} ${job.company} ${job.location} ${job.category} ${job.type}`.toLowerCase();
-    return matchesCategory && (!query || searchable.includes(query));
+    const matchesCircular = !selectedCircular || canonicalCircularName(job.circularName) === selectedCircular;
+    const searchable = [
+      job.title, job.company, job.location, job.postNo, job.refNo, job.circularName,
+      job.category, job.type
+    ].join(" ").toLowerCase();
+    return matchesCircular && (!query || searchable.includes(query));
   });
-  if (sortJobs.value === "salary") filtered.sort((a, b) => b.salary - a.salary);
-  if (sortJobs.value === "title") filtered.sort((a, b) => a.title.localeCompare(b.title));
+  if (sortJobs.value === "recent") return filtered;
+  if (sortJobs.value === "title") {
+    filtered.sort((a, b) => displayVacancyTitle(a.title).localeCompare(displayVacancyTitle(b.title)));
+  } else {
+    filtered.sort((a, b) =>
+      compareCircularNames(canonicalCircularName(b.circularName), canonicalCircularName(a.circularName)) ||
+      comparePostNumbers(a.postNo, b.postNo) ||
+      displayVacancyTitle(a.title).localeCompare(displayVacancyTitle(b.title))
+    );
+  }
+  return filtered;
+}
+
+function updateSelectionControls(visibleJobs) {
+  const visibleSelectedCount = visibleJobs.filter(job => selectedJobIds.has(job.id)).length;
+  const selectedCount = selectedJobIds.size;
+  selectAllJobs.checked = visibleJobs.length > 0 && visibleSelectedCount === visibleJobs.length;
+  selectAllJobs.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleJobs.length;
+  selectAllJobs.disabled = !adminToken || visibleJobs.length === 0;
+  selectionCount.textContent = `${selectedCount} selected`;
+  editSelectedButton.disabled = !adminToken || selectedCount !== 1;
+  deleteSelectedButton.disabled = !adminToken || selectedCount === 0;
+  deleteSelectedButton.textContent = selectedCount ? `Delete selected (${selectedCount})` : "Delete selected";
+}
+
+function renderJobs() {
+  updateCircularFilterOptions();
+  const filtered = getVisibleJobs();
   jobSummary.textContent = `${filtered.length} ${filtered.length === 1 ? "opportunity" : "opportunities"}${filtered.length !== jobs.length ? ` · ${jobs.length} total` : ""}`;
   jobList.replaceChildren();
 
@@ -172,9 +228,10 @@ function renderJobs() {
     const title = document.createElement("strong");
     title.textContent = jobs.length ? "No matching opportunities." : "No jobs yet.";
     const message = document.createElement("span");
-    message.textContent = jobs.length ? "Try a different search or category." : "Add your first listing to get started.";
+    message.textContent = jobs.length ? "Try a different search or circular." : "Add your first listing to get started.";
     empty.append(icon, title, message);
     jobList.append(empty);
+    updateSelectionControls(filtered);
     return;
   }
 
@@ -182,24 +239,46 @@ function renderJobs() {
     const card = document.createElement("article");
     card.className = "job-card";
 
-    const top = document.createElement("div");
-    top.className = "job-top";
-    const company = document.createElement("div");
-    company.className = "company";
-    const logo = document.createElement("span");
-    logo.className = "company-logo";
-    logo.style.backgroundColor = /^#[0-9a-f]{6}$/i.test(job.color) ? job.color : "#eaf1e2";
-    logo.style.color = /^#[0-9a-f]{6}$/i.test(job.logoColor) ? job.logoColor : "#64803f";
-    logo.textContent = job.logo;
-    const companyDetails = document.createElement("div");
-    const companyName = document.createElement("span");
-    companyName.className = "company-name";
-    companyName.textContent = job.company;
-    const location = document.createElement("span");
-    location.className = "company-location";
-    location.textContent = job.location;
-    companyDetails.append(companyName, location);
-    company.append(logo, companyDetails);
+    const selectLabel = document.createElement("label");
+    selectLabel.className = "job-select-label";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "job-select";
+    checkbox.dataset.jobId = job.id;
+    checkbox.checked = selectedJobIds.has(job.id);
+    checkbox.setAttribute("aria-label", `Select Post ${job.postNo || "number not stated"}: ${displayVacancyTitle(job.title)}`);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selectedJobIds.add(job.id);
+      else selectedJobIds.delete(job.id);
+      updateSelectionControls(getVisibleJobs());
+    });
+    selectLabel.append(checkbox);
+
+    const details = document.createElement("div");
+    details.className = "job-details";
+
+    const title = document.createElement("h3");
+    title.textContent = displayVacancyTitle(job.title);
+    const metadata = document.createElement("div");
+    metadata.className = "job-metadata";
+    const postNumber = document.createElement("span");
+    postNumber.className = "job-post-number";
+    postNumber.textContent = `Post ${job.postNo || "number not stated"}`;
+    metadata.append(postNumber);
+    if (job.circularName) {
+      const circular = document.createElement("span");
+      circular.textContent = canonicalCircularName(job.circularName);
+      metadata.append(circular);
+    }
+    const department = document.createElement("span");
+    department.textContent = job.company || "Department not stated";
+    metadata.append(department);
+    if (job.location) {
+      const location = document.createElement("span");
+      location.textContent = job.location;
+      metadata.append(location);
+    }
+    details.append(title, metadata);
 
     const actions = document.createElement("div");
     actions.className = "job-actions";
@@ -207,49 +286,11 @@ function renderJobs() {
     edit.type = "button";
     edit.textContent = "Edit";
     edit.addEventListener("click", () => openEditor(job));
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "delete";
-    remove.textContent = "Delete";
-    remove.addEventListener("click", async () => {
-      if (!confirm(`Remove “${job.title}” from the website?`)) return;
-      remove.disabled = true;
-      try {
-        await publishJobs(jobs.filter(candidate => candidate.id !== job.id));
-      } catch (error) {
-        showToast(error.message, true);
-      } finally {
-        remove.disabled = false;
-      }
-    });
-    actions.append(edit, remove);
-    top.append(company, actions);
-
-    const title = document.createElement("h3");
-    title.textContent = job.title;
-    const tags = document.createElement("div");
-    tags.className = "job-tags";
-    [job.type, job.category, "Remote-friendly"].forEach(value => {
-      const tag = document.createElement("span");
-      tag.textContent = value;
-      tags.append(tag);
-    });
-
-    const bottom = document.createElement("div");
-    bottom.className = "job-bottom";
-    const salary = document.createElement("span");
-    salary.className = "salary";
-    salary.append(document.createTextNode(job.salaryText));
-    const salaryPeriod = document.createElement("small");
-    salaryPeriod.textContent = " / yr";
-    salary.append(salaryPeriod);
-    const posted = document.createElement("span");
-    posted.className = "posted";
-    posted.textContent = job.posted;
-    bottom.append(salary, posted);
-    card.append(top, title, tags, bottom);
+    actions.append(edit);
+    card.append(selectLabel, details, actions);
     jobList.append(card);
   });
+  updateSelectionControls(filtered);
 }
 
 function setImportStatus(message, isError = false) {
@@ -687,6 +728,10 @@ async function publishJobs(nextJobs) {
   }
   const removedIds = new Set(result.removedJobIds);
   jobs = nextJobs.filter(job => !removedIds.has(job.id));
+  const remainingIds = new Set(jobs.map(job => job.id));
+  for (const id of selectedJobIds) {
+    if (!remainingIds.has(id)) selectedJobIds.delete(id);
+  }
   renderJobs();
   renderImportedVacancies();
   const removedCirculars = Array.isArray(result.removedCircularNames) ? result.removedCircularNames : [];
@@ -735,6 +780,7 @@ forgetButton.addEventListener("click", async () => {
   apiUrl = undefined;
   adminToken = undefined;
   jobs = [];
+  selectedJobIds.clear();
   tokenInput.value = "";
   apiUrlInput.value = DEFAULT_API_URL;
   connectionForm.hidden = false;
@@ -760,6 +806,7 @@ refreshButton.addEventListener("click", async () => {
   refreshButton.disabled = true;
   try {
     jobs = await readJobs(apiUrl, adminToken);
+    selectedJobIds.clear();
     renderJobs();
     renderImportedVacancies();
     showToast("Job list refreshed.");
@@ -774,13 +821,43 @@ document.querySelector("#cancel-form").addEventListener("click", () => dialog.cl
 dialog.addEventListener("click", event => {
   if (event.target === dialog) dialog.close();
 });
-document.querySelectorAll(".filter-chip").forEach(button => button.addEventListener("click", () => {
-  activeFilter = button.dataset.filter;
-  document.querySelectorAll(".filter-chip").forEach(chip => chip.classList.toggle("active", chip === button));
-  renderJobs();
-}));
 jobSearch.addEventListener("input", renderJobs);
 sortJobs.addEventListener("change", renderJobs);
+circularFilter.addEventListener("change", () => {
+  selectedJobIds.clear();
+  renderJobs();
+});
+selectAllJobs.addEventListener("change", () => {
+  const visibleJobs = getVisibleJobs();
+  for (const job of visibleJobs) {
+    if (selectAllJobs.checked) selectedJobIds.add(job.id);
+    else selectedJobIds.delete(job.id);
+  }
+  jobList.querySelectorAll(".job-select").forEach(checkbox => {
+    checkbox.checked = selectedJobIds.has(checkbox.dataset.jobId);
+  });
+  updateSelectionControls(visibleJobs);
+});
+editSelectedButton.addEventListener("click", () => {
+  const selectedJob = jobs.find(job => selectedJobIds.has(job.id));
+  if (selectedJob && selectedJobIds.size === 1) openEditor(selectedJob);
+});
+deleteSelectedButton.addEventListener("click", async () => {
+  const selectedJobs = jobs.filter(job => selectedJobIds.has(job.id));
+  if (!selectedJobs.length) return;
+  if (!confirm(`Remove all ${selectedJobs.length} selected ${selectedJobs.length === 1 ? "post" : "posts"} from the website? This cannot be undone.`)) return;
+  deleteSelectedButton.disabled = true;
+  try {
+    await publishJobs(jobs.filter(job => !selectedJobIds.has(job.id)));
+    selectedJobIds.clear();
+    renderJobs();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    deleteSelectedButton.disabled = false;
+    renderJobs();
+  }
+});
 
 form.addEventListener("submit", async event => {
   event.preventDefault();

@@ -34,7 +34,7 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-    gtag('config', 'G-69H0HQGRT9');
+    gtag('config', 'G-69H0HQGRT9', { send_page_view: false });
   </script>
   <script type="application/ld+json">
     {
@@ -266,6 +266,7 @@
       employmentTypeCategory,
       isEmploymentTypeCategory
     } from "./employment-type.js";
+    import { homePageTitle } from "./page-title.js";
 
     const jobsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
     const alertsApiUrl = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/alerts/subscribe";
@@ -308,6 +309,8 @@
     let selectedEmploymentType = "";
     let cvMatches = [];
     let visibleJobCount = JOBS_PER_PAGE;
+    let pageViewTimer;
+    let lastTrackedPageView = "";
     const monthNumbers = new Map([
       ["jan", 1], ["january", 1], ["feb", 2], ["february", 2], ["mar", 3], ["march", 3],
       ["apr", 4], ["april", 4], ["may", 5], ["jun", 6], ["june", 6], ["jul", 7], ["july", 7],
@@ -321,6 +324,27 @@
       day: "numeric"
     }).formatToParts(new Date()).map(part => [part.type, Number(part.value)]));
     const todayInSouthAfrica = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day);
+
+    function trackPageView(immediate = false) {
+      clearTimeout(pageViewTimer);
+      const sendPageView = () => {
+        const pageTitle = document.title;
+        const trackedUrl = new URL(window.location.href);
+        trackedUrl.searchParams.delete("q");
+        trackedUrl.hash = "";
+        const pageLocation = trackedUrl.href;
+        const pageViewKey = `${pageTitle}\n${pageLocation}`;
+        if (pageViewKey === lastTrackedPageView) return;
+        window.gtag("event", "page_view", {
+          page_title: pageTitle,
+          page_location: pageLocation,
+          page_path: `${trackedUrl.pathname}${trackedUrl.search}`
+        });
+        lastTrackedPageView = pageViewKey;
+      };
+      if (immediate) sendPageView();
+      else pageViewTimer = setTimeout(sendPageView, 1000);
+    }
 
     function populateSearchFilters(jobs) {
       const provinces = SOUTH_AFRICAN_PROVINCES;
@@ -401,6 +425,13 @@
       const department = jobDepartment.value.toLowerCase();
       updateCvMatcherPosition();
       const departmentName = jobDepartment.value.trim();
+      document.title = homePageTitle({
+        query: jobQuery.value,
+        province,
+        department: departmentName,
+        employmentType: selectedEmploymentType
+      });
+      trackPageView();
       const headingCategories = [selectedEmploymentType, departmentName, province]
         .filter(Boolean)
         .map(category => category.toLocaleUpperCase("en-ZA"));
@@ -844,6 +875,8 @@
         const candidateText = removePersonalDetails(cvText, cvMatchName.value, cvMatchEmail.value);
         const matches = rankJobsForCv(candidateText, allJobs);
         renderCvMatches(matches);
+        document.title = homePageTitle({ cvMatches: true });
+        trackPageView(true);
         const response = await fetch(cvMatchesApiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -922,6 +955,7 @@
       if (selectedEmploymentType) params.set("employmentType", selectedEmploymentType);
       history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}#listings`);
       filterJobListings();
+      trackPageView(true);
       document.querySelector("#listings").scrollIntoView({ behavior: "smooth" });
     });
 
@@ -939,6 +973,7 @@
       const params = new URLSearchParams();
       if (jobProvince.value) params.set("province", jobProvince.value);
       history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}#listings`);
+      trackPageView(true);
       provinceFilters.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 

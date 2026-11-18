@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Job manager — DPSA Government Jobs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
@@ -103,18 +106,16 @@
         <label class="search-box"><span class="visually-hidden">Search listings</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="job-search" type="search" placeholder="Search jobs" disabled></label>
       </div>
       <div class="toolbar">
-        <div class="filters" role="group" aria-label="Filter jobs">
-          <button class="filter-chip active" type="button" data-filter="All">All</button>
-          <button class="filter-chip" type="button" data-filter="Administration">Administration</button>
-          <button class="filter-chip" type="button" data-filter="Education">Education</button>
-          <button class="filter-chip" type="button" data-filter="Finance">Finance</button>
-          <button class="filter-chip" type="button" data-filter="Health">Health</button>
-          <button class="filter-chip" type="button" data-filter="Law Enforcement">Law enforcement</button>
-          <button class="filter-chip" type="button" data-filter="Other">Other</button>
+        <div class="list-controls">
+          <label class="circular-filter"><span>Published circular</span><select id="circular-filter" disabled><option value="">All published posts</option></select></label>
+          <label class="select-all-label"><input id="select-all-jobs" type="checkbox" disabled> Select all</label>
+          <span id="selection-count" class="selection-count" aria-live="polite">0 selected</span>
+          <button id="edit-selected" class="button button-light" type="button" disabled>Edit selected</button>
+          <button id="delete-selected" class="button button-danger" type="button" disabled>Delete selected</button>
         </div>
-        <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="recent">Recently added</option><option value="salary">Highest salary</option><option value="title">Job title</option></select></label>
+        <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="post-number">Post number</option><option value="recent">Recently added</option><option value="title">Job title</option></select></label>
       </div>
-      <div id="job-list" class="job-grid" aria-live="polite">
+      <div id="job-list" class="job-list" aria-live="polite">
         <div class="empty-state"><span class="empty-icon">✳</span><strong>Your job board, in one place.</strong><span>Connect to Cloudflare to view and manage published roles.</span></div>
       </div>
     </section>
