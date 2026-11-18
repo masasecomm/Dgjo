@@ -1,32 +1,34 @@
-const menuButtons = document.querySelectorAll(".mobile-menu-toggle");
+const mobileNavigations = document.querySelectorAll(".mobile-navigation");
 
-for (const button of menuButtons) {
-  const header = button.closest(".site-header");
-  if (!header) continue;
+for (const navigation of mobileNavigations) {
+  const header = navigation.closest(".site-header");
+  const toggle = navigation.querySelector(".mobile-menu-toggle");
+  if (!header || !toggle) continue;
 
   const closeMenu = () => {
-    header.classList.remove("is-menu-open");
-    button.setAttribute("aria-expanded", "false");
-    button.setAttribute("aria-label", "Open navigation menu");
+    navigation.open = false;
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-label", "Open navigation menu");
   };
 
-  button.addEventListener("click", () => {
-    const isOpen = button.getAttribute("aria-expanded") !== "true";
-    header.classList.toggle("is-menu-open", isOpen);
-    button.setAttribute("aria-expanded", String(isOpen));
-    button.setAttribute("aria-label", isOpen ? "Close navigation menu" : "Open navigation menu");
+  navigation.addEventListener("toggle", () => {
+    toggle.setAttribute("aria-expanded", String(navigation.open));
+    toggle.setAttribute("aria-label", navigation.open ? "Close navigation menu" : "Open navigation menu");
   });
 
-  header.querySelectorAll(".nav-links a").forEach(link => {
+  navigation.querySelectorAll(".nav-links a").forEach(link => {
     link.addEventListener("click", closeMenu);
   });
 
   document.addEventListener("click", event => {
-    if (!header.contains(event.target)) closeMenu();
+    if (!navigation.contains(event.target)) closeMenu();
   });
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeMenu();
+    if (event.key === "Escape" && navigation.open) {
+      closeMenu();
+      toggle.focus();
+    }
   });
 
   window.addEventListener("resize", () => {

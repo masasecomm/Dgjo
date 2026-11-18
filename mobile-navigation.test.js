@@ -18,17 +18,17 @@ const navigationScript = await readFile(new URL("./navigation.js", import.meta.u
 
 test("public pages have an accessible, wired mobile navigation toggle", () => {
   for (const [index, html] of pageMarkup.entries()) {
-    assert.match(html, /class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"[^>]+aria-expanded="false"/, pages[index]);
+    assert.match(html, /<details class="mobile-navigation">\s*<summary class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"[^>]+aria-expanded="false">/, pages[index]);
     assert.match(html, /class="nav-links" id="main-nav-links"/, pages[index]);
-    assert.match(html, /navigation\.js\?v=20261118-mobile-nav/, pages[index]);
+    assert.match(html, /navigation\.js\?v=20261118-mobile-nav2/, pages[index]);
   }
   assert.match(navigationScript, /event\.key === "Escape"/);
-  assert.match(navigationScript, /header\.querySelectorAll\("\.nav-links a"\)/);
+  assert.match(navigationScript, /navigation\.querySelectorAll\("\.nav-links a"\)/);
 });
 
 test("mobile menu icon uses three equal thick strokes", () => {
   assert.match(styles, /\.mobile-menu-toggle span\s*\{\s*width:\s*23px;\s*height:\s*3px;/);
-  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.site-header\.is-menu-open \.nav-links \{ display: flex; \}/);
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.mobile-navigation\[open\] > \.nav-links, \.home-page \.site-header \.mobile-navigation\[open\] > #main-nav-links \{ display: flex; \}/);
 });
 
 test("responsive ad slots are constrained to their content width instead of clipped", () => {

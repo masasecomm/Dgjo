@@ -1332,12 +1332,12 @@ function savedVacanciesPage(requestUrl) {
   return htmlResponse(`<!doctype html>
 <html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>Saved Vacancies | DPSA Government Jobs</title>
-<link rel="stylesheet" href="${SITE_URL}/styles.css?v=20261118-mobile-ux"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script><script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav" defer></script></head>
+<link rel="stylesheet" href="${SITE_URL}/styles.css?v=20261118-mobile-nav2"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script><script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav2" defer></script></head>
 <body class="post-theme"><a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt=""><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
-<button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-controls="main-nav-links" aria-expanded="false"><span></span><span></span><span></span></button>
-<div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${savedPageUrl}" aria-current="page">Saved vacancies</a><a href="${SITE_URL}/#listings">Vacancies</a></div>
+<details class="mobile-navigation"><summary class="mobile-menu-toggle" aria-label="Open navigation menu" aria-controls="main-nav-links" aria-expanded="false"><span></span><span></span><span></span></summary>
+<div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${savedPageUrl}" aria-current="page">Saved vacancies</a><a href="${SITE_URL}/#listings">Vacancies</a></div></details>
 </nav></header>
 <main id="main"><div class="site-post"><section class="page-hero"><div class="shell">
 <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> Your job search</p><h1>Saved vacancies</h1>
@@ -1482,7 +1482,7 @@ function vacancyPage(job, requestUrl, jobs) {
 <link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
 <script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script>
-<script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav" defer></script>
+<script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav2" defer></script>
 <title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(metaDescription)}">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-69H0HQGRT9"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-69H0HQGRT9',{page_location:${JSON.stringify(pageUrl)}});</script>
@@ -1504,6 +1504,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}button,input,select,tex
 *{box-sizing:border-box}body{margin:0;font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
 a{color:#087ad2;text-underline-offset:3px}.shell{width:min(1120px,calc(100% - 40px));margin-inline:auto}
 .site-header{background:#17499e;color:#fff;box-shadow:0 4px 16px rgba(13,42,95,.12)}
+.mobile-navigation{display:contents;border:0}.mobile-navigation>.nav-links{display:flex}.mobile-menu-toggle{display:none;list-style:none}.mobile-menu-toggle::-webkit-details-marker{display:none}
 .nav{min-height:78px;display:flex;align-items:center;justify-content:space-between;gap:24px}
 .brand{display:inline-flex;align-items:center;gap:11px;color:#fff;text-decoration:none}
 .brand img{width:40px;height:40px;border:1px solid rgba(255,255,255,.32);border-radius:50%;object-fit:cover}
@@ -1566,13 +1567,13 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .social-links{display:flex;align-items:center;gap:9px}.social-links a{display:grid;width:34px;height:34px;place-items:center;border:1px solid rgba(255,255,255,.48);border-radius:50%;color:#fff;text-decoration:none}.social-links a:hover{border-color:#fff;background:rgba(255,255,255,.14)}.social-links img{width:16px;height:16px}
 @media(max-width:980px){.footer-main{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 20px}.footer-contact{grid-column:1/-1;max-width:460px}.footer-bottom{flex-direction:column;margin-top:24px}}
 @media(max-width:700px){.related-job-grid{grid-template-columns:1fr}}
-@media(max-width:760px){.nav{position:relative;min-height:68px;align-items:center;gap:12px;padding-block:10px}.mobile-menu-toggle{display:flex;width:44px;height:44px;flex:0 0 44px;flex-direction:column;align-items:center;justify-content:center;gap:5px;margin-left:auto;padding:0;border:1px solid rgba(255,255,255,.32);border-radius:8px;color:#fff;background:transparent;cursor:pointer}.mobile-menu-toggle span{width:23px;height:3px;border-radius:2px;background:currentColor}.nav-links{position:absolute;top:calc(100% + 8px);right:0;z-index:31;display:none;width:min(320px,calc(100vw - 32px));flex-direction:column;gap:0;padding:8px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:#17499e;box-shadow:0 12px 30px rgba(13,42,95,.24);font-size:14px}.site-header.is-menu-open .nav-links{display:flex}.nav-links>a,.nav-links>.nav-dropdown>summary{min-height:44px;display:flex;align-items:center;padding:0 12px}.nav-links .nav-dropdown-menu{position:static;width:100%;max-width:none;max-height:45vh;margin:0 0 6px;box-shadow:none}.nav-links .nav-dropdown-menu>a{white-space:normal}.nav-links .nav-dropdown>summary{justify-content:space-between}}
+@media(max-width:760px){.nav{position:relative;min-height:68px;align-items:center;gap:12px;padding-block:10px}.mobile-navigation>.mobile-menu-toggle{display:flex;width:44px;height:44px;flex:0 0 44px;flex-direction:column;align-items:center;justify-content:center;gap:5px;margin-left:auto;padding:0;border:1px solid rgba(255,255,255,.32);border-radius:8px;color:#fff;background:transparent;cursor:pointer}.mobile-menu-toggle span{width:23px;height:3px;border-radius:2px;background:currentColor}.mobile-navigation>.nav-links{position:absolute;top:calc(100% + 8px);right:0;z-index:31;display:none;width:min(320px,calc(100vw - 32px));flex-direction:column;gap:0;padding:8px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:#17499e;box-shadow:0 12px 30px rgba(13,42,95,.24);font-size:14px}.mobile-navigation[open]>.nav-links{display:flex}.nav-links>a,.nav-links>.nav-dropdown>summary{min-height:44px;display:flex;align-items:center;padding:0 12px}.nav-links .nav-dropdown-menu{position:static;width:100%;max-width:none;max-height:45vh;margin:0 0 6px;box-shadow:none}.nav-links .nav-dropdown-menu>a{white-space:normal}.nav-links .nav-dropdown>summary{justify-content:space-between}}
 @media(max-width:600px){.shell{width:min(100% - 28px,1120px)}.nav{min-height:68px;gap:12px}.brand img{width:36px;height:36px}main{padding-block:22px 38px}.vacancy-card{grid-template-columns:48px minmax(0,1fr);gap:13px;padding:17px 58px 17px 17px}.job-mark{width:48px;height:48px;border-radius:9px}.meta-grid{grid-template-columns:1fr;gap:7px}.sections{margin-top:0}.related-jobs,.vacancy-faq{padding:17px}}
 </style></head>
 <body><header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
-<button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-controls="main-nav-links" aria-expanded="false"><span></span><span></span><span></span></button>
-<div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${new URL("/saved-vacancies/", requestUrl.origin).href}">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a href="${SITE_URL}/dpsa-vacancy-circulars/">All circulars</a>${circularNavigation}</div></details><a href="${SITE_URL}/#listings">Vacancies</a></div>
+<details class="mobile-navigation"><summary class="mobile-menu-toggle" aria-label="Open navigation menu" aria-controls="main-nav-links" aria-expanded="false"><span></span><span></span><span></span></summary>
+<div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${new URL("/saved-vacancies/", requestUrl.origin).href}">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a href="${SITE_URL}/dpsa-vacancy-circulars/">All circulars</a>${circularNavigation}</div></details><a href="${SITE_URL}/#listings">Vacancies</a></div></details>
 </nav></header><main class="shell">
 <nav class="breadcrumb" aria-label="Breadcrumb">${breadcrumbMarkup}</nav>
 <article class="vacancy-card">${bookmarkButtonMarkup(pageUrl, title, job, { image: isCircularJob ? coatOfArmsPath : "", location: [job.centre, province, job.location].filter(Boolean).join(", "), scope: isCircularJob ? (PROVINCE_CRESTS[province] ? "Provincial" : "National") : "" })}<div class="job-mark">${jobMark}</div><div class="job-content">
