@@ -1482,6 +1482,8 @@ function vacancyPage(job, requestUrl, jobs) {
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
 <script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script>
 <title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(metaDescription)}">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-69H0HQGRT9"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-69H0HQGRT9',{page_location:${JSON.stringify(pageUrl)}});</script>
 <meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="article"><meta property="og:site_name" content="DPSA Government Jobs">
 <meta property="og:title" content="${escapeHtml(pageTitle)}"><meta property="og:description" content="${escapeHtml(metaDescription)}">

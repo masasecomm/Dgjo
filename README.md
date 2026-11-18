@@ -53,7 +53,7 @@ The repository includes a `CNAME` file for `dpsagovernmentjobs.co.za`. In Cloudf
 
 ## Google Analytics
 
-The site loads the Google tag `GT-NMDDFKGP` and configures the Google Analytics 4 measurement ID `G-69H0HQGRT9` from the page head. Use Google Tag Assistant or the Analytics Realtime report to verify incoming visits.
+The site loads the Google tag with the Google Analytics 4 measurement ID `G-69H0HQGRT9`. The Cloudflare Worker adds it to generated vacancy pages and uses each canonical vacancy URL and page title for reporting. Homepage filters and CV-match results send page-view events with descriptive titles; search terms are excluded from tracked URLs. Use Google Tag Assistant or the Analytics Realtime report to verify incoming visits.
 
 ## Load the Chrome extension
 
