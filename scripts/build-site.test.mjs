@@ -551,6 +551,22 @@ test("groups formatting variants of a circular into one archive", () => {
   assert.deepEqual(groups.map(group => group.name), ["Circular 1 of 2026", "Circular 2 of 2026"]);
 });
 
+test("renders main navigation circular links newest first", () => {
+  const groups = groupJobsByCircular([
+    { id: "older", circularName: "Circular 40 of 2026" },
+    { id: "newer", circularName: "Circular 41 of 2026" },
+    { id: "oldest", circularName: "Circular 39 of 2026" }
+  ]);
+  const html = renderCircularNavigationItems(groups);
+  const circularNames = [...html.matchAll(/>(Circular \d+ of 2026)<span/g)].map(match => match[1]);
+
+  assert.deepEqual(circularNames, [
+    "Circular 41 of 2026",
+    "Circular 40 of 2026",
+    "Circular 39 of 2026"
+  ]);
+});
+
 test("retains only the four newest circulars and keeps uncategorized jobs", () => {
   const jobs = [
     { id: "uncategorized" },

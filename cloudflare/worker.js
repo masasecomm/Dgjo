@@ -32,6 +32,9 @@ import {
 } from "../salary-scales.js";
 
 const JOBS_KEY = "published-jobs";
+const AUTO_PUBLISH_SETTINGS_KEY = "dpsa-auto-publish:settings";
+const AUTO_PUBLISH_HISTORY_KEY = "dpsa-auto-publish:history";
+const MAX_AUTO_PUBLISH_HISTORY = 100;
 const ALERTS_SUBSCRIBER_PREFIX = "job-alerts:subscriber:";
 const ALERTS_VERIFY_PREFIX = "job-alerts:verify:";
 const ALERTS_UNSUBSCRIBE_PREFIX = "job-alerts:unsubscribe:";
@@ -95,7 +98,7 @@ function jsonResponse(body, status = 200) {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
       "Cache-Control": "no-store"
     }
@@ -1353,7 +1356,7 @@ function savedVacanciesPage(requestUrl) {
   return htmlResponse(`<!doctype html>
 <html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>Saved Vacancies | DPSA Government Jobs</title>
-<link rel="stylesheet" href="${SITE_URL}/styles.css?v=20261118-mobile-nav9"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script><script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav6" defer></script></head>
+<link rel="stylesheet" href="${SITE_URL}/styles.css?v=20261118-mobile-nav9"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script><script src="${SITE_URL}/navigation.js?v=20261118-circular-order1" defer></script></head>
 <body class="post-theme"><a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt=""><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
@@ -1503,7 +1506,7 @@ function vacancyPage(job, requestUrl, jobs) {
 <link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3860151941190347" crossorigin="anonymous"></script>
 <script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script>
-<script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav6" defer></script>
+<script src="${SITE_URL}/navigation.js?v=20261118-circular-order1" defer></script>
 <title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(metaDescription)}">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-69H0HQGRT9"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-69H0HQGRT9',{page_location:${JSON.stringify(pageUrl)}});</script>
@@ -1652,13 +1655,16 @@ export default {
 
   async fetch(request, env, context) {
     const url = new URL(request.url);
+    const isAutomationSettings = url.pathname === "/api/automation/settings";
+    const isAutomationPublications = url.pathname === "/api/automation/publications";
+    const isAutomationApi = isAutomationSettings || isAutomationPublications;
     const isAlertSignup = url.pathname === "/api/alerts/subscribe";
     const isAlertConfirmation = url.pathname === "/api/alerts/confirm";
     const isAlertUnsubscribe = url.pathname === "/api/alerts/unsubscribe";
     const isCvMatchRecord = url.pathname === "/api/cv-matches";
     const isAutomationNotification = url.pathname === "/api/automation/notify";
     if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS" &&
-        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord || isAutomationNotification))) {
+        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord || isAutomationNotification || isAutomationPublications))) {
       return jsonResponse({ error: "Method not allowed." }, 405);
     }
     if (request.method === "GET" && !url.pathname.startsWith("/api/") &&
@@ -1670,8 +1676,79 @@ export default {
       if (!ALERTS_ALLOWED_ORIGINS.has(origin)) return alertsJsonResponse({ error: "This request is not allowed." }, 403, origin);
       return alertsJsonResponse({}, 204, origin);
     }
+    if (request.method === "OPTIONS" && (isAutomationApi || url.pathname === "/api/jobs")) {
+      return jsonResponse({}, 204);
+    }
     if (request.method === "POST" && isAlertSignup) return subscribeToJobAlerts(request, env);
     if (request.method === "POST" && isCvMatchRecord) return recordCvMatch(request, env);
+    if (isAutomationApi) {
+      if ((isAutomationSettings && request.method !== "GET" && request.method !== "PUT") ||
+          (isAutomationPublications && request.method !== "GET" && request.method !== "POST")) {
+        return jsonResponse({ error: "Method not allowed." }, 405);
+      }
+      if (!env.ADMIN_TOKEN) return jsonResponse({ error: "The Worker admin token is not configured." }, 503);
+      if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) {
+        return jsonResponse({ error: "Invalid admin token." }, 401);
+      }
+      if (isAutomationSettings) {
+        if (request.method === "GET") {
+          const settings = await env.JOBS.get(AUTO_PUBLISH_SETTINGS_KEY, "json");
+          return jsonResponse({ enabled: settings?.enabled === true });
+        }
+        let settings;
+        try {
+          settings = await request.json();
+        } catch {
+          return jsonResponse({ error: "Request body must be valid JSON." }, 400);
+        }
+        if (!settings || typeof settings !== "object" || Array.isArray(settings) ||
+            Object.keys(settings).length !== 1 || typeof settings.enabled !== "boolean") {
+          return jsonResponse({ error: "Automation settings must contain an enabled boolean." }, 400);
+        }
+        await env.JOBS.put(AUTO_PUBLISH_SETTINGS_KEY, JSON.stringify({ enabled: settings.enabled }));
+        return jsonResponse({ success: true, enabled: settings.enabled });
+      }
+      if (request.method === "GET") {
+        const publications = await env.JOBS.get(AUTO_PUBLISH_HISTORY_KEY, "json");
+        return jsonResponse({ publications: Array.isArray(publications) ? publications : [] });
+      }
+      let input;
+      try {
+        input = await request.json();
+      } catch {
+        return jsonResponse({ error: "Request body must be valid JSON." }, 400);
+      }
+      if (!input || typeof input !== "object" || Array.isArray(input) ||
+          Object.keys(input).length !== 1 || !Array.isArray(input.publications) ||
+          !input.publications.length || input.publications.length > 5) {
+        return jsonResponse({ error: "Provide one to five published circular records." }, 400);
+      }
+      const newPublications = [];
+      for (const publication of input.publications) {
+        if (!publication || typeof publication !== "object" || Array.isArray(publication) ||
+            Object.keys(publication).some(field => !["circularName", "publishedAt", "jobCount"].includes(field))) {
+          return jsonResponse({ error: "A published circular record has an invalid shape." }, 400);
+        }
+        const circularName = canonicalCircularName(publication.circularName);
+        const publishedAt = typeof publication.publishedAt === "string" ? publication.publishedAt : "";
+        const jobCount = publication.jobCount;
+        if (!/^Circular \d+ of 20\d{2}$/.test(circularName) ||
+            !Number.isInteger(Date.parse(publishedAt)) ||
+            new Date(publishedAt).toISOString() !== publishedAt ||
+            !Number.isInteger(jobCount) || jobCount < 1 || jobCount > MAX_JOBS) {
+          return jsonResponse({ error: "A published circular record contains invalid values." }, 400);
+        }
+        newPublications.push({ circularName, publishedAt, jobCount });
+      }
+      const previousPublications = await env.JOBS.get(AUTO_PUBLISH_HISTORY_KEY, "json");
+      const mergedPublications = [
+        ...newPublications,
+        ...(Array.isArray(previousPublications) ? previousPublications : [])
+          .filter(previous => !newPublications.some(publication => publication.circularName === previous.circularName))
+      ].slice(0, MAX_AUTO_PUBLISH_HISTORY);
+      await env.JOBS.put(AUTO_PUBLISH_HISTORY_KEY, JSON.stringify(mergedPublications));
+      return jsonResponse({ success: true, publications: newPublications });
+    }
     if (request.method === "GET" && isAlertConfirmation) {
       return showAlertConfirmation(url.searchParams.get("token"), env, "confirm");
     }
@@ -1723,24 +1800,33 @@ export default {
         return jsonResponse({ error: "Request body must be valid JSON." }, 400);
       }
       if (!input || typeof input !== "object" || Array.isArray(input) ||
-          Object.keys(input).some(field => !["to", "runUrl", "message"].includes(field))) {
+          Object.keys(input).some(field => !["to", "runUrl", "message", "type"].includes(field))) {
         return jsonResponse({ error: "Invalid automation notification." }, 400);
       }
-      const email = typeof input.to === "string" ? input.to.trim().toLowerCase() : "";
+      const recipients = [...new Set((Array.isArray(input.to) ? input.to : [input.to])
+        .filter(value => typeof value === "string")
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean))];
       const runUrl = typeof input.runUrl === "string" ? input.runUrl.trim() : "";
       const message = typeof input.message === "string" ? input.message.trim() : "";
-      if (!validAlertEmail(email) || email.length > 254 || !message || message.length > 2000 ||
+      const type = input.type ?? "failure";
+      if (!recipients.length || recipients.length > 10 ||
+          recipients.some(email => !validAlertEmail(email) || email.length > 254) ||
+          !message || message.length > 2000 ||
+          !["failure", "success"].includes(type) ||
           (runUrl && (!/^https:\/\/github\.com\/[^/]+\/[^/]+\/actions\/runs\/\d+$/.test(runUrl) || runUrl.length > 500))) {
         return jsonResponse({ error: "Enter a valid recipient, workflow link, and message." }, 400);
       }
       try {
         await sendResendEmail(env, {
-          to: [email],
-          subject: "DPSA circular automation needs attention",
+          to: recipients,
+          subject: type === "success"
+            ? "DPSA circular auto-published successfully"
+            : "DPSA circular automation needs attention",
           text: `${message}${runUrl ? `\n\nWorkflow run: ${runUrl}` : ""}`
         });
       } catch (error) {
-        console.error("Could not send a DPSA automation failure notification.", error);
+        console.error(`Could not send a DPSA automation ${type} notification.`, error);
         return jsonResponse({ error: "Could not send the automation notification." }, 502);
       }
       return jsonResponse({ success: true }, 202);

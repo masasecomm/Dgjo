@@ -37,6 +37,60 @@ jobs:
         env:
           WORKER_ADMIN_TOKEN: ${{ secrets.WORKER_ADMIN_TOKEN }}
         run: node scripts/auto-publish-dpsa.mjs
+      - name: Email successful publication
+        if: success() && steps.publish.outputs.published == 'true'
+        continue-on-error: true
+        env:
+          WORKER_ADMIN_TOKEN: ${{ secrets.WORKER_ADMIN_TOKEN }}
+          AUTOMATION_ALERT_EMAIL: ${{ secrets.AUTOMATION_ALERT_EMAIL }}
+          AUTOMATION_ALERT_EMAIL_ADDITIONAL: ${{ secrets.AUTOMATION_ALERT_EMAIL_ADDITIONAL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CIRCULARS: ${{ steps.publish.outputs.circulars }}
+          VACANCY_COUNT: ${{ steps.publish.outputs.vacancy_count }}
+          PUBLISHED_AT: ${{ steps.publish.outputs.published_at }}
+          PERMANENT_COUNT: ${{ steps.publish.outputs.permanent_count }}
+          CONTRACT_COUNT: ${{ steps.publish.outputs.contract_count }}
+          SESSIONAL_COUNT: ${{ steps.publish.outputs.sessional_count }}
+          INTERNSHIP_COUNT: ${{ steps.publish.outputs.internship_count }}
+        run: |
+          node --input-type=module -e '
+            const token = process.env.WORKER_ADMIN_TOKEN;
+            const recipients = [process.env.AUTOMATION_ALERT_EMAIL, process.env.AUTOMATION_ALERT_EMAIL_ADDITIONAL]
+              .map(value => value?.trim())
+              .filter(Boolean);
+            if (!token || recipients.length !== 2) {
+              console.error("Could not email the successful publication: WORKER_ADMIN_TOKEN or one of the automation recipient secrets is not configured.");
+              process.exit(1);
+            }
+            const publishedAt = new Date(process.env.PUBLISHED_AT);
+            if (Number.isNaN(publishedAt.getTime())) {
+              console.error("Could not email the successful publication: its timestamp is invalid.");
+              process.exit(1);
+            }
+            const timestamp = new Intl.DateTimeFormat("en-ZA", {
+              timeZone: "Africa/Johannesburg",
+              dateStyle: "medium",
+              timeStyle: "short"
+            }).format(publishedAt);
+            const response = await fetch("https://goodwork-jobs-api.dpsajobs.workers.dev/api/automation/notify", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                type: "success",
+                to: recipients,
+                runUrl: process.env.RUN_URL,
+                message: `${process.env.CIRCULARS} was automatically published at ${timestamp} SAST.\n\nTotal posts published: ${process.env.VACANCY_COUNT}\nPermanent: ${process.env.PERMANENT_COUNT}\nContract: ${process.env.CONTRACT_COUNT}\nSessional: ${process.env.SESSIONAL_COUNT}\nInternship: ${process.env.INTERNSHIP_COUNT}`
+              })
+            });
+            if (!response.ok) {
+              console.error(`Successful publication email request failed with HTTP ${response.status}.`);
+              process.exit(1);
+            }
+            console.log("Successful publication email sent.");
+          '
       - name: Refresh the static website after publication
         if: success() && steps.publish.outputs.published == 'true'
         uses: actions/github-script@v7
@@ -53,13 +107,16 @@ jobs:
         env:
           WORKER_ADMIN_TOKEN: ${{ secrets.WORKER_ADMIN_TOKEN }}
           AUTOMATION_ALERT_EMAIL: ${{ secrets.AUTOMATION_ALERT_EMAIL }}
+          AUTOMATION_ALERT_EMAIL_ADDITIONAL: ${{ secrets.AUTOMATION_ALERT_EMAIL_ADDITIONAL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           node --input-type=module -e '
             const token = process.env.WORKER_ADMIN_TOKEN;
-            const recipient = process.env.AUTOMATION_ALERT_EMAIL;
-            if (!token || !recipient) {
-              console.error("Could not email the failure: WORKER_ADMIN_TOKEN or AUTOMATION_ALERT_EMAIL is not configured.");
+            const recipients = [process.env.AUTOMATION_ALERT_EMAIL, process.env.AUTOMATION_ALERT_EMAIL_ADDITIONAL]
+              .map(value => value?.trim())
+              .filter(Boolean);
+            if (!token || recipients.length !== 2) {
+              console.error("Could not email the failure: WORKER_ADMIN_TOKEN or one of the automation recipient secrets is not configured.");
               process.exit(1);
             }
             const response = await fetch("https://goodwork-jobs-api.dpsajobs.workers.dev/api/automation/notify", {
@@ -69,7 +126,7 @@ jobs:
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                to: recipient,
+                to: recipients,
                 runUrl: process.env.RUN_URL,
                 message: "The Friday DPSA circular monitoring or publishing workflow failed. Check the workflow logs for details."
               })

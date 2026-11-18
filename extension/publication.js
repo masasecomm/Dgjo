@@ -99,6 +99,45 @@ export function displayVacancyTitle(value) {
   );
 }
 
+function circularDateTimestamp(value) {
+  const text = String(value ?? "").trim();
+  const isoDate = text.match(/^(20\d{2})[-/](\d{1,2})[-/](\d{1,2})$/);
+  const namedDate = text.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(20\d{2})$/);
+  let year;
+  let month;
+  let day;
+  if (isoDate) {
+    [, year, month, day] = isoDate;
+  } else if (namedDate) {
+    const months = new Map([
+      ["jan", 1], ["january", 1], ["feb", 2], ["february", 2], ["mar", 3], ["march", 3],
+      ["apr", 4], ["april", 4], ["may", 5], ["jun", 6], ["june", 6], ["jul", 7], ["july", 7],
+      ["aug", 8], ["august", 8], ["sep", 9], ["september", 9], ["oct", 10], ["october", 10],
+      ["nov", 11], ["november", 11], ["dec", 12], ["december", 12]
+    ]);
+    [, day, month, year] = namedDate;
+    month = months.get(month.toLowerCase());
+  } else {
+    return null;
+  }
+  if (!month) return null;
+  const timestamp = Date.UTC(Number(year), Number(month) - 1, Number(day));
+  const date = new Date(timestamp);
+  return date.getUTCFullYear() === Number(year) &&
+    date.getUTCMonth() === Number(month) - 1 &&
+    date.getUTCDate() === Number(day)
+    ? timestamp
+    : null;
+}
+
+export function compareCircularDates(leftValue, rightValue) {
+  const left = circularDateTimestamp(leftValue);
+  const right = circularDateTimestamp(rightValue);
+  if (left === null) return right === null ? 0 : 1;
+  if (right === null) return -1;
+  return right - left;
+}
+
 export function comparePostNumbers(leftValue, rightValue) {
   const leftParts = String(leftValue ?? "").match(/\d+/g)?.map(Number) ?? [];
   const rightParts = String(rightValue ?? "").match(/\d+/g)?.map(Number) ?? [];
@@ -130,6 +169,17 @@ export function mergeVacancyLinks(existingLinks, importedLinks) {
     links.set(link.url, { label: link.label, url: link.url });
   }
   return [...links.values()];
+}
+
+export function vacancyLinkMatchesText(link, text) {
+  if (typeof link?.url !== "string") return false;
+  const normalize = value => String(value ?? "").toLocaleLowerCase("en-ZA").replace(/\s+/g, "");
+  const searchableText = normalize(text);
+  let destination = link.url;
+  if (/^mailto:/i.test(destination)) destination = destination.slice("mailto:".length).split("?")[0];
+  if (destination && searchableText.includes(normalize(destination))) return true;
+  const label = normalize(link.label);
+  return Boolean(label && label !== normalize(link.url) && searchableText.includes(label));
 }
 
 export function getCircularVacancies(vacancies, circularName) {

@@ -3,6 +3,7 @@ import {
   findCircularAnnexureBoundary,
   formatVacancyText
 } from "../vacancy-format.js";
+import { vacancyLinkMatchesText } from "./publication.js";
 
 const MAX_PDF_BYTES = 40 * 1024 * 1024;
 const MAX_PDF_PAGES = 500;
@@ -121,7 +122,9 @@ function isDemographicGroupHeading(title) {
 
 function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers, circularPage, departmentContext) {
   const text = cleanText(body);
-  const links = pdfLinks.filter(link => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
+  const links = pdfLinks
+    .filter(link => pageNumbers.includes(link.page) && vacancyLinkMatchesText(link, text))
+    .map(({ label, url }) => ({ label, url }));
   const fields = fieldMatches(text);
   const titleEnd = fields.length ? fields[0].start : Math.min(text.length, text.indexOf("\n") > 0 ? text.indexOf("\n") : 500);
   const title = cleanText(text.slice(0, titleEnd))

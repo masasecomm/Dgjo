@@ -7,12 +7,14 @@ import {
 } from "./importer.js";
 import {
   circularPublicationStatus,
+  compareCircularDates,
   comparePostNumbers,
   createPublishedVacancy,
   displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks,
   sanitizePublishedJob,
+  vacancyLinkMatchesText,
   vacancyMatchKey
 } from "./publication.js";
 import {
@@ -34,6 +36,9 @@ const connectionForm = document.querySelector("#connection-form");
 const connectButton = document.querySelector("#connect");
 const refreshButton = document.querySelector("#refresh-jobs");
 const forgetButton = document.querySelector("#forget-credentials");
+const autoPublishToggle = document.querySelector("#auto-publish-toggle");
+const autoPublishStatus = document.querySelector("#auto-publish-status");
+const autoPublishHistory = document.querySelector("#auto-publish-history");
 const connectionBadge = document.querySelector("#connection-badge");
 const connectedDetails = document.querySelector("#connected-details");
 const connectedUrl = document.querySelector("#connected-url");
@@ -71,6 +76,7 @@ const importedVacancies = new Map();
 let circularOptions = [];
 let activeCircularName = "";
 let publishInProgress = false;
+let autoPublishBusy = false;
 
 function showToast(message, isError = false) {
   toast.textContent = message;
@@ -87,6 +93,7 @@ function setConnected(connected) {
   jobSearch.disabled = !connected;
   sortJobs.disabled = !connected;
   refreshButton.disabled = !connected;
+  autoPublishToggle.disabled = !connected || autoPublishBusy;
   updatePublishButton();
 }
 
@@ -127,6 +134,92 @@ async function readJobs(url, token) {
   return data;
 }
 
+async function requestAutomation(path, method = "GET", body) {
+  const endpoint = new URL(apiUrl);
+  endpoint.pathname = `/api/automation/${path}`;
+  endpoint.search = "";
+  endpoint.hash = "";
+  const response = await fetch(endpoint, {
+    method,
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" })
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) })
+  });
+  if (!response.ok) {
+    let message = `Could not load automatic publishing data (HTTP ${response.status}).`;
+    try {
+      const result = await response.json();
+      if (typeof result.error === "string") message = result.error;
+    } catch {
+      // Use the HTTP status when the server does not return JSON.
+    }
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+function renderAutoPublishHistory(publications) {
+  autoPublishHistory.replaceChildren();
+  if (!publications.length) {
+    const empty = document.createElement("li");
+    empty.className = "automation-empty";
+    empty.textContent = "No circulars have been auto-published yet.";
+    autoPublishHistory.append(empty);
+    return;
+  }
+  for (const publication of publications.slice(0, 20)) {
+    const item = document.createElement("li");
+    const circular = document.createElement("strong");
+    circular.textContent = `Auto-published ${publication.circularName}`;
+    const timestamp = new Date(publication.publishedAt);
+    const time = document.createElement("time");
+    time.dateTime = publication.publishedAt;
+    time.textContent = Number.isNaN(timestamp.getTime())
+      ? publication.publishedAt
+      : `${timestamp.toLocaleString("en-ZA", {
+        timeZone: "Africa/Johannesburg",
+        dateStyle: "medium",
+        timeStyle: "short"
+      })} SAST`;
+    item.append(circular, document.createTextNode(" — "), time);
+    if (Number.isInteger(publication.jobCount)) {
+      item.append(document.createTextNode(` (${publication.jobCount} vacancies)`));
+    }
+    autoPublishHistory.append(item);
+  }
+}
+
+async function refreshAutomationPanel() {
+  if (!apiUrl || !adminToken) return;
+  autoPublishBusy = true;
+  autoPublishToggle.disabled = true;
+  autoPublishStatus.classList.remove("error");
+  autoPublishStatus.textContent = "Loading automatic publishing settings and history…";
+  try {
+    const [settings, history] = await Promise.all([
+      requestAutomation("settings"),
+      requestAutomation("publications")
+    ]);
+    if (typeof settings?.enabled !== "boolean" || !Array.isArray(history?.publications)) {
+      throw new Error("The Worker returned invalid automatic publishing data.");
+    }
+    autoPublishToggle.checked = settings.enabled;
+    autoPublishStatus.textContent = settings.enabled
+      ? "Auto publish is on. The Friday monitor will check for new DPSA circulars."
+      : "Auto publish is off. Turn it on here to enable the Friday circular monitor.";
+    renderAutoPublishHistory(history.publications);
+  } catch (error) {
+    autoPublishStatus.classList.add("error");
+    autoPublishStatus.textContent = `Could not load auto-publish settings: ${error.message}`;
+    renderAutoPublishHistory([]);
+  } finally {
+    autoPublishBusy = false;
+    autoPublishToggle.disabled = !adminToken;
+  }
+}
+
 async function connect(urlValue, tokenValue, askPermission) {
   connectButton.disabled = true;
   try {
@@ -154,6 +247,7 @@ async function connect(urlValue, tokenValue, askPermission) {
     setConnected(true);
     renderJobs();
     renderImportedVacancies();
+    await refreshAutomationPanel();
     showToast("Connected. Your settings are saved on this device.");
   } catch (error) {
     if (askPermission) showToast(error.message, true);
@@ -191,8 +285,20 @@ function getVisibleJobs() {
     return matchesCircular && (!query || searchable.includes(query));
   });
   if (sortJobs.value === "recent") return filtered;
-  if (sortJobs.value === "title") {
-    filtered.sort((a, b) => displayVacancyTitle(a.title).localeCompare(displayVacancyTitle(b.title)));
+  if (sortJobs.value === "date-newest") {
+    filtered.sort((a, b) =>
+      compareCircularDates(a.circularDate, b.circularDate) ||
+      compareCircularNames(canonicalCircularName(b.circularName), canonicalCircularName(a.circularName)) ||
+      comparePostNumbers(a.postNo, b.postNo)
+    );
+  } else if (sortJobs.value === "title-asc" || sortJobs.value === "title-desc") {
+    const direction = sortJobs.value === "title-asc" ? 1 : -1;
+    filtered.sort((a, b) =>
+      direction * displayVacancyTitle(a.title).localeCompare(displayVacancyTitle(b.title), "en-ZA", {
+        numeric: true,
+        sensitivity: "base"
+      })
+    );
   } else {
     filtered.sort((a, b) =>
       compareCircularNames(canonicalCircularName(b.circularName), canonicalCircularName(a.circularName)) ||
@@ -590,7 +696,13 @@ async function publishImportedVacancies(publishAll = false) {
     const key = vacancyMatchKey(vacancy);
     const existing = byKey.get(key);
     if (existing) {
-      vacancy.links = mergeVacancyLinks(existing.links, vacancy.links);
+      const existingText = [
+        existing.title, existing.requirements, existing.duties, existing.jobPurpose,
+        existing.skillsAndCompetencies, existing.enquiries, existing.applications, existing.note
+      ].join("\n");
+      const supportedExistingLinks = (existing.links ?? [])
+        .filter(link => vacancyLinkMatchesText(link, existingText));
+      vacancy.links = mergeVacancyLinks(supportedExistingLinks, vacancy.links);
       if (existing.sourceUrl && vacancy.sourceUrl && existing.sourceUrl !== vacancy.sourceUrl &&
           !vacancy.links.some(link => link.url === existing.sourceUrl)) {
         vacancy.links = mergeVacancyLinks(vacancy.links, [{
@@ -732,6 +844,10 @@ forgetButton.addEventListener("click", async () => {
   forgetButton.hidden = true;
   connectionForm.classList.remove("connection-error");
   setConnected(false);
+  autoPublishToggle.checked = false;
+  autoPublishStatus.classList.remove("error");
+  autoPublishStatus.textContent = "Connect to the Worker to manage automatic publishing.";
+  renderAutoPublishHistory([]);
   jobSummary.textContent = "Connect to load your current listings.";
   renderJobs();
   renderImportedVacancies();
@@ -753,11 +869,35 @@ refreshButton.addEventListener("click", async () => {
     selectedJobIds.clear();
     renderJobs();
     renderImportedVacancies();
+    await refreshAutomationPanel();
     showToast("Job list refreshed.");
   } catch (error) {
     showToast(`Could not refresh jobs: ${error.message}`, true);
   } finally {
     refreshButton.disabled = false;
+  }
+});
+autoPublishToggle.addEventListener("change", async () => {
+  const enabled = autoPublishToggle.checked;
+  autoPublishBusy = true;
+  autoPublishToggle.disabled = true;
+  autoPublishStatus.classList.remove("error");
+  autoPublishStatus.textContent = "Saving automatic publishing setting…";
+  try {
+    const result = await requestAutomation("settings", "PUT", { enabled });
+    if (result?.success !== true || result.enabled !== enabled) {
+      throw new Error("The Worker did not confirm the requested setting.");
+    }
+    autoPublishStatus.textContent = enabled
+      ? "Auto publish is on. The Friday monitor will check for new DPSA circulars."
+      : "Auto publish is off. The Friday circular monitor will skip publishing.";
+  } catch (error) {
+    autoPublishToggle.checked = !enabled;
+    autoPublishStatus.classList.add("error");
+    autoPublishStatus.textContent = `Could not save auto-publish setting: ${error.message}`;
+  } finally {
+    autoPublishBusy = false;
+    autoPublishToggle.disabled = !adminToken;
   }
 });
 document.querySelector("#cancel-edit").addEventListener("click", () => dialog.close());

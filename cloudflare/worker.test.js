@@ -100,6 +100,59 @@ function cvMatchRequest(overrides = {}) {
   });
 }
 
+test("auto-publish settings are authenticated, default off and persist when changed", async () => {
+  const env = createEnv([]);
+  const endpoint = "https://jobs.example/api/automation/settings";
+  const unauthenticated = await worker.fetch(new Request(endpoint), env);
+  assert.equal(unauthenticated.status, 401);
+
+  const initial = await worker.fetch(new Request(endpoint, {
+    headers: { Authorization: "Bearer test-token" }
+  }), env);
+  assert.deepEqual(await initial.json(), { enabled: false });
+
+  const enabled = await worker.fetch(new Request(endpoint, {
+    method: "PUT",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled: true })
+  }), env);
+  assert.deepEqual(await enabled.json(), { success: true, enabled: true });
+
+  const persisted = await worker.fetch(new Request(endpoint, {
+    headers: { Authorization: "Bearer test-token" }
+  }), env);
+  assert.deepEqual(await persisted.json(), { enabled: true });
+});
+
+test("auto-publish history validates and returns successful circular publication timestamps", async () => {
+  const env = createEnv([]);
+  const endpoint = "https://jobs.example/api/automation/publications";
+  const publishedAt = "2026-11-18T18:00:00.000Z";
+  const record = {
+    circularName: "Circular 42 of 2026",
+    publishedAt,
+    jobCount: 123
+  };
+  const invalid = await worker.fetch(new Request(endpoint, {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ publications: [{ ...record, jobCount: 0 }] })
+  }), env);
+  assert.equal(invalid.status, 400);
+
+  const recorded = await worker.fetch(new Request(endpoint, {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ publications: [record] })
+  }), env);
+  assert.deepEqual(await recorded.json(), { success: true, publications: [record] });
+
+  const history = await worker.fetch(new Request(endpoint, {
+    headers: { Authorization: "Bearer test-token" }
+  }), env);
+  assert.deepEqual(await history.json(), { publications: [record] });
+});
+
 test("job alert subscriptions require explicit consent and a permitted site origin", async () => {
   const unconfigured = createEnv([makeJob()]);
   const unavailable = await worker.fetch(alertSignupRequest(), unconfigured);
@@ -282,7 +335,7 @@ test("vacancy route renders unique metadata, full details and valid structured d
   assert.match(html, /<title>Assistant Director: Example at Department of Health \| DPSA Government Jobs<\/title>/);
   assert.match(html, /<details class="mobile-navigation" open><summary class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"[^>]+aria-expanded="true"><span><\/span><span><\/span><span><\/span><\/summary>/);
   assert.match(html, /class="nav-links" id="main-nav-links"/);
-  assert.match(html, /navigation\.js\?v=20261118-mobile-nav6/);
+  assert.match(html, /navigation\.js\?v=20261118-circular-order1/);
   assert.match(html, /\.nav-links \.nav-dropdown\[open\]\>\.nav-dropdown-menu\{position:static;display:grid/);
   assert.match(html, /\.content-ad iframe\{max-width:100%!important\}/);
   assert.match(html, /<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=G-69H0HQGRT9"><\/script>/);
@@ -601,7 +654,7 @@ test("serves a browser-local saved-vacancies page on the jobs origin", async () 
   assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow");
   assert.match(html, /<title>Saved Vacancies \| DPSA Government Jobs<\/title>/);
   assert.match(html, /<details class="mobile-navigation" open><summary class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"/);
-  assert.match(html, /navigation\.js\?v=20261118-mobile-nav6/);
+  assert.match(html, /navigation\.js\?v=20261118-circular-order1/);
   assert.match(html, /styles\.css\?v=20261118-mobile-nav9/);
   assert.match(html, /data-saved-vacancies-list/);
   assert.match(html, /rel="icon" type="image\/x-icon" sizes="16x16 32x32 48x48" href="https:\/\/dpsagovernmentjobs\.co\.za\/favicon\.ico"/);
@@ -1102,4 +1155,58 @@ test("automation failure notifications require admin authorization and send thro
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("automation success notifications use the publication-success subject", async () => {
+  const env = {
+    ...createEnv([]),
+    RESEND_API_KEY: "test-resend-key",
+    ALERTS_FROM_EMAIL: "alerts@example.com"
+  };
+  const originalFetch = globalThis.fetch;
+  let sentMessage;
+  globalThis.fetch = async (url, options) => {
+    sentMessage = { url: String(url), options };
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const response = await worker.fetch(new Request("https://jobs.example/api/automation/notify", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        type: "success",
+        to: ["admin@example.com", "dpsajobs@gmail.com"],
+        runUrl: "https://github.com/masasecomm/Dgjo/actions/runs/124",
+        message: "Circular 42 of 2026 was published at 20:00 SAST (123 vacancies)."
+      })
+    }), env);
+
+    assert.equal(response.status, 202);
+    const body = JSON.parse(sentMessage.options.body);
+    assert.deepEqual(body.to, ["admin@example.com", "dpsajobs@gmail.com"]);
+    assert.equal(body.subject, "DPSA circular auto-published successfully");
+    assert.match(body.text, /Circular 42 of 2026 was published at 20:00 SAST \(123 vacancies\)/);
+    assert.match(body.text, /Workflow run: https:\/\/github\.com\/masasecomm\/Dgjo\/actions\/runs\/124/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("automation notifications reject an invalid recipient in a recipient list", async () => {
+  const response = await worker.fetch(new Request("https://jobs.example/api/automation/notify", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer test-token",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      to: ["admin@example.com", "not-an-email"],
+      message: "Workflow failed."
+    })
+  }), createEnv([]));
+
+  assert.equal(response.status, 400);
 });

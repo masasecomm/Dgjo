@@ -1,4 +1,5 @@
 import { canonicalCircularName, compareCircularNames, retainLatestCircularJobs, sortJobsByCircular } from "../circulars.js";
+import { EMPLOYMENT_TYPE_CATEGORIES, employmentTypeCategory } from "../employment-type.js";
 import { downloadDpsaPdf, extractPdfText, parseDpsaCircular } from "../extension/importer.js";
 import { createPublishedVacancy, sanitizePublishedJob } from "../extension/publication.js";
 import { appendFile } from "node:fs/promises";
@@ -57,6 +58,28 @@ export function extractCircularPages(html, baseUrl = DPSA_CIRCULARS_URL) {
   return [...circularPages.values()]
     .sort((left, right) => compareCircularNames(right.circularName, left.circularName))
     .slice(0, 5);
+}
+
+export function selectNewerCirculars(candidates, publishedJobs) {
+  const publishedNames = [...new Set(publishedJobs
+    .map(job => canonicalCircularName(job.circularName))
+    .filter(name => /^Circular \d+ of 20\d{2}$/.test(name)))];
+  const latestPublished = publishedNames.sort(compareCircularNames).at(-1);
+  if (!latestPublished) return candidates.slice(0, 1);
+
+  return candidates.filter(circular =>
+    !publishedNames.includes(circular.circularName) &&
+    compareCircularNames(circular.circularName, latestPublished) > 0
+  );
+}
+
+export function countPublishedEmploymentTypes(jobs) {
+  const counts = Object.fromEntries(EMPLOYMENT_TYPE_CATEGORIES.map(category => [category, 0]));
+  for (const job of jobs) {
+    const category = employmentTypeCategory(job);
+    if (category) counts[category] += 1;
+  }
+  return counts;
 }
 
 function extractPageText(html) {
@@ -131,6 +154,52 @@ async function readPublishedJobs(apiUrl, token, fetchImpl) {
   return jobs;
 }
 
+async function requestAutomationApi(apiUrl, token, path, fetchImpl, options = {}) {
+  const endpoint = new URL(apiUrl);
+  endpoint.pathname = `/api/automation/${path}`;
+  endpoint.search = "";
+  endpoint.hash = "";
+  const response = await fetchImpl(endpoint, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers
+    },
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    let message = `Automation service returned HTTP ${response.status}.`;
+    try {
+      const result = await response.json();
+      if (typeof result.error === "string") message = result.error;
+    } catch {
+      // Keep the HTTP status when the service does not return JSON.
+    }
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+export async function readAutomationEnabled(apiUrl, token, fetchImpl = fetch) {
+  const result = await requestAutomationApi(apiUrl, token, "settings", fetchImpl);
+  if (typeof result?.enabled !== "boolean") {
+    throw new Error("The Worker returned invalid auto-publish settings.");
+  }
+  return result.enabled;
+}
+
+export async function recordAutoPublishedCirculars(apiUrl, token, publications, fetchImpl = fetch) {
+  const result = await requestAutomationApi(apiUrl, token, "publications", fetchImpl, {
+    method: "POST",
+    body: JSON.stringify({ publications })
+  });
+  if (result?.success !== true || !Array.isArray(result.publications)) {
+    throw new Error("The Worker returned an invalid auto-publish history result.");
+  }
+  return result.publications;
+}
+
 function validateCircular(circular, result, text) {
   if (canonicalCircularName(result.circular.name) !== circular.circularName) {
     throw new Error(`${circular.circularName}: the PDF title does not match the DPSA archive page.`);
@@ -183,10 +252,13 @@ export async function runAutomation({
   fetchImpl = fetch
 } = {}) {
   if (!token) throw new Error("The WORKER_ADMIN_TOKEN secret is not configured.");
+  if (!await readAutomationEnabled(apiUrl, token, fetchImpl)) {
+    console.log("Auto-publishing is disabled in the Chrome extension.");
+    return { enabled: false, publishedCirculars: [], vacancyCount: 0 };
+  }
   const candidates = await discoverCircularPdfs(fetchImpl);
   const currentJobs = await readPublishedJobs(apiUrl, token, fetchImpl);
-  const publishedCirculars = new Set(currentJobs.map(job => canonicalCircularName(job.circularName)));
-  const newCirculars = candidates.filter(circular => !publishedCirculars.has(circular.circularName));
+  const newCirculars = selectNewerCirculars(candidates, currentJobs);
   if (!newCirculars.length) {
     console.log("No new DPSA circulars to publish.");
     return { publishedCirculars: [], vacancyCount: 0 };
@@ -221,10 +293,28 @@ export async function runAutomation({
     throw new Error(`Publishing would exceed the ${MAX_PUBLISHED_JOBS}-job limit.`);
   }
 
+  if (!await readAutomationEnabled(apiUrl, token, fetchImpl)) {
+    console.log("Auto-publishing was disabled before publication; no changes were sent.");
+    return { enabled: false, publishedCirculars: [], vacancyCount: 0 };
+  }
   await publishJobs(apiUrl, token, retained.jobs, fetchImpl);
+  const publishedAt = new Date().toISOString();
+  const jobCounts = new Map();
+  for (const job of importedJobs) {
+    jobCounts.set(job.circularName, (jobCounts.get(job.circularName) ?? 0) + 1);
+  }
+  const employmentTypeCounts = countPublishedEmploymentTypes(importedJobs);
+  await recordAutoPublishedCirculars(apiUrl, token, newCirculars.map(circular => ({
+    circularName: circular.circularName,
+    publishedAt,
+    jobCount: jobCounts.get(circular.circularName) ?? 0
+  })), fetchImpl);
   return {
+    enabled: true,
     publishedCirculars: newCirculars.map(circular => circular.circularName),
+    publishedAt,
     vacancyCount: importedJobs.length,
+    employmentTypeCounts,
     removedCirculars: retained.removedCircularNames
   };
 }
@@ -232,9 +322,19 @@ export async function runAutomation({
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runAutomation()
     .then(async result => {
+      if (!result.enabled) return;
       console.log(`Automation finished: ${result.vacancyCount} vacancies published.`);
       if (result.publishedCirculars.length && process.env.GITHUB_OUTPUT) {
-        await appendFile(process.env.GITHUB_OUTPUT, "published=true\n");
+        await appendFile(process.env.GITHUB_OUTPUT, [
+          "published=true",
+          `circulars=${result.publishedCirculars.join(", ")}`,
+          `vacancy_count=${result.vacancyCount}`,
+          `published_at=${result.publishedAt}`,
+          `permanent_count=${result.employmentTypeCounts.Permanent}`,
+          `contract_count=${result.employmentTypeCounts.Contract}`,
+          `sessional_count=${result.employmentTypeCounts.Sessional}`,
+          `internship_count=${result.employmentTypeCounts.Internship}`
+        ].join("\n") + "\n");
       }
     })
     .catch(error => {

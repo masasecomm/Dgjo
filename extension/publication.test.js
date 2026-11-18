@@ -2,13 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   circularPublicationStatus,
+  compareCircularDates,
   comparePostNumbers,
   createPublishedVacancy,
   displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks,
   normalizePublishedSalary,
-  sanitizePublishedJob
+  sanitizePublishedJob,
+  vacancyLinkMatchesText
 } from "./publication.js";
 
 test("formats uppercase vacancy titles as readable text without changing mixed-case titles", () => {
@@ -22,6 +24,24 @@ test("sorts post numbers in numeric order", () => {
   assert.deepEqual(postNumbers.sort(comparePostNumbers), ["41/01", "41/02", "41/10", "42/01"]);
   assert.ok(comparePostNumbers("41/02", "41/10") < 0);
   assert.ok(comparePostNumbers("", "41/01") > 0);
+});
+
+test("sorts circular publication dates newest first and puts missing or invalid dates last", () => {
+  const dates = [
+    "30 October 2026",
+    "2026-11-18",
+    "",
+    "31 February 2026",
+    "2 September 2026"
+  ];
+
+  assert.deepEqual(dates.sort(compareCircularDates), [
+    "2026-11-18",
+    "30 October 2026",
+    "2 September 2026",
+    "",
+    "31 February 2026"
+  ]);
 });
 
 test("tracks published posts per circular and identifies posts that can be republished", () => {
@@ -59,6 +79,16 @@ test("keeps all existing and imported post links when merging a republished vaca
     { label: "Circular", url: "https://dpsa.gov.za/circular.pdf" },
     { label: "Application form", url: "https://department.gov.za/form.pdf" }
   ]);
+});
+
+test("matches stored links to vacancy text so republishing can discard unrelated same-page links", () => {
+  const text = [
+    "Direct Your Applications to: Jobs-CF11@labour.gov.za",
+    "EE target-Priority will be given to Persons with disability, Indians and Whites"
+  ].join("\n");
+  assert.equal(vacancyLinkMatchesText({ label: "Jobs-CF9@labour.gov.za", url: "mailto:Jobs-CF9@labour.gov.za" }, text), false);
+  assert.equal(vacancyLinkMatchesText({ label: "Jobs-CF10@labour.gov.za", url: "mailto:Jobs-CF10@labour.gov.za" }, text), false);
+  assert.equal(vacancyLinkMatchesText({ label: "Jobs-CF11@labour.gov.za", url: "mailto:Jobs-CF11@labour.gov.za" }, text), true);
 });
 
 test("removes unsupported legacy metadata before sending jobs to the Worker", () => {

@@ -20,6 +20,11 @@ test("admin listings use the site font and provide circular-scoped bulk selectio
   assert.doesNotMatch(listings, /data-filter=|class="job-grid"/);
   assert.match(adminJs, /groupJobsByCircular\(jobs\)/);
   assert.match(adminJs, /comparePostNumbers\(a\.postNo, b\.postNo\)/);
+  assert.match(adminHtml, /<option value="date-newest">Date \(newest\)<\/option>/);
+  assert.match(adminHtml, /<option value="title-asc">A–Z<\/option>/);
+  assert.match(adminHtml, /<option value="title-desc">Z–A<\/option>/);
+  assert.match(adminJs, /compareCircularDates\(a\.circularDate, b\.circularDate\)/);
+  assert.match(adminJs, /sortJobs\.value === "title-asc" \|\| sortJobs\.value === "title-desc"/);
   assert.match(adminJs, /selectedJobIds\.add\(job\.id\)/);
   assert.match(adminJs, /Remove all \$\{selectedJobs\.length\} selected/);
 });
@@ -30,4 +35,15 @@ test("published list rows show normalized titles and post numbers without employ
   assert.match(renderer, /displayVacancyTitle\(job\.title\)/);
   assert.match(renderer, /`Post \$\{job\.postNo \|\| "number not stated"\}`/);
   assert.doesNotMatch(renderer, /job-tags|Remote-friendly|salaryText|job\.posted/);
+});
+
+test("the extension can toggle auto-publishing and shows its saved publication timestamp history", () => {
+  assert.match(adminHtml, /id="auto-publish-toggle" type="checkbox" disabled/);
+  assert.match(adminHtml, /id="auto-publish-history"/);
+  assert.match(adminJs, /requestAutomation\("settings", "PUT", \{ enabled \}\)/);
+  assert.match(adminJs, /requestAutomation\("publications"\)/);
+  assert.match(adminJs, /Auto-published \$\{publication\.circularName\}/);
+  assert.match(adminJs, /timeZone: "Africa\/Johannesburg"/);
+  assert.match(adminJs, /SAST/);
+  assert.match(adminCss, /\.automation-switch input:checked \+ span/);
 });

@@ -56,6 +56,21 @@
       </div>
     </section>
 
+    <section class="automation-card" aria-labelledby="auto-publish-title">
+      <div class="automation-heading">
+        <div>
+          <h2 id="auto-publish-title">Automatic circular publishing</h2>
+          <p>When enabled, the Friday monitor publishes new circulars and records the publication time here.</p>
+        </div>
+        <label class="automation-switch"><input id="auto-publish-toggle" type="checkbox" disabled><span aria-hidden="true"></span><strong>Auto publish</strong></label>
+      </div>
+      <p id="auto-publish-status" class="automation-status" role="status" aria-live="polite">Connect to the Worker to manage automatic publishing.</p>
+      <div class="automation-history">
+        <h3>Recent automatic publications</h3>
+        <ol id="auto-publish-history"><li class="automation-empty">Connect to load publication history.</li></ol>
+      </div>
+    </section>
+
     <section class="import-section" aria-labelledby="import-title">
       <div class="import-heading">
         <div>
@@ -113,7 +128,7 @@
           <button id="edit-selected" class="button button-light" type="button" disabled>Edit selected</button>
           <button id="delete-selected" class="button button-danger" type="button" disabled>Delete selected</button>
         </div>
-        <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="post-number">Post number</option><option value="recent">Recently added</option><option value="title">Job title</option></select></label>
+        <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="post-number">Post number</option><option value="recent">Recently added</option><option value="date-newest">Date (newest)</option><option value="title-asc">A–Z</option><option value="title-desc">Z–A</option></select></label>
       </div>
       <div id="job-list" class="job-list" aria-live="polite">
         <div class="empty-state"><span class="empty-icon">✳</span><strong>Your job board, in one place.</strong><span>Connect to Cloudflare to view and manage published roles.</span></div>

@@ -47028,6 +47028,231 @@
     return text.split(/(?<=[.!?])\s+/)[0]?.trim() ?? "";
   }
 
+  // publication.js
+  function normalizeCircularName(value) {
+    return String(value ?? "").trim().toLocaleLowerCase("en-ZA");
+  }
+  var PUBLISHABLE_JOB_FIELDS = /* @__PURE__ */ new Set([
+    "id",
+    "title",
+    "company",
+    "location",
+    "type",
+    "category",
+    "salary",
+    "salaryText",
+    "posted",
+    "logo",
+    "color",
+    "logoColor",
+    "sourceUrl",
+    "circularName",
+    "circularDate",
+    "circularPage",
+    "postNo",
+    "refNo",
+    "province",
+    "natureOfAppointment",
+    "branch",
+    "chiefDirectorate",
+    "directorate",
+    "cluster",
+    "level",
+    "centre",
+    "closingDate",
+    "requirements",
+    "duties",
+    "jobPurpose",
+    "skillsAndCompetencies",
+    "enquiries",
+    "applications",
+    "note",
+    "links"
+  ]);
+  var MAX_PUBLISHED_SALARY = 1e8;
+  function truncate(value, limit) {
+    return String(value ?? "").trim().slice(0, limit);
+  }
+  function normalizePublishedSalary(value, salaryText) {
+    if (Number.isFinite(value) && value >= 0 && value <= MAX_PUBLISHED_SALARY) return value;
+    const amounts = [...String(salaryText ?? "").matchAll(/R\s*([\d][\d,\s]*(?:\.\d+)?)/gi)].map((match) => Number(match[1].replace(/[,\s]/g, ""))).filter((amount) => Number.isFinite(amount) && amount >= 0 && amount <= MAX_PUBLISHED_SALARY);
+    return amounts.length ? Math.max(...amounts) : 0;
+  }
+  function createPublishedVacancy(vacancy) {
+    const title = truncate(vacancy.title, 160);
+    const company = truncate(vacancy.company, 160) || "Hiring department not identified";
+    const location = truncate(vacancy.location, 160) || "South Africa";
+    const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
+    const closingDate = truncate(vacancy.closingDate, 120);
+    const maxDetailLength = 6e3;
+    const existingDetails = {
+      circularName: truncate(vacancy.circularName, 160),
+      circularDate: truncate(vacancy.circularDate, 80),
+      circularPage: truncate(vacancy.circularPage, 20),
+      postNo: truncate(vacancy.postNo, 80),
+      refNo: truncate(vacancy.refNo, 160),
+      province: truncate(vacancy.province, 80),
+      natureOfAppointment: truncate(vacancy.natureOfAppointment, 160),
+      branch: truncate(vacancy.branch, maxDetailLength),
+      chiefDirectorate: truncate(vacancy.chiefDirectorate, maxDetailLength),
+      directorate: truncate(vacancy.directorate, maxDetailLength),
+      cluster: truncate(vacancy.cluster, maxDetailLength),
+      level: truncate(vacancy.level, 160),
+      centre: truncate(vacancy.centre, maxDetailLength),
+      closingDate,
+      requirements: truncate(vacancy.requirements, maxDetailLength),
+      duties: truncate(vacancy.duties, maxDetailLength),
+      jobPurpose: truncate(vacancy.jobPurpose, maxDetailLength),
+      skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
+      enquiries: truncate(vacancy.enquiries, maxDetailLength),
+      applications: truncate(vacancy.applications, maxDetailLength),
+      note: truncate(vacancy.note, maxDetailLength),
+      links: [...new Map((Array.isArray(vacancy.links) ? vacancy.links : []).filter((link) => typeof link?.url === "string" && /^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)).map((link) => [link.url, {
+        label: String(link.label || link.url).trim(),
+        url: link.url
+      }])).values()]
+    };
+    const sourceUrl = truncate(vacancy.sourceUrl, 2048);
+    return {
+      id: truncate(vacancy.id, 160),
+      ...sourceUrl ? { sourceUrl } : {},
+      title,
+      company,
+      location,
+      category: vacancy.category,
+      type: vacancy.type,
+      salary: Number.isFinite(vacancy.salary) ? vacancy.salary : 0,
+      salaryText,
+      posted: closingDate ? `Closing date: ${closingDate}` : "Closing date: check official advert",
+      logo: company.slice(0, 1).toLowerCase(),
+      color: "#eaf1e2",
+      logoColor: "#64803f",
+      ...existingDetails
+    };
+  }
+  function sanitizePublishedJob(job) {
+    const publishableJob = Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
+    publishableJob.salary = normalizePublishedSalary(publishableJob.salary, publishableJob.salaryText);
+    return publishableJob;
+  }
+  function displayVacancyTitle(value) {
+    const title = String(value ?? "").trim();
+    const letters = title.match(new RegExp("\\p{L}", "gu")) ?? [];
+    if (!letters.length || letters.some((letter) => letter !== letter.toLocaleUpperCase("en-ZA"))) return title;
+    const acronyms = /* @__PURE__ */ new Set(["AIDS", "CEO", "CFO", "DDG", "DPSA", "GIS", "HIV", "HOD", "HR", "ICT", "ID", "IT", "MEC", "NQF", "OHS", "PMDS", "SAPS", "SCM", "SMS", "TVET"]);
+    return title.toLocaleLowerCase("en-ZA").replace(
+      /\b[\p{L}][\p{L}'’.-]*/gu,
+      (word) => acronyms.has(word.toLocaleUpperCase("en-ZA")) ? word.toLocaleUpperCase("en-ZA") : `${word.charAt(0).toLocaleUpperCase("en-ZA")}${word.slice(1)}`
+    );
+  }
+  function circularDateTimestamp(value) {
+    const text = String(value ?? "").trim();
+    const isoDate = text.match(/^(20\d{2})[-/](\d{1,2})[-/](\d{1,2})$/);
+    const namedDate = text.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(20\d{2})$/);
+    let year;
+    let month;
+    let day;
+    if (isoDate) {
+      [, year, month, day] = isoDate;
+    } else if (namedDate) {
+      const months2 = /* @__PURE__ */ new Map([
+        ["jan", 1],
+        ["january", 1],
+        ["feb", 2],
+        ["february", 2],
+        ["mar", 3],
+        ["march", 3],
+        ["apr", 4],
+        ["april", 4],
+        ["may", 5],
+        ["jun", 6],
+        ["june", 6],
+        ["jul", 7],
+        ["july", 7],
+        ["aug", 8],
+        ["august", 8],
+        ["sep", 9],
+        ["september", 9],
+        ["oct", 10],
+        ["october", 10],
+        ["nov", 11],
+        ["november", 11],
+        ["dec", 12],
+        ["december", 12]
+      ]);
+      [, day, month, year] = namedDate;
+      month = months2.get(month.toLowerCase());
+    } else {
+      return null;
+    }
+    if (!month) return null;
+    const timestamp = Date.UTC(Number(year), Number(month) - 1, Number(day));
+    const date = new Date(timestamp);
+    return date.getUTCFullYear() === Number(year) && date.getUTCMonth() === Number(month) - 1 && date.getUTCDate() === Number(day) ? timestamp : null;
+  }
+  function compareCircularDates(leftValue, rightValue) {
+    const left = circularDateTimestamp(leftValue);
+    const right = circularDateTimestamp(rightValue);
+    if (left === null) return right === null ? 0 : 1;
+    if (right === null) return -1;
+    return right - left;
+  }
+  function comparePostNumbers(leftValue, rightValue) {
+    const leftParts = String(leftValue ?? "").match(/\d+/g)?.map(Number) ?? [];
+    const rightParts = String(rightValue ?? "").match(/\d+/g)?.map(Number) ?? [];
+    if (!leftParts.length || !rightParts.length) {
+      if (leftParts.length !== rightParts.length) return leftParts.length ? -1 : 1;
+      return String(leftValue ?? "").localeCompare(String(rightValue ?? ""), "en-ZA", { sensitivity: "base" });
+    }
+    const sharedLength = Math.min(leftParts.length, rightParts.length);
+    for (let index = 0; index < sharedLength; index += 1) {
+      if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
+    }
+    if (leftParts.length !== rightParts.length) return leftParts.length - rightParts.length;
+    return String(leftValue ?? "").localeCompare(String(rightValue ?? ""), "en-ZA", { numeric: true, sensitivity: "base" });
+  }
+  function vacancyMatchKey(job) {
+    const postIdentity = [job.postNo, job.refNo].filter(Boolean).join("|").toLowerCase();
+    if (postIdentity) return `${job.sourceUrl ?? ""}|${postIdentity}`;
+    return `${job.title}|${job.company}`.toLowerCase().replace(/\s+/g, " ").trim();
+  }
+  function mergeVacancyLinks(existingLinks, importedLinks) {
+    const links = /* @__PURE__ */ new Map();
+    for (const link of [
+      ...Array.isArray(existingLinks) ? existingLinks : [],
+      ...Array.isArray(importedLinks) ? importedLinks : []
+    ]) {
+      if (typeof link?.url !== "string" || typeof link.label !== "string") continue;
+      links.set(link.url, { label: link.label, url: link.url });
+    }
+    return [...links.values()];
+  }
+  function vacancyLinkMatchesText(link, text) {
+    if (typeof link?.url !== "string") return false;
+    const normalize = (value) => String(value ?? "").toLocaleLowerCase("en-ZA").replace(/\s+/g, "");
+    const searchableText = normalize(text);
+    let destination = link.url;
+    if (/^mailto:/i.test(destination)) destination = destination.slice("mailto:".length).split("?")[0];
+    if (destination && searchableText.includes(normalize(destination))) return true;
+    const label = normalize(link.label);
+    return Boolean(label && label !== normalize(link.url) && searchableText.includes(label));
+  }
+  function getCircularVacancies(vacancies, circularName) {
+    const normalizedName = normalizeCircularName(circularName);
+    if (!normalizedName) return [...vacancies];
+    return [...vacancies].filter((vacancy) => normalizeCircularName(vacancy.circularName) === normalizedName);
+  }
+  function circularPublicationStatus(circularName, importedVacancies2, publishedJobs) {
+    const imported = getCircularVacancies(importedVacancies2, circularName);
+    const published = getCircularVacancies(publishedJobs, circularName);
+    const publishedKeys = new Set(published.map(vacancyMatchKey));
+    return {
+      importedCount: imported.length,
+      publishedCount: published.length,
+      alreadyPublishedCount: imported.filter((vacancy) => publishedKeys.has(vacancyMatchKey(vacancy))).length
+    };
+  }
+
   // importer.js
   var MAX_PDF_BYTES = 40 * 1024 * 1024;
   var MAX_PDF_PAGES = 500;
@@ -47128,7 +47353,7 @@
   }
   function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers, circularPage, departmentContext) {
     const text = cleanText(body);
-    const links = pdfLinks.filter((link) => pageNumbers.includes(link.page)).map(({ label, url }) => ({ label, url }));
+    const links = pdfLinks.filter((link) => pageNumbers.includes(link.page) && vacancyLinkMatchesText(link, text)).map(({ label, url }) => ({ label, url }));
     const fields = fieldMatches(text);
     const titleEnd = fields.length ? fields[0].start : Math.min(text.length, text.indexOf("\n") > 0 ? text.indexOf("\n") : 500);
     const title = cleanText(text.slice(0, titleEnd)).replace(/^[\s:–—-]+|[\s:–—-]+$/g, "").replace(/\s*[\[(]\s*$/, "");
@@ -47368,169 +47593,6 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     return { circulars, warnings };
   }
 
-  // publication.js
-  function normalizeCircularName(value) {
-    return String(value ?? "").trim().toLocaleLowerCase("en-ZA");
-  }
-  var PUBLISHABLE_JOB_FIELDS = /* @__PURE__ */ new Set([
-    "id",
-    "title",
-    "company",
-    "location",
-    "type",
-    "category",
-    "salary",
-    "salaryText",
-    "posted",
-    "logo",
-    "color",
-    "logoColor",
-    "sourceUrl",
-    "circularName",
-    "circularDate",
-    "circularPage",
-    "postNo",
-    "refNo",
-    "province",
-    "natureOfAppointment",
-    "branch",
-    "chiefDirectorate",
-    "directorate",
-    "cluster",
-    "level",
-    "centre",
-    "closingDate",
-    "requirements",
-    "duties",
-    "jobPurpose",
-    "skillsAndCompetencies",
-    "enquiries",
-    "applications",
-    "note",
-    "links"
-  ]);
-  var MAX_PUBLISHED_SALARY = 1e8;
-  function truncate(value, limit) {
-    return String(value ?? "").trim().slice(0, limit);
-  }
-  function normalizePublishedSalary(value, salaryText) {
-    if (Number.isFinite(value) && value >= 0 && value <= MAX_PUBLISHED_SALARY) return value;
-    const amounts = [...String(salaryText ?? "").matchAll(/R\s*([\d][\d,\s]*(?:\.\d+)?)/gi)].map((match) => Number(match[1].replace(/[,\s]/g, ""))).filter((amount) => Number.isFinite(amount) && amount >= 0 && amount <= MAX_PUBLISHED_SALARY);
-    return amounts.length ? Math.max(...amounts) : 0;
-  }
-  function createPublishedVacancy(vacancy) {
-    const title = truncate(vacancy.title, 160);
-    const company = truncate(vacancy.company, 160) || "Hiring department not identified";
-    const location = truncate(vacancy.location, 160) || "South Africa";
-    const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
-    const closingDate = truncate(vacancy.closingDate, 120);
-    const maxDetailLength = 6e3;
-    const existingDetails = {
-      circularName: truncate(vacancy.circularName, 160),
-      circularDate: truncate(vacancy.circularDate, 80),
-      circularPage: truncate(vacancy.circularPage, 20),
-      postNo: truncate(vacancy.postNo, 80),
-      refNo: truncate(vacancy.refNo, 160),
-      province: truncate(vacancy.province, 80),
-      natureOfAppointment: truncate(vacancy.natureOfAppointment, 160),
-      branch: truncate(vacancy.branch, maxDetailLength),
-      chiefDirectorate: truncate(vacancy.chiefDirectorate, maxDetailLength),
-      directorate: truncate(vacancy.directorate, maxDetailLength),
-      cluster: truncate(vacancy.cluster, maxDetailLength),
-      level: truncate(vacancy.level, 160),
-      centre: truncate(vacancy.centre, maxDetailLength),
-      closingDate,
-      requirements: truncate(vacancy.requirements, maxDetailLength),
-      duties: truncate(vacancy.duties, maxDetailLength),
-      jobPurpose: truncate(vacancy.jobPurpose, maxDetailLength),
-      skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
-      enquiries: truncate(vacancy.enquiries, maxDetailLength),
-      applications: truncate(vacancy.applications, maxDetailLength),
-      note: truncate(vacancy.note, maxDetailLength),
-      links: [...new Map((Array.isArray(vacancy.links) ? vacancy.links : []).filter((link) => typeof link?.url === "string" && /^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)).map((link) => [link.url, {
-        label: String(link.label || link.url).trim(),
-        url: link.url
-      }])).values()]
-    };
-    const sourceUrl = truncate(vacancy.sourceUrl, 2048);
-    return {
-      id: truncate(vacancy.id, 160),
-      ...sourceUrl ? { sourceUrl } : {},
-      title,
-      company,
-      location,
-      category: vacancy.category,
-      type: vacancy.type,
-      salary: Number.isFinite(vacancy.salary) ? vacancy.salary : 0,
-      salaryText,
-      posted: closingDate ? `Closing date: ${closingDate}` : "Closing date: check official advert",
-      logo: company.slice(0, 1).toLowerCase(),
-      color: "#eaf1e2",
-      logoColor: "#64803f",
-      ...existingDetails
-    };
-  }
-  function sanitizePublishedJob(job) {
-    const publishableJob = Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
-    publishableJob.salary = normalizePublishedSalary(publishableJob.salary, publishableJob.salaryText);
-    return publishableJob;
-  }
-  function displayVacancyTitle(value) {
-    const title = String(value ?? "").trim();
-    const letters = title.match(new RegExp("\\p{L}", "gu")) ?? [];
-    if (!letters.length || letters.some((letter) => letter !== letter.toLocaleUpperCase("en-ZA"))) return title;
-    const acronyms = /* @__PURE__ */ new Set(["AIDS", "CEO", "CFO", "DDG", "DPSA", "GIS", "HIV", "HOD", "HR", "ICT", "ID", "IT", "MEC", "NQF", "OHS", "PMDS", "SAPS", "SCM", "SMS", "TVET"]);
-    return title.toLocaleLowerCase("en-ZA").replace(
-      /\b[\p{L}][\p{L}'’.-]*/gu,
-      (word) => acronyms.has(word.toLocaleUpperCase("en-ZA")) ? word.toLocaleUpperCase("en-ZA") : `${word.charAt(0).toLocaleUpperCase("en-ZA")}${word.slice(1)}`
-    );
-  }
-  function comparePostNumbers(leftValue, rightValue) {
-    const leftParts = String(leftValue ?? "").match(/\d+/g)?.map(Number) ?? [];
-    const rightParts = String(rightValue ?? "").match(/\d+/g)?.map(Number) ?? [];
-    if (!leftParts.length || !rightParts.length) {
-      if (leftParts.length !== rightParts.length) return leftParts.length ? -1 : 1;
-      return String(leftValue ?? "").localeCompare(String(rightValue ?? ""), "en-ZA", { sensitivity: "base" });
-    }
-    const sharedLength = Math.min(leftParts.length, rightParts.length);
-    for (let index = 0; index < sharedLength; index += 1) {
-      if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
-    }
-    if (leftParts.length !== rightParts.length) return leftParts.length - rightParts.length;
-    return String(leftValue ?? "").localeCompare(String(rightValue ?? ""), "en-ZA", { numeric: true, sensitivity: "base" });
-  }
-  function vacancyMatchKey(job) {
-    const postIdentity = [job.postNo, job.refNo].filter(Boolean).join("|").toLowerCase();
-    if (postIdentity) return `${job.sourceUrl ?? ""}|${postIdentity}`;
-    return `${job.title}|${job.company}`.toLowerCase().replace(/\s+/g, " ").trim();
-  }
-  function mergeVacancyLinks(existingLinks, importedLinks) {
-    const links = /* @__PURE__ */ new Map();
-    for (const link of [
-      ...Array.isArray(existingLinks) ? existingLinks : [],
-      ...Array.isArray(importedLinks) ? importedLinks : []
-    ]) {
-      if (typeof link?.url !== "string" || typeof link.label !== "string") continue;
-      links.set(link.url, { label: link.label, url: link.url });
-    }
-    return [...links.values()];
-  }
-  function getCircularVacancies(vacancies, circularName) {
-    const normalizedName = normalizeCircularName(circularName);
-    if (!normalizedName) return [...vacancies];
-    return [...vacancies].filter((vacancy) => normalizeCircularName(vacancy.circularName) === normalizedName);
-  }
-  function circularPublicationStatus(circularName, importedVacancies2, publishedJobs) {
-    const imported = getCircularVacancies(importedVacancies2, circularName);
-    const published = getCircularVacancies(publishedJobs, circularName);
-    const publishedKeys = new Set(published.map(vacancyMatchKey));
-    return {
-      importedCount: imported.length,
-      publishedCount: published.length,
-      alreadyPublishedCount: imported.filter((vacancy) => publishedKeys.has(vacancyMatchKey(vacancy))).length
-    };
-  }
-
   // ../circulars.js
   function canonicalCircularName(value) {
     const name = String(value ?? "").trim().replace(/\s+/g, " ");
@@ -47596,6 +47658,9 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   var connectButton = document.querySelector("#connect");
   var refreshButton = document.querySelector("#refresh-jobs");
   var forgetButton = document.querySelector("#forget-credentials");
+  var autoPublishToggle = document.querySelector("#auto-publish-toggle");
+  var autoPublishStatus = document.querySelector("#auto-publish-status");
+  var autoPublishHistory = document.querySelector("#auto-publish-history");
   var connectionBadge = document.querySelector("#connection-badge");
   var connectedDetails = document.querySelector("#connected-details");
   var connectedUrl = document.querySelector("#connected-url");
@@ -47633,6 +47698,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   var circularOptions = [];
   var activeCircularName = "";
   var publishInProgress = false;
+  var autoPublishBusy = false;
   function showToast(message, isError = false) {
     toast.textContent = message;
     toast.classList.toggle("error", isError);
@@ -47647,6 +47713,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     jobSearch.disabled = !connected;
     sortJobs.disabled = !connected;
     refreshButton.disabled = !connected;
+    autoPublishToggle.disabled = !connected || autoPublishBusy;
     updatePublishButton();
   }
   function validateApiUrl(value) {
@@ -47682,6 +47749,84 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     if (!Array.isArray(data)) throw new Error("The Worker returned an invalid job list.");
     return data;
   }
+  async function requestAutomation(path, method = "GET", body) {
+    const endpoint = new URL(apiUrl);
+    endpoint.pathname = `/api/automation/${path}`;
+    endpoint.search = "";
+    endpoint.hash = "";
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        ...body === void 0 ? {} : { "Content-Type": "application/json" }
+      },
+      ...body === void 0 ? {} : { body: JSON.stringify(body) }
+    });
+    if (!response.ok) {
+      let message = `Could not load automatic publishing data (HTTP ${response.status}).`;
+      try {
+        const result = await response.json();
+        if (typeof result.error === "string") message = result.error;
+      } catch {
+      }
+      throw new Error(message);
+    }
+    return response.json();
+  }
+  function renderAutoPublishHistory(publications) {
+    autoPublishHistory.replaceChildren();
+    if (!publications.length) {
+      const empty = document.createElement("li");
+      empty.className = "automation-empty";
+      empty.textContent = "No circulars have been auto-published yet.";
+      autoPublishHistory.append(empty);
+      return;
+    }
+    for (const publication of publications.slice(0, 20)) {
+      const item = document.createElement("li");
+      const circular = document.createElement("strong");
+      circular.textContent = `Auto-published ${publication.circularName}`;
+      const timestamp = new Date(publication.publishedAt);
+      const time = document.createElement("time");
+      time.dateTime = publication.publishedAt;
+      time.textContent = Number.isNaN(timestamp.getTime()) ? publication.publishedAt : `${timestamp.toLocaleString("en-ZA", {
+        timeZone: "Africa/Johannesburg",
+        dateStyle: "medium",
+        timeStyle: "short"
+      })} SAST`;
+      item.append(circular, document.createTextNode(" \u2014 "), time);
+      if (Number.isInteger(publication.jobCount)) {
+        item.append(document.createTextNode(` (${publication.jobCount} vacancies)`));
+      }
+      autoPublishHistory.append(item);
+    }
+  }
+  async function refreshAutomationPanel() {
+    if (!apiUrl || !adminToken) return;
+    autoPublishBusy = true;
+    autoPublishToggle.disabled = true;
+    autoPublishStatus.classList.remove("error");
+    autoPublishStatus.textContent = "Loading automatic publishing settings and history\u2026";
+    try {
+      const [settings, history] = await Promise.all([
+        requestAutomation("settings"),
+        requestAutomation("publications")
+      ]);
+      if (typeof settings?.enabled !== "boolean" || !Array.isArray(history?.publications)) {
+        throw new Error("The Worker returned invalid automatic publishing data.");
+      }
+      autoPublishToggle.checked = settings.enabled;
+      autoPublishStatus.textContent = settings.enabled ? "Auto publish is on. The Friday monitor will check for new DPSA circulars." : "Auto publish is off. Turn it on here to enable the Friday circular monitor.";
+      renderAutoPublishHistory(history.publications);
+    } catch (error) {
+      autoPublishStatus.classList.add("error");
+      autoPublishStatus.textContent = `Could not load auto-publish settings: ${error.message}`;
+      renderAutoPublishHistory([]);
+    } finally {
+      autoPublishBusy = false;
+      autoPublishToggle.disabled = !adminToken;
+    }
+  }
   async function connect(urlValue, tokenValue, askPermission) {
     connectButton.disabled = true;
     try {
@@ -47707,6 +47852,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       setConnected(true);
       renderJobs();
       renderImportedVacancies();
+      await refreshAutomationPanel();
       showToast("Connected. Your settings are saved on this device.");
     } catch (error) {
       if (askPermission) showToast(error.message, true);
@@ -47747,8 +47893,18 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       return matchesCircular && (!query || searchable.includes(query));
     });
     if (sortJobs.value === "recent") return filtered;
-    if (sortJobs.value === "title") {
-      filtered.sort((a, b) => displayVacancyTitle(a.title).localeCompare(displayVacancyTitle(b.title)));
+    if (sortJobs.value === "date-newest") {
+      filtered.sort(
+        (a, b) => compareCircularDates(a.circularDate, b.circularDate) || compareCircularNames(canonicalCircularName(b.circularName), canonicalCircularName(a.circularName)) || comparePostNumbers(a.postNo, b.postNo)
+      );
+    } else if (sortJobs.value === "title-asc" || sortJobs.value === "title-desc") {
+      const direction = sortJobs.value === "title-asc" ? 1 : -1;
+      filtered.sort(
+        (a, b) => direction * displayVacancyTitle(a.title).localeCompare(displayVacancyTitle(b.title), "en-ZA", {
+          numeric: true,
+          sensitivity: "base"
+        })
+      );
     } else {
       filtered.sort(
         (a, b) => compareCircularNames(canonicalCircularName(b.circularName), canonicalCircularName(a.circularName)) || comparePostNumbers(a.postNo, b.postNo) || displayVacancyTitle(a.title).localeCompare(displayVacancyTitle(b.title))
@@ -48097,7 +48253,18 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       const key = vacancyMatchKey(vacancy);
       const existing = byKey.get(key);
       if (existing) {
-        vacancy.links = mergeVacancyLinks(existing.links, vacancy.links);
+        const existingText = [
+          existing.title,
+          existing.requirements,
+          existing.duties,
+          existing.jobPurpose,
+          existing.skillsAndCompetencies,
+          existing.enquiries,
+          existing.applications,
+          existing.note
+        ].join("\n");
+        const supportedExistingLinks = (existing.links ?? []).filter((link) => vacancyLinkMatchesText(link, existingText));
+        vacancy.links = mergeVacancyLinks(supportedExistingLinks, vacancy.links);
         if (existing.sourceUrl && vacancy.sourceUrl && existing.sourceUrl !== vacancy.sourceUrl && !vacancy.links.some((link) => link.url === existing.sourceUrl)) {
           vacancy.links = mergeVacancyLinks(vacancy.links, [{
             label: "Previous official advert or circular",
@@ -48225,6 +48392,10 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     forgetButton.hidden = true;
     connectionForm.classList.remove("connection-error");
     setConnected(false);
+    autoPublishToggle.checked = false;
+    autoPublishStatus.classList.remove("error");
+    autoPublishStatus.textContent = "Connect to the Worker to manage automatic publishing.";
+    renderAutoPublishHistory([]);
     jobSummary.textContent = "Connect to load your current listings.";
     renderJobs();
     renderImportedVacancies();
@@ -48245,11 +48416,33 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       selectedJobIds.clear();
       renderJobs();
       renderImportedVacancies();
+      await refreshAutomationPanel();
       showToast("Job list refreshed.");
     } catch (error) {
       showToast(`Could not refresh jobs: ${error.message}`, true);
     } finally {
       refreshButton.disabled = false;
+    }
+  });
+  autoPublishToggle.addEventListener("change", async () => {
+    const enabled = autoPublishToggle.checked;
+    autoPublishBusy = true;
+    autoPublishToggle.disabled = true;
+    autoPublishStatus.classList.remove("error");
+    autoPublishStatus.textContent = "Saving automatic publishing setting\u2026";
+    try {
+      const result = await requestAutomation("settings", "PUT", { enabled });
+      if (result?.success !== true || result.enabled !== enabled) {
+        throw new Error("The Worker did not confirm the requested setting.");
+      }
+      autoPublishStatus.textContent = enabled ? "Auto publish is on. The Friday monitor will check for new DPSA circulars." : "Auto publish is off. The Friday circular monitor will skip publishing.";
+    } catch (error) {
+      autoPublishToggle.checked = !enabled;
+      autoPublishStatus.classList.add("error");
+      autoPublishStatus.textContent = `Could not save auto-publish setting: ${error.message}`;
+    } finally {
+      autoPublishBusy = false;
+      autoPublishToggle.disabled = !adminToken;
     }
   });
   document.querySelector("#cancel-edit").addEventListener("click", () => dialog.close());

@@ -67,6 +67,58 @@ REQUIREMENTS: Grade 12 and procurement experience.`, { fileName: "Circular 41 of
   assert.equal(vacancies[0].company, "South African Police Service");
 });
 
+test("keeps only PDF links whose destination or visible label belongs to the post", () => {
+  const { vacancies } = parseDpsaCircular(`DPSA CIRCULAR 39 OF 2026
+__PAGE_20__
+POST 39/23: SECURITY OFFICER REF NO: HR5/1/2/3/48
+ENQUIRIES: Ms CF Mnguni Cell: 082 379 9348
+Direct Your Applications to: Jobs-CF11@labour.gov.za
+NOTE: EE target-Priority will be given to Persons with disability, Indians and Whites`, {
+    fileName: "Circular 39 of 2026.pdf",
+    links: [
+      {
+        page: 20,
+        label: "EE target-Priority will be given to Persons with disability, Indians and Whites Jobs-CF9@labour.gov.za",
+        url: "mailto:Jobs-CF9@labour.gov.za"
+      },
+      {
+        page: 20,
+        label: "EE target-Priority will be given to Persons with disability, Indians and Whites Jobs-CF10@labour.gov.za",
+        url: "mailto:Jobs-CF10@labour.gov.za"
+      },
+      {
+        page: 20,
+        label: "EE target-Priority will be given to Persons with disability, Indians and Whites Jobs-CF11@labour.gov.za",
+        url: "mailto:Jobs-CF11@labour.gov.za"
+      }
+    ]
+  });
+
+  assert.deepEqual(vacancies[0].links, [{
+    label: "EE target-Priority will be given to Persons with disability, Indians and Whites Jobs-CF11@labour.gov.za",
+    url: "mailto:Jobs-CF11@labour.gov.za"
+  }]);
+});
+
+test("retains a non-email PDF link when its visible label appears in the post text", () => {
+  const { vacancies } = parseDpsaCircular(`__PAGE_1__
+POST 1: ADMINISTRATIVE CLERK
+APPLICATIONS: Apply online at the e-Recruitment portal.
+REQUIREMENTS: Grade 12.`, {
+    fileName: "Circular 41 of 2026.pdf",
+    links: [{
+      page: 1,
+      label: "e-Recruitment portal",
+      url: "https://example.gov.za/recruitment"
+    }]
+  });
+
+  assert.deepEqual(vacancies[0].links, [{
+    label: "e-Recruitment portal",
+    url: "https://example.gov.za/recruitment"
+  }]);
+});
+
 test("centre values containing the word centre are not truncated at that word", () => {
   const { vacancies } = parseDpsaCircular(`DEPARTMENT OF EMPLOYMENT AND LABOUR
 POST 41/20: CLIENT SERVICE OFFICER: EMPLOYER SERVICES

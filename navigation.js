@@ -32,7 +32,7 @@ for (const navigation of mobileNavigations) {
         menu.querySelectorAll("a:not(.nav-dropdown-all)").forEach(link => link.remove());
         loading.remove();
         const links = document.createDocumentFragment();
-        const circulars = groupJobsByCircular(jobs);
+        const circulars = groupJobsByCircular(jobs).reverse();
         for (const circular of circulars) {
           const link = document.createElement("a");
           link.href = circular.path;
