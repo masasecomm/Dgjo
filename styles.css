@@ -165,6 +165,9 @@ details p { max-width: 700px; margin: -4px 0 20px; color: var(--muted); }
   position: relative;
   border: 0;
 }
+.site-header .mobile-navigation {
+  border: 0;
+}
 .mobile-navigation > .nav-links {
   display: flex;
   justify-content: flex-end;

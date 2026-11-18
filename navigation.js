@@ -83,21 +83,25 @@ for (const navigation of mobileNavigations) {
   });
 
   navigation.addEventListener("click", event => {
-    if (event.target.closest(".nav-links a")) closeMenu();
+    if (window.innerWidth <= 760 && event.target.closest(".nav-links a")) closeMenu();
   });
 
   document.addEventListener("click", event => {
-    if (!navigation.contains(event.target)) closeMenu();
+    if (window.innerWidth <= 760 && !navigation.contains(event.target)) closeMenu();
   });
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && navigation.open) {
+    if (event.key === "Escape" && window.innerWidth <= 760 && navigation.open) {
       closeMenu();
       toggle.focus();
     }
   });
 
   window.addEventListener("resize", () => {
-    if (window.innerWidth > 760) closeMenu();
+    navigation.open = window.innerWidth > 760;
   });
+
+  navigation.open = window.innerWidth > 760;
+  toggle.setAttribute("aria-expanded", String(navigation.open));
+  toggle.setAttribute("aria-label", navigation.open ? "Close navigation menu" : "Open navigation menu");
 }

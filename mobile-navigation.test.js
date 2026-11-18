@@ -18,15 +18,16 @@ const navigationScript = await readFile(new URL("./navigation.js", import.meta.u
 
 test("public pages have an accessible, wired mobile navigation toggle", () => {
   for (const [index, html] of pageMarkup.entries()) {
-    assert.match(html, /<details class="mobile-navigation">\s*<summary class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"[^>]+aria-expanded="false">/, pages[index]);
+    assert.match(html, /<details class="mobile-navigation" open>\s*<summary class="mobile-menu-toggle"[^>]+aria-controls="main-nav-links"[^>]+aria-expanded="true">/, pages[index]);
     assert.match(html, /class="nav-links" id="main-nav-links"/, pages[index]);
     assert.match(html, /navigation\.js\?v=20261118-mobile-nav6/, pages[index]);
-    assert.match(html, /styles\.css\?v=20261118-mobile-nav8/, pages[index]);
+    assert.match(html, /styles\.css\?v=20261118-mobile-nav9/, pages[index]);
   }
   assert.match(styles, /\.mobile-navigation\s*\{[^}]*display:\s*flex;[^}]*flex:\s*1;[^}]*min-width:\s*0;[^}]*border:\s*0;/);
+  assert.match(styles, /\.site-header \.mobile-navigation\s*\{\s*border:\s*0;/);
   assert.match(styles, /\.mobile-navigation > \.nav-links\s*\{[^}]*justify-content:\s*flex-end;/);
   assert.match(navigationScript, /navigation\.addEventListener\("toggle"/);
-  assert.match(navigationScript, /navigation\.open = false/);
+  assert.match(navigationScript, /navigation\.open = window\.innerWidth > 760/);
   assert.match(navigationScript, /event\.key === "Escape"/);
   assert.match(navigationScript, /fetch\(jobsApiUrl\)/);
   assert.match(navigationScript, /groupJobsByCircular\(jobs\)/);

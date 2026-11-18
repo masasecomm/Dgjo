@@ -1353,11 +1353,11 @@ function savedVacanciesPage(requestUrl) {
   return htmlResponse(`<!doctype html>
 <html lang="en-ZA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>Saved Vacancies | DPSA Government Jobs</title>
-<link rel="stylesheet" href="${SITE_URL}/styles.css?v=20261118-mobile-nav8"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script><script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav6" defer></script></head>
+<link rel="stylesheet" href="${SITE_URL}/styles.css?v=20261118-mobile-nav9"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script><script src="${SITE_URL}/navigation.js?v=20261118-mobile-nav6" defer></script></head>
 <body class="post-theme"><a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt=""><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
-<details class="mobile-navigation"><summary class="mobile-menu-toggle" aria-label="Open navigation menu" aria-controls="main-nav-links" aria-expanded="false"><span></span><span></span><span></span></summary>
+<details class="mobile-navigation" open><summary class="mobile-menu-toggle" aria-label="Close navigation menu" aria-controls="main-nav-links" aria-expanded="true"><span></span><span></span><span></span></summary>
 <div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${savedPageUrl}" aria-current="page">Saved vacancies</a><a href="${SITE_URL}/#listings">Vacancies</a></div></details>
 </nav></header>
 <main id="main"><div class="site-post"><section class="page-hero"><div class="shell">
@@ -1525,7 +1525,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}button,input,select,tex
 *{box-sizing:border-box}body{margin:0;font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
 a{color:#087ad2;text-underline-offset:3px}.shell{width:min(1120px,calc(100% - 40px));margin-inline:auto}
 .site-header{background:#17499e;color:#fff;box-shadow:0 4px 16px rgba(13,42,95,.12)}
-.mobile-navigation{display:flex;align-items:center;justify-content:flex-end;position:relative;flex:1;min-width:0;border:0}.mobile-navigation>.nav-links{display:flex;justify-content:flex-end}.mobile-menu-toggle{display:none;list-style:none}.mobile-menu-toggle::-webkit-details-marker{display:none}
+.mobile-navigation{display:flex;align-items:center;justify-content:flex-end;position:relative;flex:1;min-width:0;border:0}.site-header .mobile-navigation{border:0}.mobile-navigation>.nav-links{display:flex;justify-content:flex-end}.mobile-menu-toggle{display:none;list-style:none}.mobile-menu-toggle::-webkit-details-marker{display:none}
 .nav{min-height:78px;display:flex;align-items:center;justify-content:space-between;gap:24px}
 .brand{display:inline-flex;align-items:center;gap:11px;color:#fff;text-decoration:none}
 .brand img{width:40px;height:40px;border:1px solid rgba(255,255,255,.32);border-radius:50%;object-fit:cover}
@@ -1593,7 +1593,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 </style></head>
 <body><header class="site-header"><nav class="nav shell" aria-label="Main navigation">
 <a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
-<details class="mobile-navigation"><summary class="mobile-menu-toggle" aria-label="Open navigation menu" aria-controls="main-nav-links" aria-expanded="false"><span></span><span></span><span></span></summary>
+<details class="mobile-navigation" open><summary class="mobile-menu-toggle" aria-label="Close navigation menu" aria-controls="main-nav-links" aria-expanded="true"><span></span><span></span><span></span></summary>
 <div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${new URL("/saved-vacancies/", requestUrl.origin).href}">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a href="${SITE_URL}/dpsa-vacancy-circulars/">All circulars</a>${circularNavigation}</div></details><a href="${SITE_URL}/#listings">Vacancies</a></div></details>
 </nav></header><main class="shell">
 <nav class="breadcrumb" aria-label="Breadcrumb">${breadcrumbMarkup}</nav>
