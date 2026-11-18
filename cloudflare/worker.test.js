@@ -446,6 +446,7 @@ test("highlights the search term in vacancy fields on detail pages", async () =>
   assert.match(html, /<strong>Location\/centre in advert:<\/strong> <mark class="search-highlight">Health<\/mark> District/);
   assert.match(html, /Experience in <mark class="search-highlight">health<\/mark> services/);
   assert.match(html, /Provide <mark class="search-highlight">health<\/mark> services to the public/);
+  assert.match(html, /\.search-highlight\{[^}]*background:rgba\(236,72,153,\.3\)/);
 });
 
 test("removes trailing annexure content from previously published vacancy details", async () => {

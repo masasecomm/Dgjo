@@ -1566,7 +1566,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 .related-job-link:hover strong{color:#17499e}
 .related-job-link strong{line-height:1.35;overflow-wrap:anywhere}
 .related-job-link span{color:#66717c;font-size:13px}
-.search-highlight{padding:0 .04em;border-radius:2px;color:inherit;background:rgba(56,189,248,.3)}
+.search-highlight{padding:0 .04em;border-radius:2px;color:inherit;background:rgba(236,72,153,.3)}
 .vacancy-faq{margin:28px 0 0;padding:24px;border:1px solid #e6eaf0;border-radius:12px;background:#fff}
 .vacancy-faq h2{margin:0 0 8px;color:#17499e;font-size:22px;line-height:1.3}
 .faq-intro{margin:0 0 16px;color:#66717c;font-size:14px}

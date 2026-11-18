@@ -647,7 +647,7 @@ test("highlights every visible vacancy-card match while typing a search", async 
   ]) {
     assert.ok(page.includes(`appendSearchHighlight(${target}, searchTerm)`), `expected search highlighting for ${target}`);
   }
-  assert.match(stylesheet, /\.search-highlight \{[^}]*background: rgba\(56,189,248,.3\)/);
+  assert.match(stylesheet, /\.search-highlight \{[^}]*background: rgba\(236,72,153,.3\)/);
 });
 
 test("discloses and gates CV and alert data sharing to the Google Sheet", async () => {
