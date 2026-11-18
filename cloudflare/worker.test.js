@@ -1056,3 +1056,50 @@ test("ads.txt authorizes the configured AdSense publisher", async () => {
   assert.equal(response.headers.get("Content-Type"), "text/plain; charset=utf-8");
   assert.equal(await response.text(), "google.com, pub-3860151941190347, DIRECT, f08c47fec0942fa0\n");
 });
+
+test("automation failure notifications require admin authorization and send through Resend", async () => {
+  const env = {
+    ...createEnv([]),
+    RESEND_API_KEY: "test-resend-key",
+    ALERTS_FROM_EMAIL: "alerts@example.com"
+  };
+  const unauthorized = await worker.fetch(new Request("https://jobs.example/api/automation/notify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: "admin@example.com",
+      runUrl: "https://github.com/masasecomm/Dgjo/actions/runs/123",
+      message: "Workflow failed."
+    })
+  }), env);
+  assert.equal(unauthorized.status, 401);
+
+  const originalFetch = globalThis.fetch;
+  let sentMessage;
+  globalThis.fetch = async (url, options) => {
+    sentMessage = { url: String(url), options };
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const response = await worker.fetch(new Request("https://jobs.example/api/automation/notify", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        to: "admin@example.com",
+        runUrl: "https://github.com/masasecomm/Dgjo/actions/runs/123",
+        message: "Workflow failed."
+      })
+    }), env);
+    assert.equal(response.status, 202);
+    assert.equal((await response.json()).success, true);
+    assert.equal(sentMessage.url, "https://api.resend.com/emails");
+    const body = JSON.parse(sentMessage.options.body);
+    assert.deepEqual(body.to, ["admin@example.com"]);
+    assert.match(body.text, /Workflow run: https:\/\/github\.com\/masasecomm\/Dgjo\/actions\/runs\/123/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

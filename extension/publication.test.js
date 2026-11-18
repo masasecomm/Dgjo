@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   circularPublicationStatus,
   comparePostNumbers,
+  createPublishedVacancy,
   displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks,
@@ -77,6 +78,26 @@ test("removes unsupported legacy metadata before sending jobs to the Worker", ()
     links: [{ label: "Apply", url: "https://department.gov.za/apply" }],
     salary: 0
   });
+});
+
+test("normalizes imported vacancy fields to Worker publication limits", () => {
+  const published = createPublishedVacancy({
+    id: "vacancy-1",
+    title: "Director ".repeat(30),
+    company: "Department of Health",
+    location: "Long centre ".repeat(30),
+    salaryText: "",
+    closingDate: "",
+    category: "Health",
+    type: "Permanent",
+    salary: 0,
+    links: []
+  });
+
+  assert.equal(published.title.length, 160);
+  assert.equal(published.location.length, 160);
+  assert.equal(published.salaryText, "Not stated in advert");
+  assert.equal(published.posted, "Closing date: check official advert");
 });
 
 test("repairs invalid stored salaries from advert text and safely defaults when unavailable", () => {

@@ -183,7 +183,7 @@ function parsePost(postNumber, body, circular, sourceUrl, pdfLinks, pageNumbers,
   };
 }
 
-export async function extractPdfText(file) {
+export async function extractPdfText(file, { standardFontDataUrl = "" } = {}) {
   if (!(file instanceof Blob) || file.size === 0) throw new Error("The selected PDF is empty.");
   if (file.size > MAX_PDF_BYTES) throw new Error("PDF is larger than 40 MB. Please choose a smaller file.");
   const data = new Uint8Array(await file.arrayBuffer());
@@ -192,8 +192,13 @@ export async function extractPdfText(file) {
   }
 
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.min.mjs");
-  const document = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
+  const pdfOptions = { data, isEvalSupported: false };
+  if (typeof globalThis.chrome?.runtime?.getURL === "function") {
+    pdfjs.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.min.mjs");
+  } else if (standardFontDataUrl) {
+    pdfOptions.standardFontDataUrl = standardFontDataUrl;
+  }
+  const document = await pdfjs.getDocument(pdfOptions).promise;
   if (document.numPages > MAX_PDF_PAGES) {
     await document.destroy();
     throw new Error(`This PDF has ${document.numPages} pages. The limit is ${MAX_PDF_PAGES} pages.`);
@@ -296,8 +301,22 @@ export async function downloadDpsaPdf(url) {
     throw new Error("For safety, PDF links must be HTTPS PDFs hosted on dpsa.gov.za.");
   }
 
-  const response = await fetch(parsedUrl.href, { cache: "no-store", credentials: "omit" });
+  const requestOptions = { cache: "no-store", credentials: "omit" };
+  if (typeof globalThis.chrome?.runtime?.getURL !== "function") {
+    requestOptions.headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+      Accept: "application/pdf"
+    };
+    requestOptions.signal = AbortSignal.timeout(30000);
+  }
+  const response = await fetch(parsedUrl.href, requestOptions);
   if (!response.ok) throw new Error(`DPSA PDF request failed with HTTP ${response.status}.`);
+  const resolvedUrl = new URL(response.url || parsedUrl.href);
+  if (resolvedUrl.protocol !== "https:" ||
+      !["www.dpsa.gov.za", "dpsa.gov.za"].includes(resolvedUrl.hostname) ||
+      !resolvedUrl.pathname.toLowerCase().endsWith(".pdf")) {
+    throw new Error("For safety, PDF links must remain HTTPS PDFs hosted on dpsa.gov.za.");
+  }
   const contentLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > MAX_PDF_BYTES) {
     throw new Error("PDF is larger than 40 MB. Please choose a smaller circular.");

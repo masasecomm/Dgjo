@@ -41,6 +41,18 @@ AdSense's asynchronous loader is installed once in the public static pages and v
 
 The DPSA circular and application pages summarize public instructions in original wording and link readers to the official DPSA source. Requirements, duties, and notes use semantic bullet lists on vacancy pages, and the Chrome extension formats those fields consistently for imported posts. Vacancy cards use normal-capitalization titles linking to vacancy pages, department and location metadata, an appointment-type pill, an expiry countdown when a closing date is known, a linked job level when the advert provides one, and an Apply button linking to application instructions. Vacancy detail pages include up to three similar current vacancies, ranked using title, department, and province. Homepage and circular archive listings order known circulars from earliest to latest. Salary-level links open the matching section of the salary guide. Salary text is limited to the pay range and level, not following candidate conditions. Imported circular page numbers are retained with each post. Visual line wraps are joined so sentences are not split, category labels stay with their first point, and detected PDF hyperlinks remain clickable. Confirm current publication dates, vacancy requirements and closing dates on the original department advert.
 
+## Automatic DPSA circular publishing
+
+The `Monitor and publish DPSA circulars` workflow checks the five latest official circular pages every five minutes on Fridays from 09:00 to 12:00 South African time. It reuses the extension PDF parser, skips circulars already present in the Worker, and stops instead of publishing when the PDF title does not match the archive or fewer than 75% of detected post sections parse. After a successful publication it dispatches the Pages workflow so new listings appear in the homepage snapshot without waiting for the hourly refresh.
+
+Before enabling the workflow on the default branch:
+
+1. Deploy the updated Worker with `npm.cmd run deploy` from `cloudflare`. Its existing `ADMIN_TOKEN`, `RESEND_API_KEY`, and `ALERTS_FROM_EMAIL` Worker secrets must be configured.
+2. In GitHub repository **Settings > Secrets and variables > Actions**, add `WORKER_ADMIN_TOKEN` with the same value as the Worker `ADMIN_TOKEN`, and add `AUTOMATION_ALERT_EMAIL` with the failure-notification recipient. Never put these values in workflow files or chat.
+3. Ensure GitHub Actions is enabled. The workflow can also be started manually with **Actions > Monitor and publish DPSA circulars > Run workflow**.
+
+The automation sends failure notices through the Worker’s configured Resend account. Parsed vacancy details are normalized to the same field limits as manual extension publishing.
+
 ## Search visibility and legacy pages
 
 The site publishes `sitemap.xml` and `robots.txt`; after deployment, submit the sitemap in Google Search Console and inspect indexing there. Unknown main-site URLs use the GitHub Pages `404.html` fallback to send visitors to the homepage. GitHub Pages still returns an HTTP 404 for that initial request; the fallback performs a browser redirect. Recognized legacy vacancy and circular URLs are instead sent to the relevant circular section, whose past-issue list links to the official DPSA publication page. The original closed advert text is not recreated without a verified source. On the Worker host, legacy circular slugs go to the corresponding circular section; other unknown vacancy-page routes, admin paths, and RSS/Atom feed paths go to the main homepage, while sitemap, robots, ads and API responses stay functional. Feed-style query URLs (such as `?feed=rss2` and `?format=feed&type=rss`) are redirected as well.

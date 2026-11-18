@@ -8,6 +8,7 @@ import {
 import {
   circularPublicationStatus,
   comparePostNumbers,
+  createPublishedVacancy,
   displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks,
@@ -523,65 +524,6 @@ async function importDpsaUrl(url, circularMetadata = null) {
   await requestDpsaPermission(parsedUrl);
   const { file, url: sourceUrl } = await downloadDpsaPdf(parsedUrl.href);
   return importPdfFile(file, sourceUrl, circularMetadata);
-}
-
-function truncate(value, limit) {
-  return String(value ?? "").trim().slice(0, limit);
-}
-
-function createPublishedVacancy(vacancy) {
-  const title = truncate(vacancy.title, 160);
-  const company = truncate(vacancy.company, 160) || "Hiring department not identified";
-  const location = truncate(vacancy.location, 160) || "South Africa";
-  const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
-  const closingDate = truncate(vacancy.closingDate, 120);
-  const maxDetailLength = 6000;
-  const existingDetails = {
-    circularName: truncate(vacancy.circularName, 160),
-    circularDate: truncate(vacancy.circularDate, 80),
-    circularPage: truncate(vacancy.circularPage, 20),
-    postNo: truncate(vacancy.postNo, 80),
-    refNo: truncate(vacancy.refNo, 160),
-    province: truncate(vacancy.province, 80),
-    natureOfAppointment: truncate(vacancy.natureOfAppointment, 160),
-    branch: truncate(vacancy.branch, maxDetailLength),
-    chiefDirectorate: truncate(vacancy.chiefDirectorate, maxDetailLength),
-    directorate: truncate(vacancy.directorate, maxDetailLength),
-    cluster: truncate(vacancy.cluster, maxDetailLength),
-    level: truncate(vacancy.level, 160),
-    centre: truncate(vacancy.centre, maxDetailLength),
-    closingDate,
-    requirements: truncate(vacancy.requirements, maxDetailLength),
-    duties: truncate(vacancy.duties, maxDetailLength),
-    jobPurpose: truncate(vacancy.jobPurpose, maxDetailLength),
-    skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
-    enquiries: truncate(vacancy.enquiries, maxDetailLength),
-    applications: truncate(vacancy.applications, maxDetailLength),
-    note: truncate(vacancy.note, maxDetailLength),
-    links: [...new Map((Array.isArray(vacancy.links) ? vacancy.links : [])
-      .filter(link => typeof link?.url === "string" && /^(?:https?:\/\/|mailto:|tel:)/i.test(link.url))
-      .map(link => [link.url, {
-        label: String(link.label || link.url).trim(),
-        url: link.url
-      }])).values()]
-  };
-  const sourceUrl = truncate(vacancy.sourceUrl, 2048);
-  return {
-    id: truncate(vacancy.id, 160),
-    ...(sourceUrl ? { sourceUrl } : {}),
-    title,
-    company,
-    location,
-    category: vacancy.category,
-    type: vacancy.type,
-    salary: Number.isFinite(vacancy.salary) ? vacancy.salary : 0,
-    salaryText,
-    posted: closingDate ? `Closing date: ${closingDate}` : "Closing date: check official advert",
-    logo: company.slice(0, 1).toLowerCase(),
-    color: "#eaf1e2",
-    logoColor: "#64803f",
-    ...existingDetails
-  };
 }
 
 async function publishImportedVacancies(publishAll = false) {

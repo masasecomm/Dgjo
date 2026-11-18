@@ -47183,7 +47183,7 @@
       links: [...new Map(links.map((link) => [link.url, link])).values()]
     };
   }
-  async function extractPdfText(file) {
+  async function extractPdfText(file, { standardFontDataUrl = "" } = {}) {
     if (!(file instanceof Blob) || file.size === 0) throw new Error("The selected PDF is empty.");
     if (file.size > MAX_PDF_BYTES) throw new Error("PDF is larger than 40 MB. Please choose a smaller file.");
     const data = new Uint8Array(await file.arrayBuffer());
@@ -47191,8 +47191,13 @@
       throw new Error("This file is not a readable PDF.");
     }
     const pdfjs = await Promise.resolve().then(() => (init_pdf(), pdf_exports));
-    pdfjs.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.min.mjs");
-    const document2 = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
+    const pdfOptions = { data, isEvalSupported: false };
+    if (typeof globalThis.chrome?.runtime?.getURL === "function") {
+      pdfjs.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.min.mjs");
+    } else if (standardFontDataUrl) {
+      pdfOptions.standardFontDataUrl = standardFontDataUrl;
+    }
+    const document2 = await pdfjs.getDocument(pdfOptions).promise;
     if (document2.numPages > MAX_PDF_PAGES) {
       await document2.destroy();
       throw new Error(`This PDF has ${document2.numPages} pages. The limit is ${MAX_PDF_PAGES} pages.`);
@@ -47285,8 +47290,20 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     if (parsedUrl.protocol !== "https:" || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(parsedUrl.hostname) || !parsedUrl.pathname.toLowerCase().endsWith(".pdf")) {
       throw new Error("For safety, PDF links must be HTTPS PDFs hosted on dpsa.gov.za.");
     }
-    const response = await fetch(parsedUrl.href, { cache: "no-store", credentials: "omit" });
+    const requestOptions = { cache: "no-store", credentials: "omit" };
+    if (typeof globalThis.chrome?.runtime?.getURL !== "function") {
+      requestOptions.headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+        Accept: "application/pdf"
+      };
+      requestOptions.signal = AbortSignal.timeout(3e4);
+    }
+    const response = await fetch(parsedUrl.href, requestOptions);
     if (!response.ok) throw new Error(`DPSA PDF request failed with HTTP ${response.status}.`);
+    const resolvedUrl = new URL(response.url || parsedUrl.href);
+    if (resolvedUrl.protocol !== "https:" || !["www.dpsa.gov.za", "dpsa.gov.za"].includes(resolvedUrl.hostname) || !resolvedUrl.pathname.toLowerCase().endsWith(".pdf")) {
+      throw new Error("For safety, PDF links must remain HTTPS PDFs hosted on dpsa.gov.za.");
+    }
     const contentLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(contentLength) && contentLength > MAX_PDF_BYTES) {
       throw new Error("PDF is larger than 40 MB. Please choose a smaller circular.");
@@ -47393,10 +47410,65 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     "links"
   ]);
   var MAX_PUBLISHED_SALARY = 1e8;
+  function truncate(value, limit) {
+    return String(value ?? "").trim().slice(0, limit);
+  }
   function normalizePublishedSalary(value, salaryText) {
     if (Number.isFinite(value) && value >= 0 && value <= MAX_PUBLISHED_SALARY) return value;
     const amounts = [...String(salaryText ?? "").matchAll(/R\s*([\d][\d,\s]*(?:\.\d+)?)/gi)].map((match) => Number(match[1].replace(/[,\s]/g, ""))).filter((amount) => Number.isFinite(amount) && amount >= 0 && amount <= MAX_PUBLISHED_SALARY);
     return amounts.length ? Math.max(...amounts) : 0;
+  }
+  function createPublishedVacancy(vacancy) {
+    const title = truncate(vacancy.title, 160);
+    const company = truncate(vacancy.company, 160) || "Hiring department not identified";
+    const location = truncate(vacancy.location, 160) || "South Africa";
+    const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
+    const closingDate = truncate(vacancy.closingDate, 120);
+    const maxDetailLength = 6e3;
+    const existingDetails = {
+      circularName: truncate(vacancy.circularName, 160),
+      circularDate: truncate(vacancy.circularDate, 80),
+      circularPage: truncate(vacancy.circularPage, 20),
+      postNo: truncate(vacancy.postNo, 80),
+      refNo: truncate(vacancy.refNo, 160),
+      province: truncate(vacancy.province, 80),
+      natureOfAppointment: truncate(vacancy.natureOfAppointment, 160),
+      branch: truncate(vacancy.branch, maxDetailLength),
+      chiefDirectorate: truncate(vacancy.chiefDirectorate, maxDetailLength),
+      directorate: truncate(vacancy.directorate, maxDetailLength),
+      cluster: truncate(vacancy.cluster, maxDetailLength),
+      level: truncate(vacancy.level, 160),
+      centre: truncate(vacancy.centre, maxDetailLength),
+      closingDate,
+      requirements: truncate(vacancy.requirements, maxDetailLength),
+      duties: truncate(vacancy.duties, maxDetailLength),
+      jobPurpose: truncate(vacancy.jobPurpose, maxDetailLength),
+      skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
+      enquiries: truncate(vacancy.enquiries, maxDetailLength),
+      applications: truncate(vacancy.applications, maxDetailLength),
+      note: truncate(vacancy.note, maxDetailLength),
+      links: [...new Map((Array.isArray(vacancy.links) ? vacancy.links : []).filter((link) => typeof link?.url === "string" && /^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)).map((link) => [link.url, {
+        label: String(link.label || link.url).trim(),
+        url: link.url
+      }])).values()]
+    };
+    const sourceUrl = truncate(vacancy.sourceUrl, 2048);
+    return {
+      id: truncate(vacancy.id, 160),
+      ...sourceUrl ? { sourceUrl } : {},
+      title,
+      company,
+      location,
+      category: vacancy.category,
+      type: vacancy.type,
+      salary: Number.isFinite(vacancy.salary) ? vacancy.salary : 0,
+      salaryText,
+      posted: closingDate ? `Closing date: ${closingDate}` : "Closing date: check official advert",
+      logo: company.slice(0, 1).toLowerCase(),
+      color: "#eaf1e2",
+      logoColor: "#64803f",
+      ...existingDetails
+    };
   }
   function sanitizePublishedJob(job) {
     const publishableJob = Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
@@ -47971,61 +48043,6 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     await requestDpsaPermission(parsedUrl);
     const { file, url: sourceUrl } = await downloadDpsaPdf(parsedUrl.href);
     return importPdfFile(file, sourceUrl, circularMetadata);
-  }
-  function truncate(value, limit) {
-    return String(value ?? "").trim().slice(0, limit);
-  }
-  function createPublishedVacancy(vacancy) {
-    const title = truncate(vacancy.title, 160);
-    const company = truncate(vacancy.company, 160) || "Hiring department not identified";
-    const location = truncate(vacancy.location, 160) || "South Africa";
-    const salaryText = truncate(vacancy.salaryText || "Not stated in advert", 160);
-    const closingDate = truncate(vacancy.closingDate, 120);
-    const maxDetailLength = 6e3;
-    const existingDetails = {
-      circularName: truncate(vacancy.circularName, 160),
-      circularDate: truncate(vacancy.circularDate, 80),
-      circularPage: truncate(vacancy.circularPage, 20),
-      postNo: truncate(vacancy.postNo, 80),
-      refNo: truncate(vacancy.refNo, 160),
-      province: truncate(vacancy.province, 80),
-      natureOfAppointment: truncate(vacancy.natureOfAppointment, 160),
-      branch: truncate(vacancy.branch, maxDetailLength),
-      chiefDirectorate: truncate(vacancy.chiefDirectorate, maxDetailLength),
-      directorate: truncate(vacancy.directorate, maxDetailLength),
-      cluster: truncate(vacancy.cluster, maxDetailLength),
-      level: truncate(vacancy.level, 160),
-      centre: truncate(vacancy.centre, maxDetailLength),
-      closingDate,
-      requirements: truncate(vacancy.requirements, maxDetailLength),
-      duties: truncate(vacancy.duties, maxDetailLength),
-      jobPurpose: truncate(vacancy.jobPurpose, maxDetailLength),
-      skillsAndCompetencies: truncate(vacancy.skillsAndCompetencies, maxDetailLength),
-      enquiries: truncate(vacancy.enquiries, maxDetailLength),
-      applications: truncate(vacancy.applications, maxDetailLength),
-      note: truncate(vacancy.note, maxDetailLength),
-      links: [...new Map((Array.isArray(vacancy.links) ? vacancy.links : []).filter((link) => typeof link?.url === "string" && /^(?:https?:\/\/|mailto:|tel:)/i.test(link.url)).map((link) => [link.url, {
-        label: String(link.label || link.url).trim(),
-        url: link.url
-      }])).values()]
-    };
-    const sourceUrl = truncate(vacancy.sourceUrl, 2048);
-    return {
-      id: truncate(vacancy.id, 160),
-      ...sourceUrl ? { sourceUrl } : {},
-      title,
-      company,
-      location,
-      category: vacancy.category,
-      type: vacancy.type,
-      salary: Number.isFinite(vacancy.salary) ? vacancy.salary : 0,
-      salaryText,
-      posted: closingDate ? `Closing date: ${closingDate}` : "Closing date: check official advert",
-      logo: company.slice(0, 1).toLowerCase(),
-      color: "#eaf1e2",
-      logoColor: "#64803f",
-      ...existingDetails
-    };
   }
   async function publishImportedVacancies(publishAll = false) {
     if (!apiUrl || !adminToken) {

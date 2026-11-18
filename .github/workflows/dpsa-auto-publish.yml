@@ -1,0 +1,82 @@
+name: Monitor and publish DPSA circulars
+
+on:
+  schedule:
+    # South Africa is UTC+2; these checks cover Friday 09:00 through 12:00 SAST.
+    - cron: "*/5 7-9 * * 5"
+    - cron: "0 10 * * 5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: dpsa-auto-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - name: Install DPSA parser dependencies
+        run: npm ci --prefix extension
+      - name: Test automation parser
+        run: node --test scripts/auto-publish-dpsa.test.mjs extension/importer.test.js
+      - name: Parse and publish new circulars
+        id: publish
+        env:
+          WORKER_ADMIN_TOKEN: ${{ secrets.WORKER_ADMIN_TOKEN }}
+        run: node scripts/auto-publish-dpsa.mjs
+      - name: Refresh the static website after publication
+        if: success() && steps.publish.outputs.published == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "pages.yml",
+              ref: "main"
+            });
+      - name: Email automation failure
+        if: failure()
+        env:
+          WORKER_ADMIN_TOKEN: ${{ secrets.WORKER_ADMIN_TOKEN }}
+          AUTOMATION_ALERT_EMAIL: ${{ secrets.AUTOMATION_ALERT_EMAIL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module -e '
+            const token = process.env.WORKER_ADMIN_TOKEN;
+            const recipient = process.env.AUTOMATION_ALERT_EMAIL;
+            if (!token || !recipient) {
+              console.error("Could not email the failure: WORKER_ADMIN_TOKEN or AUTOMATION_ALERT_EMAIL is not configured.");
+              process.exit(1);
+            }
+            const response = await fetch("https://goodwork-jobs-api.dpsajobs.workers.dev/api/automation/notify", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                to: recipient,
+                runUrl: process.env.RUN_URL,
+                message: "The Friday DPSA circular monitoring or publishing workflow failed. Check the workflow logs for details."
+              })
+            });
+            if (!response.ok) {
+              console.error(`Failure email request failed with HTTP ${response.status}.`);
+              process.exit(1);
+            }
+            console.log("Failure email sent.");
+          '

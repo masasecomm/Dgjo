@@ -1656,8 +1656,9 @@ export default {
     const isAlertConfirmation = url.pathname === "/api/alerts/confirm";
     const isAlertUnsubscribe = url.pathname === "/api/alerts/unsubscribe";
     const isCvMatchRecord = url.pathname === "/api/cv-matches";
+    const isAutomationNotification = url.pathname === "/api/automation/notify";
     if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS" &&
-        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord))) {
+        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord || isAutomationNotification))) {
       return jsonResponse({ error: "Method not allowed." }, 405);
     }
     if (request.method === "GET" && !url.pathname.startsWith("/api/") &&
@@ -1706,6 +1707,43 @@ export default {
       return new Response(`${ADS_TXT}\n`, {
         headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" }
       });
+    }
+
+    if (url.pathname === "/api/automation/notify") {
+      if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
+      if (!env.ADMIN_TOKEN) return jsonResponse({ error: "The Worker admin token is not configured." }, 503);
+      if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) {
+        return jsonResponse({ error: "Invalid admin token." }, 401);
+      }
+
+      let input;
+      try {
+        input = await request.json();
+      } catch {
+        return jsonResponse({ error: "Request body must be valid JSON." }, 400);
+      }
+      if (!input || typeof input !== "object" || Array.isArray(input) ||
+          Object.keys(input).some(field => !["to", "runUrl", "message"].includes(field))) {
+        return jsonResponse({ error: "Invalid automation notification." }, 400);
+      }
+      const email = typeof input.to === "string" ? input.to.trim().toLowerCase() : "";
+      const runUrl = typeof input.runUrl === "string" ? input.runUrl.trim() : "";
+      const message = typeof input.message === "string" ? input.message.trim() : "";
+      if (!validAlertEmail(email) || email.length > 254 || !message || message.length > 2000 ||
+          (runUrl && (!/^https:\/\/github\.com\/[^/]+\/[^/]+\/actions\/runs\/\d+$/.test(runUrl) || runUrl.length > 500))) {
+        return jsonResponse({ error: "Enter a valid recipient, workflow link, and message." }, 400);
+      }
+      try {
+        await sendResendEmail(env, {
+          to: [email],
+          subject: "DPSA circular automation needs attention",
+          text: `${message}${runUrl ? `\n\nWorkflow run: ${runUrl}` : ""}`
+        });
+      } catch (error) {
+        console.error("Could not send a DPSA automation failure notification.", error);
+        return jsonResponse({ error: "Could not send the automation notification." }, 502);
+      }
+      return jsonResponse({ success: true }, 202);
     }
 
     if (url.pathname === "/api/jobs" && request.method === "OPTIONS") return jsonResponse({}, 204);
