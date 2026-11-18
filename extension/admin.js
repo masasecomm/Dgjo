@@ -729,7 +729,7 @@ async function publishJobs(nextJobs) {
     throw new Error("The Worker returned an invalid publish result.");
   }
   const removedIds = new Set(result.removedJobIds);
-  jobs = nextJobs.filter(job => !removedIds.has(job.id));
+  jobs = publishableJobs.filter(job => !removedIds.has(job.id));
   const remainingIds = new Set(jobs.map(job => job.id));
   for (const id of selectedJobIds) {
     if (!remainingIds.has(id)) selectedJobIds.delete(id);

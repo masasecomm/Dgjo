@@ -47392,8 +47392,16 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     "note",
     "links"
   ]);
+  var MAX_PUBLISHED_SALARY = 1e8;
+  function normalizePublishedSalary(value, salaryText) {
+    if (Number.isFinite(value) && value >= 0 && value <= MAX_PUBLISHED_SALARY) return value;
+    const amounts = [...String(salaryText ?? "").matchAll(/R\s*([\d][\d,\s]*(?:\.\d+)?)/gi)].map((match) => Number(match[1].replace(/[,\s]/g, ""))).filter((amount) => Number.isFinite(amount) && amount >= 0 && amount <= MAX_PUBLISHED_SALARY);
+    return amounts.length ? Math.max(...amounts) : 0;
+  }
   function sanitizePublishedJob(job) {
-    return Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
+    const publishableJob = Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
+    publishableJob.salary = normalizePublishedSalary(publishableJob.salary, publishableJob.salaryText);
+    return publishableJob;
   }
   function displayVacancyTitle(value) {
     const title = String(value ?? "").trim();
@@ -48145,7 +48153,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       throw new Error("The Worker returned an invalid publish result.");
     }
     const removedIds = new Set(result.removedJobIds);
-    jobs = nextJobs.filter((job) => !removedIds.has(job.id));
+    jobs = publishableJobs.filter((job) => !removedIds.has(job.id));
     const remainingIds = new Set(jobs.map((job) => job.id));
     for (const id of selectedJobIds) {
       if (!remainingIds.has(id)) selectedJobIds.delete(id);

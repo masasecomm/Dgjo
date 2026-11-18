@@ -6,6 +6,7 @@ import {
   displayVacancyTitle,
   getCircularVacancies,
   mergeVacancyLinks,
+  normalizePublishedSalary,
   sanitizePublishedJob
 } from "./publication.js";
 
@@ -73,6 +74,19 @@ test("removes unsupported legacy metadata before sending jobs to the Worker", ()
     id: "vacancy-1",
     title: "Vacancy",
     circularName: "Circular 1 of 2026",
-    links: [{ label: "Apply", url: "https://department.gov.za/apply" }]
+    links: [{ label: "Apply", url: "https://department.gov.za/apply" }],
+    salary: 0
   });
+});
+
+test("repairs invalid stored salaries from advert text and safely defaults when unavailable", () => {
+  assert.equal(normalizePublishedSalary(150_000_000, "R338 106 per annum (Level 07)"), 338106);
+  assert.equal(normalizePublishedSalary(null, "R12 500 per month"), 12500);
+  assert.equal(normalizePublishedSalary(-1, "Salary not stated"), 0);
+  assert.equal(normalizePublishedSalary(100_000, "R338 106 per annum"), 100_000);
+  assert.equal(sanitizePublishedJob({
+    id: "vacancy-1",
+    salary: null,
+    salaryText: "R338 106 per annum"
+  }).salary, 338106);
 });

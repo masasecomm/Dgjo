@@ -1013,6 +1013,36 @@ test("explains which job field caused publication validation to fail", async () 
   assert.equal(result.error, "Job 1 has an unsupported category.");
 });
 
+test("repairs legacy invalid salaries during publication using the advertised amount", async () => {
+  const jobs = Array.from({ length: 593 }, (_, index) => makeJob({
+    id: `job-${index + 1}`,
+    title: `Job ${index + 1}`,
+    salary: 300000
+  }));
+  jobs[592] = makeJob({
+    id: "job-593",
+    title: "Job 593",
+    salary: 150_000_000,
+    salaryText: "R338 106 per annum (Level 07)"
+  });
+  const env = createEnv([]);
+  const response = await worker.fetch(new Request("https://jobs.example/api/jobs", {
+    method: "PUT",
+    headers: {
+      Authorization: "Bearer test-token",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(jobs)
+  }), env);
+  const result = await response.json();
+  const storedJobs = await env.JOBS.get("published-jobs", "json");
+
+  assert.equal(response.status, 200);
+  assert.equal(result.count, 593);
+  assert.equal(storedJobs[592].salary, 338106);
+  assert.equal(storedJobs[592].salaryText, jobs[592].salaryText);
+});
+
 test("robots endpoint advertises the live Worker sitemap", async () => {
   const response = await worker.fetch(new Request("https://jobs.example/robots.txt"), createEnv([]));
   const body = await response.text();

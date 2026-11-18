@@ -589,6 +589,14 @@ function isValidText(value) {
   return typeof value === "string" && value.trim().length > 0 && value.length <= MAX_TEXT_LENGTH;
 }
 
+function normalizePublishedSalary(value, salaryText) {
+  if (Number.isFinite(value) && value >= 0 && value <= 100000000) return value;
+  const amounts = [...String(salaryText ?? "").matchAll(/R\s*([\d][\d,\s]*(?:\.\d+)?)/gi)]
+    .map(match => Number(match[1].replace(/[,\s]/g, "")))
+    .filter(amount => Number.isFinite(amount) && amount >= 0 && amount <= 100000000);
+  return amounts.length ? Math.max(...amounts) : 0;
+}
+
 function validateJobs(value) {
   if (!Array.isArray(value)) return "Job list must be an array.";
   if (value.length > MAX_JOBS) return `Job list contains ${value.length} jobs; the limit is ${MAX_JOBS}.`;
@@ -1799,6 +1807,11 @@ export default {
       jobs = await request.json();
     } catch {
       return jsonResponse({ error: "Request body must be valid JSON." }, 400);
+    }
+    if (Array.isArray(jobs)) {
+      jobs = jobs.map(job => job && typeof job === "object" && !Array.isArray(job)
+        ? { ...job, salary: normalizePublishedSalary(job.salary, job.salaryText) }
+        : job);
     }
     const validationError = validateJobs(jobs);
     if (validationError) {

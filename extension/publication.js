@@ -12,8 +12,20 @@ const PUBLISHABLE_JOB_FIELDS = new Set([
   "note", "links"
 ]);
 
+const MAX_PUBLISHED_SALARY = 100_000_000;
+
+export function normalizePublishedSalary(value, salaryText) {
+  if (Number.isFinite(value) && value >= 0 && value <= MAX_PUBLISHED_SALARY) return value;
+  const amounts = [...String(salaryText ?? "").matchAll(/R\s*([\d][\d,\s]*(?:\.\d+)?)/gi)]
+    .map(match => Number(match[1].replace(/[,\s]/g, "")))
+    .filter(amount => Number.isFinite(amount) && amount >= 0 && amount <= MAX_PUBLISHED_SALARY);
+  return amounts.length ? Math.max(...amounts) : 0;
+}
+
 export function sanitizePublishedJob(job) {
-  return Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
+  const publishableJob = Object.fromEntries(Object.entries(job).filter(([field]) => PUBLISHABLE_JOB_FIELDS.has(field)));
+  publishableJob.salary = normalizePublishedSalary(publishableJob.salary, publishableJob.salaryText);
+  return publishableJob;
 }
 
 export function displayVacancyTitle(value) {
