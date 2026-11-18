@@ -605,7 +605,7 @@ test("publishes the supplied salary table with a readable level guide and PDF ac
 
 test("keeps hero employment filters visibly separated from the search form", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261118-mobile-nav5">/);
+  assert.match(page, /<link rel="stylesheet" href="styles\.css\?v=20261118-mobile-nav8">/);
   const stylesheet = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(stylesheet, /\.employment-type-filters \{ margin: 36px 0 18px; \}/);
   assert.match(stylesheet, /-webkit-text-size-adjust: 100%; text-size-adjust: 100%;/);
