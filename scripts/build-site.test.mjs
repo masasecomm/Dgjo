@@ -220,9 +220,9 @@ test("renders a consistent footer with the verified address, grouped links and s
     assert.doesNotMatch(nav, /href="\/how-to-apply\/"|href="\/government-vacancies\/"[^>]*>Province/);
     assert.doesNotMatch(nav, /Contact/);
     assert.match(nav, /href="\/saved-vacancies\/">Saved vacancies<\/a>|href="\/saved-vacancies\/" aria-current="page">Saved vacancies<\/a>/);
-    assert.match(footer, /<img src="\/footer-facebook\.svg" alt="">/);
-    assert.match(footer, /<img src="\/footer-x\.svg" alt="">/);
-    assert.match(footer, /<img src="\/footer-pinterest\.svg" alt="">/);
+    assert.match(footer, /<img src="\/footer-facebook\.svg" alt="Facebook">/);
+    assert.match(footer, /<img src="\/footer-x\.svg" alt="X">/);
+    assert.match(footer, /<img src="\/footer-pinterest\.svg" alt="Pinterest">/);
     assert.match(footer, /aria-label="Follow DPSA Government Jobs on Facebook"/);
     assert.doesNotMatch(footer, /<span aria-hidden="true">[fP𝕏]<\/span>/);
   }
@@ -231,9 +231,11 @@ test("renders a consistent footer with the verified address, grouped links and s
     const navStart = page.indexOf('<nav class="nav shell"');
     const nav = page.slice(navStart, page.indexOf("</nav>", navStart));
     assert.match(page, /Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002/);
-    assert.match(page, /<img src="\/footer-facebook\.svg" alt="">/);
-    assert.match(page, /<img src="\/footer-x\.svg" alt="">/);
-    assert.match(page, /<img src="\/footer-pinterest\.svg" alt="">/);
+    assert.match(page, /<img src="\/footer-facebook\.svg" alt="Facebook">/);
+    assert.match(page, /<img src="\/footer-x\.svg" alt="X">/);
+    assert.match(page, /<img src="\/footer-pinterest\.svg" alt="Pinterest">/);
+    assert.match(page, /<a href="https:\/\/www\.tiktok\.com\/@dpsa_vacancies_" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on TikTok"><img src="\/footer-tiktok\.svg" alt="TikTok"><\/a>/);
+    assert.match(page, /<a href="https:\/\/www\.tiktok\.com\/@dpsa_vacancies_" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on TikTok"><img src="\/footer-tiktok\.svg" alt="TikTok"><\/a>/);
     assert.doesNotMatch(page, /Contact/);
     assert.doesNotMatch(nav, /href="\/how-to-apply\/"|href="\/government-vacancies\/"[^>]*>Province/);
     assert.match(nav, /href="\/saved-vacancies\/">Saved vacancies<\/a>/);
@@ -429,6 +431,8 @@ test("removes stale generated circular and province pages on rebuild", async () 
     await buildSite();
     await assert.rejects(access(staleCircular), error => error.code === "ENOENT");
     await assert.rejects(access(staleProvince), error => error.code === "ENOENT");
+    const snapshot = JSON.parse(await readFile(path.join(output, "jobs.json"), "utf8"));
+    assert.equal(snapshot[0].id, "current-job");
     await Promise.all([
       access(path.join(output, "cv-pdf-reader.js")),
       access(path.join(output, "cv-docx-reader.js")),
@@ -443,9 +447,12 @@ test("removes stale generated circular and province pages on rebuild", async () 
       access(path.join(output, "footer-facebook.svg")),
       access(path.join(output, "footer-location.svg")),
       access(path.join(output, "footer-pinterest.svg")),
+      access(path.join(output, "footer-tiktok.svg")),
       access(path.join(output, "footer-x.svg"))
     ]);
     const homepage = await readFile(path.join(output, "index.html"), "utf8");
+    assert.ok(homepage.length < 100_000, `generated homepage should be less than 100 KB, received ${homepage.length} characters`);
+    assert.doesNotMatch(homepage, /initial-job-data/);
     const termsPage = await readFile(path.join(output, "job-alert-terms.html"), "utf8");
     const circularPage = await readFile(path.join(output, "dpsa-vacancy-circulars", "circular-42-of-2026", "index.html"), "utf8");
     const savedVacancies = await readFile(path.join(output, "saved-vacancies", "index.html"), "utf8");
@@ -561,6 +568,22 @@ test("builds province vacancy guides from canonicalized locations", () => {
   assert.match(sitemap, /<loc>https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/gauteng\/<\/loc>/);
   assert.match(sitemap, /<loc>https:\/\/dpsagovernmentjobs\.co\.za\/government-vacancies\/national\/<\/loc>/);
   assert.throws(() => renderProvinceLandingPage("Unknown", []), /recognized South African province/);
+});
+
+test("keeps the national archive concise and links to the complete filtered listing", () => {
+  const jobs = Array.from({ length: 200 }, (_, index) => ({
+    id: `national-preview-${index + 1}`,
+    title: `National vacancy ${index + 1}`,
+    company: `Department ${index + 1}`,
+    province: "National"
+  }));
+  const html = renderProvinceLandingPage("National", jobs);
+
+  assert.equal((html.match(/class="listing-card"/g) ?? []).length, 12);
+  assert.match(html, /"numberOfItems":12/);
+  assert.match(html, /Showing 12 of 200 current vacancies/);
+  assert.match(html, /href="\/\?province=National#listings">Browse all national vacancies/);
+  assert.ok(html.length < 150_000, `national archive should be less than 150 KB, received ${html.length} characters`);
 });
 
 test("groups formatting variants of a circular into one archive", () => {
@@ -738,6 +761,27 @@ test("loads AdSense once and provides a responsive ad unit on monetizable static
     }
     assert.match(html, /<body class="post-theme(?: home-page)?"(?: [^>]*)?>/, `${pagePath} must use the shared post theme`);
     assert.match(html, /<script type="module" src="\/redirects\.js"><\/script>/, `${pagePath} must include URL redirects`);
+  }
+});
+
+test("provides nonempty alternative text for images on static pages", async () => {
+  const pages = [
+    "../index.html",
+    "../404.html",
+    "../job-alert-terms.html",
+    "../government-vacancies/index.html",
+    "../dpsa-vacancy-circulars/index.html",
+    "../how-to-apply/index.html",
+    "../national-treasury-salary-scales/index.html",
+    "../saved-vacancies/index.html"
+  ];
+
+  for (const pagePath of pages) {
+    const html = await readFile(new URL(pagePath, import.meta.url), "utf8");
+    for (const [, image] of html.matchAll(/(<img\b[^>]*>)/gi)) {
+      const altText = image.match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      assert.ok(altText && String(altText[1] ?? altText[2] ?? altText[3] ?? "").trim(), `${pagePath} has an image without meaningful alt text: ${image}`);
+    }
   }
 });
 

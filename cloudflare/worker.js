@@ -1359,7 +1359,7 @@ function savedVacanciesPage(requestUrl) {
 <link rel="stylesheet" href="${SITE_URL}/styles.css?v=20261118-mobile-nav9"><script src="${SITE_URL}/bookmark.js?v=20261117-saved-card-layout" defer></script><script src="${SITE_URL}/navigation.js?v=20261118-circular-order1" defer></script></head>
 <body class="post-theme"><a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
-<a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt=""><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
+<a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="South African flag"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
 <details class="mobile-navigation" open><summary class="mobile-menu-toggle" aria-label="Close navigation menu" aria-controls="main-nav-links" aria-expanded="true"><span></span><span></span><span></span></summary>
 <div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${savedPageUrl}" aria-current="page">Saved vacancies</a><a href="${SITE_URL}/#listings">Vacancies</a></div></details>
 </nav></header>
@@ -1373,8 +1373,8 @@ function savedVacanciesPage(requestUrl) {
 <p><a class="button" href="${SITE_URL}/">Browse current vacancies</a></p>
 </div></section></div></main>
 <footer class="site-footer"><div class="shell"><div class="footer-main">
-<div class="footer-contact"><a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt=""><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
-<address class="footer-address"><img src="${SITE_URL}/footer-location.svg" alt=""><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address></div>
+<div class="footer-contact"><a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="South African flag"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
+<address class="footer-address"><img src="${SITE_URL}/footer-location.svg" alt="Location"><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address></div>
 <nav class="footer-column" aria-label="Vacancies"><h2>Vacancies</h2><a href="${SITE_URL}/">All vacancies</a><a href="${savedPageUrl}">Saved vacancies</a><a href="${SITE_URL}/dpsa-vacancy-circulars/">DPSA circulars</a></nav>
 <nav class="footer-column" aria-label="Job seeker resources"><h2>Job seeker resources</h2><a href="${SITE_URL}/how-to-apply/">How to apply</a><a href="${SITE_URL}/job-alert-terms.html">Job alert terms</a></nav>
 </div><div class="footer-bottom"><span>© DPSA Government Jobs</span><span>This is an independent guide and is not affiliated with DPSA.</span></div></div></footer></body></html>`, 200, "noindex, nofollow");
@@ -1595,7 +1595,7 @@ main{padding-block:34px 58px}.breadcrumb{margin:0 0 18px;color:#748093;font-size
 @media(max-width:600px){.shell{width:min(100% - 28px,1120px)}.nav{min-height:68px;gap:12px}.brand img{width:36px;height:36px}main{padding-block:22px 38px}.vacancy-card{grid-template-columns:48px minmax(0,1fr);gap:13px;padding:17px 58px 17px 17px}.job-mark{width:48px;height:48px;border-radius:9px}.meta-grid{grid-template-columns:1fr;gap:7px}.sections{margin-top:0}.related-jobs,.vacancy-faq{padding:17px}}
 </style></head>
 <body><header class="site-header"><nav class="nav shell" aria-label="Main navigation">
-<a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
+<a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="South African flag" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
 <details class="mobile-navigation" open><summary class="mobile-menu-toggle" aria-label="Close navigation menu" aria-controls="main-nav-links" aria-expanded="true"><span></span><span></span><span></span></summary>
 <div class="nav-links" id="main-nav-links"><a href="${SITE_URL}/">Home</a><a href="${new URL("/saved-vacancies/", requestUrl.origin).href}">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a href="${SITE_URL}/dpsa-vacancy-circulars/">All circulars</a>${circularNavigation}</div></details><a href="${SITE_URL}/#listings">Vacancies</a></div></details>
 </nav></header><main class="shell">
@@ -1615,23 +1615,24 @@ ${publicationDetails.map(([label, value]) => `<p class="meta"><strong>${escapeHt
 </div><div class="sections">${sections}${highlightMarkupText(vacancyLinksSection(job), searchTerm)}${highlightMarkupText(officialCircularLink, searchTerm)}
 <section class="share-post" aria-labelledby="share-post-title"><h2 id="share-post-title">Share this post</h2>
 <nav class="post-share-links" aria-label="Share this post">
-<a class="post-share-link" href="${escapeHtml(shareLinks.facebook)}" target="_blank" rel="noopener noreferrer"><img class="post-share-icon" src="${SITE_URL}/footer-facebook.svg" alt="">Facebook</a>
-<a class="post-share-link" href="${escapeHtml(shareLinks.twitter)}" target="_blank" rel="noopener noreferrer"><img class="post-share-icon" src="${SITE_URL}/footer-x.svg" alt="">X</a>
-<a class="post-share-link" href="${escapeHtml(shareLinks.pinterest)}" target="_blank" rel="noopener noreferrer"><img class="post-share-icon" src="${SITE_URL}/footer-pinterest.svg" alt="">Pinterest</a>
+<a class="post-share-link" href="${escapeHtml(shareLinks.facebook)}" target="_blank" rel="noopener noreferrer" aria-label="Share on Facebook"><img class="post-share-icon" src="${SITE_URL}/footer-facebook.svg" alt="Facebook">Facebook</a>
+<a class="post-share-link" href="${escapeHtml(shareLinks.twitter)}" target="_blank" rel="noopener noreferrer" aria-label="Share on X"><img class="post-share-icon" src="${SITE_URL}/footer-x.svg" alt="X">X</a>
+<a class="post-share-link" href="${escapeHtml(shareLinks.pinterest)}" target="_blank" rel="noopener noreferrer" aria-label="Share on Pinterest"><img class="post-share-icon" src="${SITE_URL}/footer-pinterest.svg" alt="Pinterest">Pinterest</a>
 </nav></section>
 <p class="important"><strong>Important:</strong> Confirm the department, eligibility, closing date and submission instructions in the official advert.</p></div>
 </article>${highlightMarkupText(faq.markup, searchTerm)}${relatedJobsMarkup(job, jobs, requestUrl.origin, searchTerm)}</main>
 <footer class="site-footer"><div class="shell">
 <div class="footer-main">
-<div class="footer-contact"><a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
-<address class="footer-address"><img src="${SITE_URL}/footer-location.svg" alt=""><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address>
+<div class="footer-contact"><a class="brand" href="${SITE_URL}/" aria-label="DPSA Government Jobs home"><img src="${SITE_URL}/south-african-flag.png" width="40" height="40" alt="South African flag" decoding="async"><span class="brand-copy"><span class="brand-title">DPSA</span><span class="brand-subtitle">Government Jobs</span></span></a>
+<address class="footer-address"><img src="${SITE_URL}/footer-location.svg" alt="Location"><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address>
 </div>
 <nav class="footer-column" aria-label="Vacancies"><h2>Vacancies</h2><a href="${SITE_URL}/">All vacancies</a><a href="${new URL("/saved-vacancies/", requestUrl.origin).href}">Saved vacancies</a><a href="${SITE_URL}/government-vacancies/">Vacancies by province</a><a href="${SITE_URL}/dpsa-vacancy-circulars/">DPSA circulars</a></nav>
 <nav class="footer-column" aria-label="Job seeker resources"><h2>Job seeker resources</h2><a href="${SITE_URL}/how-to-apply/">How to apply</a><a href="${SITE_URL}/national-treasury-salary-scales/">National Treasury salary scales</a><a href="${SITE_URL}/job-alert-terms.html">Job alert terms</a></nav>
 <nav class="footer-column footer-social-column" aria-label="Official information and social media"><h2>Official information</h2><a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a><span class="footer-follow-label">Follow us</span>
-<div class="social-links"><a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><img src="${SITE_URL}/footer-facebook.svg" alt=""></a>
-<a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><img src="${SITE_URL}/footer-x.svg" alt=""></a>
-<a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><img src="${SITE_URL}/footer-pinterest.svg" alt=""></a></div></nav>
+<div class="social-links"><a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><img src="${SITE_URL}/footer-facebook.svg" alt="Facebook"></a>
+<a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><img src="${SITE_URL}/footer-x.svg" alt="X"></a>
+<a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><img src="${SITE_URL}/footer-pinterest.svg" alt="Pinterest"></a>
+<a href="https://www.tiktok.com/@dpsa_vacancies_" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on TikTok"><img src="${SITE_URL}/footer-tiktok.svg" alt="TikTok"></a></div></nav>
 </div><div class="footer-bottom"><span>© DPSA Government Jobs</span><span>This is an independent guide and is not affiliated with DPSA.</span></div>
 </div></footer></body></html>`);
 }

@@ -43,7 +43,6 @@ const JOBS_CONTINUATION_START = "<!-- JOB_LISTINGS_CONTINUATION_START -->";
 const JOBS_CONTINUATION_END = "<!-- JOB_LISTINGS_CONTINUATION_END -->";
 const COUNT_START = "<!-- JOB_COUNT_START -->";
 const COUNT_END = "<!-- JOB_COUNT_END -->";
-const DATA_MARKER = "<!-- JOB_DATA -->";
 const CIRCULAR_ARCHIVES_START = "<!-- CIRCULAR_ARCHIVES_START -->";
 const CIRCULAR_ARCHIVES_END = "<!-- CIRCULAR_ARCHIVES_END -->";
 const PAST_CIRCULARS_START = "<!-- PAST_CIRCULARS_START -->";
@@ -53,6 +52,7 @@ const PROVINCE_GUIDES_END = "<!-- PROVINCE_GUIDES_END -->";
 const CIRCULAR_NAV_ITEMS = "<!-- CIRCULAR_NAV_ITEMS -->";
 const AD_UNIT_MARKUP = '<aside class="content-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="3081508385" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>';
 const LISTING_AD_UNIT_MARKUP = '<aside class="content-ad listing-ad" aria-label="Advertisement"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3860151941190347" data-ad-slot="4102953920" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>';
+const NATIONAL_LISTING_PREVIEW_COUNT = 12;
 const SNAPSHOT_FIELDS = [
   "id", "slug", "title", "company", "circularName", "sourceUrl", "centre", "province",
   "location", "salaryText", "level", "natureOfAppointment", "type", "closingDate", "refNo", "category"
@@ -302,17 +302,18 @@ function renderSiteFooter() {
   return `<footer class="site-footer"><div class="shell footer-inner">
   <div class="footer-main">
     <div class="footer-contact">
-      <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
-      <address class="footer-address"><img src="/footer-location.svg" alt=""><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address>
+      <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="South African flag" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
+      <address class="footer-address"><img src="/footer-location.svg" alt="Location"><span>Office 531, 5th Floor, Barend van Erkom Building, 217 Pretorius Street, Pretoria Central, Pretoria, 0002</span></address>
     </div>
     <nav class="footer-column" aria-label="Vacancies"><h2>Vacancies</h2><a href="/">All vacancies</a><a href="/saved-vacancies/">Saved vacancies</a><a href="/government-vacancies/">Vacancies by province</a><a href="/dpsa-vacancy-circulars/">DPSA circulars</a></nav>
     <nav class="footer-column" aria-label="Job seeker resources"><h2>Job seeker resources</h2><a href="/how-to-apply/">How to apply</a><a href="/national-treasury-salary-scales/">National Treasury salary scales</a><a href="/job-alert-terms.html">Job alert terms</a></nav>
     <nav class="footer-column footer-social-column" aria-label="Official information and social media">
       <h2>Official information</h2><a href="https://www.dpsa.gov.za/newsroom/psvc/" target="_blank" rel="noopener noreferrer">Official DPSA circulars ↗</a><span class="footer-follow-label">Follow us</span>
       <div class="social-links">
-        <a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><img src="/footer-facebook.svg" alt=""></a>
-        <a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><img src="/footer-x.svg" alt=""></a>
-        <a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><img src="/footer-pinterest.svg" alt=""></a>
+        <a href="https://www.facebook.com/DPSAGovernmentJobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Facebook"><img src="/footer-facebook.svg" alt="Facebook"></a>
+        <a href="https://x.com/dpsajobs" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on X"><img src="/footer-x.svg" alt="X"></a>
+        <a href="https://za.pinterest.com/dpsavacancies/" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on Pinterest"><img src="/footer-pinterest.svg" alt="Pinterest"></a>
+        <a href="https://www.tiktok.com/@dpsa_vacancies_" target="_blank" rel="noopener noreferrer" aria-label="Follow DPSA Government Jobs on TikTok"><img src="/footer-tiktok.svg" alt="TikTok"></a>
       </div>
     </nav>
   </div>
@@ -327,6 +328,7 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
   const canonicalUrl = `${SITE_URL}${archivePath}`;
   const isGauteng = province === "Gauteng";
   const isNational = province === NATIONAL_REGION;
+  const visibleJobs = isNational ? jobs.slice(0, NATIONAL_LISTING_PREVIEW_COUNT) : jobs;
   const title = isGauteng
     ? "Government Vacancies in Gauteng | Current DPSA Jobs"
     : isNational
@@ -344,8 +346,8 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
     : `Browse current South African public service vacancies located in ${province}. Each listing links to job details; confirm its requirements, application method and closing date in the official department advert.`;
   const itemList = {
     "@type": "ItemList",
-    numberOfItems: jobs.length,
-    itemListElement: jobs.map((job, index) => {
+    numberOfItems: visibleJobs.length,
+    itemListElement: visibleJobs.map((job, index) => {
       const slug = encodeURIComponent(String(job.slug || job.id));
       return {
         "@type": "ListItem",
@@ -411,7 +413,7 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
 <body class="post-theme">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
-    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
+    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="South African flag" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
     <div class="nav-links"><a href="/">Vacancies</a><a href="/saved-vacancies/">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details></div>
   </nav></header>
   <main id="main">
@@ -426,7 +428,10 @@ export function renderProvinceLandingPage(provinceValue, jobs) {
       <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/government-vacancies/">Government vacancies by province</a> › ${escapeHtml(province)}</nav>
       <h2>${isNational ? "Current national government vacancies" : `Current government jobs in ${escapeHtml(province)}`}</h2>
       <p>${jobs.length} current ${jobs.length === 1 ? "vacancy is" : "vacancies are"} listed for ${isNational ? "the national category" : `this province`}. Confirm that the advertised location and deadline meet your needs before applying.</p>
-      <div class="listing-grid">${renderJobListings(jobs)}</div>
+      <div class="listing-grid">${renderJobListings(visibleJobs)}</div>
+      ${isNational && jobs.length > visibleJobs.length
+        ? `<p class="independent-note">Showing ${visibleJobs.length} of ${jobs.length} current vacancies. <a href="/?province=${encodeURIComponent(NATIONAL_REGION)}#listings">Browse all national vacancies</a>.</p>`
+        : ""}
       ${jobs.length ? AD_UNIT_MARKUP : ""}
       <h2>Before you apply</h2>
       <ol>
@@ -547,7 +552,7 @@ export function renderCircularArchivePage(circularName, jobs) {
 <body class="post-theme">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav shell" aria-label="Main navigation">
-    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
+    <a class="brand home-brand" href="/" aria-label="DPSA Government Jobs home"><img src="/south-african-flag.png" width="40" height="40" alt="South African flag" decoding="async"><span class="home-brand-copy"><span class="home-brand-title">DPSA</span><span class="home-brand-subtitle">Government Jobs</span></span></a>
     <div class="nav-links"><a href="/">Vacancies</a><a href="/saved-vacancies/">Saved vacancies</a><details class="nav-dropdown"><summary>Circulars</summary><div class="nav-dropdown-menu"><a class="nav-dropdown-all" href="/dpsa-vacancy-circulars/">All circulars</a>${CIRCULAR_NAV_ITEMS}</div></details></div>
   </nav></header>
   <main id="main">
@@ -661,11 +666,11 @@ function validatePublishedSeo(html, filePath) {
       !/<link\b(?=[^>]*\brel=["']apple-touch-icon["'])(?=[^>]*\bhref=["'][^"']*apple-touch-icon\.png["'])[^>]*>/i.test(html)) {
     errors.push("missing cross-browser favicon links");
   }
-  if (!/<img\b[^>]*\balt\s*=/i.test(html) && /<img\b/i.test(html)) {
-    errors.push("image is missing alt text");
-  }
   for (const image of html.matchAll(/<img\b[^>]*>/gi)) {
-    if (!/\balt\s*=/i.test(image[0])) errors.push("image is missing alt text");
+    const altText = image[0].match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    if (!altText || !String(altText[1] ?? altText[2] ?? altText[3] ?? "").trim()) {
+      errors.push("image is missing nonempty alt text");
+    }
   }
   if (!isNoIndex) {
     if (!/<title>[^<]+\S[^<]*<\/title>/i.test(html)) errors.push("missing page title");
@@ -765,7 +770,6 @@ export async function buildSite() {
     .replace(/&/g, "\\u0026")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  index = replaceUniqueMarker(index, DATA_MARKER, `<script type="application/json" id="initial-job-data">${safeSnapshot}</script>`);
 
   const output = path.resolve(process.env.SITE_OUTPUT_DIR || path.join(ROOT, "dist"));
   await mkdir(output, { recursive: true });
@@ -789,13 +793,14 @@ export async function buildSite() {
   await mkdir(path.join(output, "scripts"), { recursive: true });
   await cp(path.join(ROOT, "scripts", "cv-matcher.js"), path.join(output, "scripts", "cv-matcher.js"), { force: true });
   await writeFile(path.join(output, "index.html"), index);
+  await writeFile(path.join(output, "jobs.json"), safeSnapshot);
   const files = [
-    "404.html", "CNAME", "ads.txt", "apple-touch-icon.png", "favicon.ico", "job-alert-terms.html", "jobs.json", "robots.txt", "sitemap.xml",
+    "404.html", "CNAME", "ads.txt", "apple-touch-icon.png", "favicon.ico", "job-alert-terms.html", "robots.txt", "sitemap.xml",
     "province-eastern-cape.png", "province-free-state.png", "province-gauteng.png",
     "province-kwazulu-natal.png", "province-limpopo.png", "province-mpumalanga.png",
     "province-north-west.png", "province-northern-cape.png", "province-western-cape.png",
     "bookmark.js", "circulars.js", "employment-type.js", "navigation.js", "page-title.js", "provinces.js", "redirects.js", "salary-scales.js", "south-african-coat-of-arms.png",
-    "footer-facebook.svg", "footer-location.svg", "footer-pinterest.svg", "footer-x.svg",
+    "footer-facebook.svg", "footer-location.svg", "footer-pinterest.svg", "footer-tiktok.svg", "footer-x.svg",
     "south-african-flag.png", "styles.css", "vacancy-format.js"
   ];
   for (const file of files) {
