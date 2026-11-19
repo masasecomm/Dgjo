@@ -94,7 +94,7 @@
       </summary>
       <div class="panel-content">
         <p id="indexing-history-status" class="automation-status" role="status" aria-live="polite">Connect to the Worker to load submitted URLs.</p>
-        <button id="refresh-indexing-history" class="button button-light" type="button" disabled>Refresh history</button>
+        <button id="refresh-indexing-history" class="button button-light" type="button" title="Refresh history and check the status of every tracked URL" disabled>Refresh history</button>
         <div class="indexing-table-wrap">
           <table class="indexing-table">
             <thead><tr><th>Vacancy</th><th>URL</th><th>Last submitted</th><th>Google index status</th><th>Action</th></tr></thead>
@@ -156,13 +156,14 @@
       <div class="toolbar">
         <div class="list-controls">
           <label class="circular-filter"><span>Published circular</span><select id="circular-filter" disabled><option value="">All published posts</option></select></label>
+          <label class="circular-filter"><span>Index status</span><select id="indexing-status-filter" disabled><option value="">All index statuses</option><option value="indexing-pending">Submitted / pending</option><option value="indexing-indexed">Indexed</option><option value="indexing-not-indexed">Not indexed</option><option value="indexing-unsubmitted">Not submitted</option><option value="indexing-failed">Request failed</option></select></label>
           <label class="select-all-label"><input id="select-all-jobs" type="checkbox" disabled> Select all</label>
           <span id="selection-count" class="selection-count" aria-live="polite">0 selected</span>
           <button id="edit-selected" class="button button-light" type="button" disabled>Edit selected</button>
           <button id="index-selected" class="button button-light" type="button" disabled>Index all selected</button>
           <button id="delete-selected" class="button button-danger" type="button" disabled>Delete selected</button>
         </div>
-        <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="post-number">Post number</option><option value="recent">Recently added</option><option value="date-newest">Date (newest)</option><option value="title-asc">A–Z</option><option value="title-desc">Z–A</option></select></label>
+        <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="post-number">Post number</option><option value="recent">Recently added</option><option value="date-newest">Date (newest)</option><option value="title-asc">A–Z</option><option value="title-desc">Z–A</option><option value="indexing-status">Indexing status</option></select></label>
       </div>
       <div id="job-list" class="job-list" aria-live="polite">
         <div class="empty-state"><span class="empty-icon">✳</span><strong>Your job board, in one place.</strong><span>Connect to Cloudflare to view and manage published roles.</span></div>

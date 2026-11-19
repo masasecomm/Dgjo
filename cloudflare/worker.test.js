@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 import worker from "./worker.js";
+import { jobPagePath } from "../vacancy-url.js";
 
 function makeJob(overrides = {}) {
   const now = new Date();
@@ -883,6 +884,7 @@ test("vacancy URLs use a short title slug and preserve the full post and referen
   });
   const env = createEnv([job]);
   const canonicalPath = "/assistant-director-41-100-2026-165-ocj/";
+  assert.equal(jobPagePath(job), canonicalPath);
   const canonicalResponse = await worker.fetch(new Request(`https://jobs.example${canonicalPath}`), env);
   const html = await canonicalResponse.text();
 

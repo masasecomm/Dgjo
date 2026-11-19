@@ -1,10 +1,25 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { jobPagePath } from "../vacancy-url.js";
 
 const adminHtml = await readFile(new URL("./admin.html", import.meta.url), "utf8");
 const adminCss = await readFile(new URL("./admin.css", import.meta.url), "utf8");
 const adminJs = await readFile(new URL("./admin.js", import.meta.url), "utf8");
+
+test("Excel vacancy links use the public site's canonical permalink format", () => {
+  const vacancy = {
+    title: "ASSISTANT DIRECTOR: SECURITY MANAGEMENT",
+    postNo: "41/100",
+    refNo: "2026/165/OCJ"
+  };
+  const permalink = new URL(jobPagePath(vacancy), "https://jobs.dpsagovernmentjobs.co.za").href;
+
+  assert.equal(permalink, "https://jobs.dpsagovernmentjobs.co.za/assistant-director-41-100-2026-165-ocj/");
+  assert.match(adminJs, /Link: new URL\(jobPagePath\(vacancy\), PUBLISHED_SITE_ORIGIN\)\.href/);
+  assert.match(adminJs, /worksheet\[cellAddress\]\.l = \{ Target: worksheet\[cellAddress\]\.v \}/);
+  assert.match(adminJs, /"Official circular URL": vacancy\.sourceUrl,\s*Link:/);
+});
 
 test("admin listings use the site font and provide circular-scoped bulk selection", () => {
   const listings = adminHtml.slice(adminHtml.indexOf('<section class="list-section"'), adminHtml.indexOf("</section>", adminHtml.indexOf('<section class="list-section"')));
@@ -12,6 +27,11 @@ test("admin listings use the site font and provide circular-scoped bulk selectio
   assert.match(adminHtml, /family=Jost:wght@400;500;600;700;800/);
   assert.match(adminCss, /font-family: "Jost", Arial, Helvetica, sans-serif/);
   assert.match(listings, /id="circular-filter"/);
+  assert.match(listings, /id="indexing-status-filter"/);
+  assert.match(listings, /value="indexing-pending">Submitted \/ pending/);
+  assert.match(listings, /value="indexing-indexed">Indexed/);
+  assert.match(listings, /value="indexing-unsubmitted">Not submitted/);
+  assert.match(listings, /value="indexing-failed">Request failed/);
   assert.match(listings, /id="select-all-jobs"/);
   assert.match(listings, /id="edit-selected"/);
   assert.match(listings, /id="index-selected"[^>]*>Index all selected<\/button>/);
@@ -24,7 +44,12 @@ test("admin listings use the site font and provide circular-scoped bulk selectio
   assert.match(adminHtml, /<option value="date-newest">Date \(newest\)<\/option>/);
   assert.match(adminHtml, /<option value="title-asc">A–Z<\/option>/);
   assert.match(adminHtml, /<option value="title-desc">Z–A<\/option>/);
+  assert.match(adminHtml, /<option value="indexing-status">Indexing status<\/option>/);
   assert.match(adminJs, /compareCircularDates\(a\.circularDate, b\.circularDate\)/);
+  assert.match(adminJs, /getIndexingStatusSortRank\(a\.id\) - getIndexingStatusSortRank\(b\.id\)/);
+  assert.match(adminJs, /"indexing-unsubmitted": 0,[\s\S]*"indexing-indexed": 4/);
+  assert.match(adminJs, /getIndexingStatusClass\(job\.id\) === indexingStatusFilter\.value/);
+  assert.match(adminJs, /indexingStatusFilter\.addEventListener\("change", \(\) => \{\s*selectedJobIds\.clear\(\);\s*renderJobs\(\);/);
   assert.match(adminJs, /sortJobs\.value === "title-asc" \|\| sortJobs\.value === "title-desc"/);
   assert.match(adminJs, /selectedJobIds\.add\(job\.id\)/);
   assert.match(adminJs, /Remove all \$\{selectedJobs\.length\} selected/);
@@ -70,7 +95,12 @@ test("the extension shows submitted Google URLs and checks their actual Search C
   assert.match(adminHtml, /Google acceptance does not mean a page is indexed/);
   assert.match(adminJs, /async function requestIndexingHistory\(\)/);
   assert.match(adminJs, /async function inspectIndexingUrl\(url\)/);
-  assert.match(adminJs, /async function refreshIndexingHistory\(\)/);
+  assert.match(adminJs, /refreshIndexingHistory\(\{ inspectAll = false \} = \{\}\)/);
+  assert.match(adminJs, /refreshIndexingHistory\(\{ inspectAll: true \}\)/);
+  assert.match(adminJs, /for \(const \[index, submission\] of submissions\.entries\(\)\)/);
+  assert.match(adminJs, /await inspectIndexingUrl\(submission\.url\)/);
+  assert.match(adminJs, /Checked the status of all \$\{submissions\.length\} submitted URLs\./);
+  assert.doesNotMatch(adminJs.slice(adminJs.indexOf("function renderIndexingHistory("), adminJs.indexOf("async function refreshIndexingHistory(")), /indexingStatusFilter/);
   assert.match(adminJs, /indexSelectedButton\.addEventListener\("click"/);
   assert.match(adminJs, /indexingSubmissionsByJobId/);
   assert.match(adminJs, /Submitted · Pending indexing/);

@@ -24,11 +24,13 @@ import {
   MAX_ACTIVE_CIRCULARS,
   retainLatestCircularJobs
 } from "../circulars.js";
+import { jobPagePath } from "../vacancy-url.js";
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
 const MAX_PUBLISHED_JOBS = 6000;
 const MAX_JOB_LINKS = 100;
+const PUBLISHED_SITE_ORIGIN = "https://jobs.dpsagovernmentjobs.co.za";
 const apiUrlInput = document.querySelector("#api-url");
 const tokenInput = document.querySelector("#admin-token");
 const sourceUrlInput = document.querySelector("#source-url");
@@ -53,6 +55,7 @@ const sortJobs = document.querySelector("#sort-jobs");
 const jobList = document.querySelector("#job-list");
 const jobSummary = document.querySelector("#job-summary");
 const circularFilter = document.querySelector("#circular-filter");
+const indexingStatusFilter = document.querySelector("#indexing-status-filter");
 const selectAllJobs = document.querySelector("#select-all-jobs");
 const selectionCount = document.querySelector("#selection-count");
 const editSelectedButton = document.querySelector("#edit-selected");
@@ -106,6 +109,7 @@ function setConnected(connected) {
   connectionBadge.innerHTML = `<span class="badge-dot"></span> ${connected ? "Connected" : "Not connected"}`;
   jobSearch.disabled = !connected;
   sortJobs.disabled = !connected;
+  indexingStatusFilter.disabled = !connected;
   refreshButton.disabled = !connected;
   refreshIndexingHistoryButton.disabled = !connected || indexingHistoryBusy;
   autoPublishToggle.disabled = !connected || autoPublishBusy;
@@ -233,6 +237,22 @@ function getIndexingStatus(jobId) {
   return { label: "Submitted · Pending indexing", className: "indexing-pending" };
 }
 
+function getIndexingStatusClass(jobId) {
+  return getIndexingStatus(jobId).className;
+}
+
+function getIndexingStatusSortRank(jobId) {
+  const { className } = getIndexingStatus(jobId);
+  const statusOrder = {
+    "indexing-unsubmitted": 0,
+    "indexing-failed": 1,
+    "indexing-pending": 2,
+    "indexing-not-indexed": 3,
+    "indexing-indexed": 4
+  };
+  return statusOrder[className];
+}
+
 async function inspectIndexingUrl(url) {
   const endpoint = new URL(apiUrl);
   endpoint.pathname = "/api/indexing/inspect";
@@ -317,6 +337,7 @@ function renderIndexingHistory(submissions) {
     inspectButton.type = "button";
     inspectButton.textContent = "Check status";
     inspectButton.addEventListener("click", async () => {
+      if (indexingHistoryBusy) return;
       inspectButton.disabled = true;
       inspectButton.textContent = "Checking…";
       indexingHistoryStatus.classList.remove("error");
@@ -340,25 +361,54 @@ function renderIndexingHistory(submissions) {
   }
 }
 
-async function refreshIndexingHistory() {
+async function refreshIndexingHistory({ inspectAll = false } = {}) {
   if (!apiUrl || !adminToken) return;
+  if (indexingHistoryBusy) return;
   indexingHistoryBusy = true;
   refreshIndexingHistoryButton.disabled = true;
+  indexingHistoryBody.querySelectorAll("button").forEach(button => {
+    button.disabled = true;
+  });
   indexingHistoryStatus.classList.remove("error");
   indexingHistoryStatus.textContent = "Loading Google indexing history…";
   try {
-    const submissions = await requestIndexingHistory();
+    let submissions = await requestIndexingHistory();
+    let inspectionFailures = 0;
+    if (inspectAll && submissions.length) {
+      for (const [index, submission] of submissions.entries()) {
+        refreshIndexingHistoryButton.textContent = `Checking ${index + 1} of ${submissions.length}…`;
+        indexingHistoryStatus.textContent = `Checking Google index status for URL ${index + 1} of ${submissions.length}: ${submission.url}`;
+        try {
+          await inspectIndexingUrl(submission.url);
+        } catch (error) {
+          inspectionFailures += 1;
+          console.error(`Could not check Google index status for ${submission.url}:`, error);
+        }
+      }
+      submissions = await requestIndexingHistory();
+    }
     renderIndexingHistory(submissions);
     renderJobs();
-    indexingHistoryStatus.textContent = submissions.length
-      ? `${submissions.length} URL${submissions.length === 1 ? "" : "s"} accepted for notification. Indexed status is only shown after checking each URL.`
-      : "No requests have been recorded yet. Successful requests made after this feature is deployed will appear here.";
+    if (!submissions.length) {
+      indexingHistoryStatus.textContent = "No requests have been recorded yet. Successful requests made after this feature is deployed will appear here.";
+    } else if (inspectAll) {
+      indexingHistoryStatus.textContent = inspectionFailures
+        ? `Checked ${submissions.length - inspectionFailures} of ${submissions.length} URLs. ${inspectionFailures} status check${inspectionFailures === 1 ? "" : "s"} failed; try refreshing again.`
+        : `Checked the status of all ${submissions.length} submitted URLs.`;
+      indexingHistoryStatus.classList.toggle("error", inspectionFailures > 0);
+    } else {
+      indexingHistoryStatus.textContent = `${submissions.length} URL${submissions.length === 1 ? "" : "s"} accepted for notification. Indexed status is only shown after checking each URL.`;
+    }
   } catch (error) {
     indexingHistoryStatus.classList.add("error");
     indexingHistoryStatus.textContent = `Could not load Google indexing history: ${error.message}`;
   } finally {
     indexingHistoryBusy = false;
+    refreshIndexingHistoryButton.textContent = "Refresh history";
     refreshIndexingHistoryButton.disabled = !adminToken;
+    indexingHistoryBody.querySelectorAll("button").forEach(button => {
+      button.disabled = false;
+    });
   }
 }
 
@@ -492,10 +542,17 @@ function getVisibleJobs() {
       job.title, job.company, job.location, job.postNo, job.refNo, job.circularName,
       job.category, job.type
     ].join(" ").toLowerCase();
-    return matchesCircular && (!query || searchable.includes(query));
+    const matchesStatus = !indexingStatusFilter.value ||
+      getIndexingStatusClass(job.id) === indexingStatusFilter.value;
+    return matchesCircular && matchesStatus && (!query || searchable.includes(query));
   });
   if (sortJobs.value === "recent") return filtered;
-  if (sortJobs.value === "date-newest") {
+  if (sortJobs.value === "indexing-status") {
+    filtered.sort((a, b) =>
+      getIndexingStatusSortRank(a.id) - getIndexingStatusSortRank(b.id) ||
+      comparePostNumbers(a.postNo, b.postNo)
+    );
+  } else if (sortJobs.value === "date-newest") {
     filtered.sort((a, b) =>
       compareCircularDates(a.circularDate, b.circularDate) ||
       compareCircularNames(canonicalCircularName(b.circularName), canonicalCircularName(a.circularName)) ||
@@ -1135,7 +1192,7 @@ refreshButton.addEventListener("click", async () => {
     refreshButton.disabled = false;
   }
 });
-refreshIndexingHistoryButton.addEventListener("click", refreshIndexingHistory);
+refreshIndexingHistoryButton.addEventListener("click", () => refreshIndexingHistory({ inspectAll: true }));
 indexSelectedButton.addEventListener("click", async () => {
   const selectedJobs = jobs.filter(job => selectedJobIds.has(job.id));
   if (!selectedJobs.length || selectedIndexingBusy) return;
@@ -1214,6 +1271,10 @@ dialog.addEventListener("click", event => {
 jobSearch.addEventListener("input", renderJobs);
 sortJobs.addEventListener("change", renderJobs);
 circularFilter.addEventListener("change", () => {
+  selectedJobIds.clear();
+  renderJobs();
+});
+indexingStatusFilter.addEventListener("change", () => {
   selectedJobIds.clear();
   renderJobs();
 });
@@ -1416,10 +1477,19 @@ document.querySelector("#export-excel").addEventListener("click", () => {
     Applications: vacancy.applications,
     Notes: vacancy.note,
     "PDF hyperlinks": (vacancy.links ?? []).map(link => `${link.label} | ${link.url}`).join("\n"),
-    "Official circular URL": vacancy.sourceUrl
+    "Official circular URL": vacancy.sourceUrl,
+    Link: new URL(jobPagePath(vacancy), PUBLISHED_SITE_ORIGIN).href
     }));
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(rows);
+    const linkColumnIndex = rows.length ? Object.keys(rows[0]).length - 1 : -1;
+    const linkHeader = linkColumnIndex >= 0 ? XLSX.utils.encode_cell({ r: 0, c: linkColumnIndex }) : "";
+    if (linkColumnIndex >= 0 && worksheet[linkHeader]?.v === "Link") {
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: rowIndex + 1, c: linkColumnIndex });
+        if (worksheet[cellAddress]) worksheet[cellAddress].l = { Target: worksheet[cellAddress].v };
+      }
+    }
     XLSX.utils.book_append_sheet(workbook, worksheet, "DPSA vacancies");
     XLSX.writeFile(workbook, "dpsa-vacancies.xlsx");
   } catch (error) {
