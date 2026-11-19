@@ -160,6 +160,31 @@ async function requestAutomation(path, method = "GET", body) {
   return response.json();
 }
 
+async function requestGoogleIndexing(jobId) {
+  const endpoint = new URL(apiUrl);
+  endpoint.pathname = "/api/indexing/request";
+  endpoint.search = "";
+  endpoint.hash = "";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ jobId })
+  });
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`The Worker returned an invalid indexing response (HTTP ${response.status}).`);
+  }
+  if (!response.ok || result?.success !== true || typeof result.url !== "string") {
+    throw new Error(typeof result?.error === "string" ? result.error : `Could not request indexing (HTTP ${response.status}).`);
+  }
+  return result;
+}
+
 function renderAutoPublishHistory(publications) {
   autoPublishHistory.replaceChildren();
   if (!publications.length) {
@@ -394,7 +419,25 @@ function renderJobs() {
     edit.type = "button";
     edit.textContent = "Edit";
     edit.addEventListener("click", () => openEditor(job));
-    actions.append(edit);
+    const index = document.createElement("button");
+    index.type = "button";
+    index.textContent = "Request indexing";
+    index.setAttribute("aria-label", `Request Google indexing for ${displayVacancyTitle(job.title)}`);
+    index.disabled = !adminToken;
+    index.addEventListener("click", async () => {
+      index.disabled = true;
+      index.textContent = "Requesting…";
+      try {
+        const result = await requestGoogleIndexing(job.id);
+        showToast(`Google accepted an indexing notification for ${result.url}. Indexing is not guaranteed.`);
+      } catch (error) {
+        showToast(`Indexing request failed: ${error.message}`, true);
+      } finally {
+        index.disabled = !adminToken;
+        index.textContent = "Request indexing";
+      }
+    });
+    actions.append(edit, index);
     card.append(selectLabel, details, actions);
     jobList.append(card);
   });

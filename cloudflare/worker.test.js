@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 import worker from "./worker.js";
 
@@ -122,6 +123,86 @@ test("auto-publish settings are authenticated, default off and persist when chan
     headers: { Authorization: "Bearer test-token" }
   }), env);
   assert.deepEqual(await persisted.json(), { enabled: true });
+});
+
+test("Google indexing requests require admin auth, a published vacancy, and service-account credentials", async () => {
+  const env = createEnv([makeJob()]);
+  const endpoint = "https://jobs.example/api/indexing/request";
+  const body = JSON.stringify({ jobId: "assistant-director-example" });
+  const unauthenticated = await worker.fetch(new Request(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body
+  }), env);
+  assert.equal(unauthenticated.status, 401);
+
+  const missingCredentials = await worker.fetch(new Request(endpoint, {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body
+  }), env);
+  assert.equal(missingCredentials.status, 503);
+  assert.match((await missingCredentials.json()).error, /GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON/);
+
+  env.GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON = "{}";
+  const unpublished = await worker.fetch(new Request(endpoint, {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ jobId: "not-published" })
+  }), env);
+  assert.equal(unpublished.status, 404);
+});
+
+test("Google indexing requests sign in with the configured service account and notify Google of the vacancy URL", async t => {
+  const env = createEnv([makeJob()]);
+  const { privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" }
+  });
+  env.GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON = JSON.stringify({
+    type: "service_account",
+    client_email: "dsgjo-google-indexing@dsgjo-website-indexing.iam.gserviceaccount.com",
+    private_key: privateKey,
+    token_uri: "https://oauth2.googleapis.com/token"
+  });
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (input, init) => {
+    const requestUrl = String(input);
+    requests.push({ url: requestUrl, init });
+    if (requestUrl === "https://oauth2.googleapis.com/token") {
+      const form = new URLSearchParams(init.body);
+      assert.equal(form.get("grant_type"), "urn:ietf:params:oauth:grant-type:jwt-bearer");
+      assert.equal(form.get("assertion").split(".").length, 3);
+      return Response.json({ access_token: "google-access-token" });
+    }
+    assert.equal(init.headers.Authorization, "Bearer google-access-token");
+    return Response.json({
+      urlNotificationMetadata: {
+        url: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/",
+        latestUpdate: { notifyTime: "2026-11-19T07:00:00Z" }
+      }
+    });
+  });
+
+  const response = await worker.fetch(new Request("https://jobs.example/api/indexing/request", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ jobId: "assistant-director-example" })
+  }), env);
+  const responseBody = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(responseBody));
+  assert.equal(requests[1].url, "https://indexing.googleapis.com/v3/urlNotifications:publish");
+  assert.deepEqual(JSON.parse(requests[1].init.body), {
+    url: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/",
+    type: "URL_UPDATED"
+  });
+  assert.deepEqual(responseBody, {
+    success: true,
+    url: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/",
+    notificationTime: "2026-11-19T07:00:00Z"
+  });
+  assert.equal(requests.length, 2);
 });
 
 test("auto-publish history validates and returns successful circular publication timestamps", async () => {

@@ -53,6 +53,8 @@ const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
 const WORKER_SITE_URL = "https://jobs.dpsagovernmentjobs.co.za";
+const GOOGLE_INDEXING_SERVICE_ACCOUNT_EMAIL = "dsgjo-google-indexing@dsgjo-website-indexing.iam.gserviceaccount.com";
+const GOOGLE_INDEXING_SCOPE = "https://www.googleapis.com/auth/indexing";
 const ALERTS_ALLOWED_ORIGINS = new Set([SITE_URL, "https://www.dpsagovernmentjobs.co.za"]);
 const ALERTS_CONFIRMATION_TTL = 24 * 60 * 60;
 const ALERTS_RESEND_COOLDOWN = 15 * 60 * 1000;
@@ -103,6 +105,108 @@ function jsonResponse(body, status = 200) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+function base64UrlEncode(value) {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function decodeBase64(value) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+async function getGoogleIndexingAccessToken(serviceAccountJson) {
+  let account;
+  try {
+    account = JSON.parse(serviceAccountJson);
+  } catch {
+    throw new Error("The Google Indexing service-account secret must contain the downloaded JSON key.");
+  }
+  if (!account || account.type !== "service_account" ||
+      account.client_email !== GOOGLE_INDEXING_SERVICE_ACCOUNT_EMAIL ||
+      typeof account.private_key !== "string" || typeof account.token_uri !== "string") {
+    throw new Error("The Google Indexing service-account JSON is missing required credentials or has the wrong account email.");
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = base64UrlEncode(JSON.stringify({
+    iss: account.client_email,
+    scope: GOOGLE_INDEXING_SCOPE,
+    aud: account.token_uri,
+    iat: now,
+    exp: now + 3600
+  }));
+  const unsignedToken = `${header}.${claims}`;
+  const pem = account.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
+  const signingKey = await crypto.subtle.importKey(
+    "pkcs8",
+    decodeBase64(pem),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    signingKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+  const assertion = `${unsignedToken}.${base64UrlEncode(signature)}`;
+  let tokenResponse;
+  try {
+    tokenResponse = await fetch(account.token_uri, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion
+      })
+    });
+  } catch {
+    throw new Error("Could not reach Google to authorize the indexing request.");
+  }
+  let tokenResult;
+  try {
+    tokenResult = await tokenResponse.json();
+  } catch {
+    throw new Error(`Google authorization returned an invalid response (HTTP ${tokenResponse.status}).`);
+  }
+  if (!tokenResponse.ok || typeof tokenResult.access_token !== "string") {
+    throw new Error(tokenResult.error_description || tokenResult.error || `Google authorization failed (HTTP ${tokenResponse.status}).`);
+  }
+  return tokenResult.access_token;
+}
+
+async function requestGoogleIndexing(url, env) {
+  const accessToken = await getGoogleIndexingAccessToken(env.GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON);
+  let response;
+  try {
+    response = await fetch("https://indexing.googleapis.com/v3/urlNotifications:publish", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ url, type: "URL_UPDATED" })
+    });
+  } catch {
+    throw new Error("Could not reach the Google Indexing API.");
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`Google Indexing API returned an invalid response (HTTP ${response.status}).`);
+  }
+  if (!response.ok) {
+    const message = result.error?.message;
+    throw new Error(typeof message === "string" ? message : `Google Indexing API rejected the request (HTTP ${response.status}).`);
+  }
+  return result;
 }
 
 function alertsJsonResponse(body, status = 200, origin = "") {
@@ -1656,6 +1760,7 @@ export default {
 
   async fetch(request, env, context) {
     const url = new URL(request.url);
+    const isGoogleIndexingRequest = url.pathname === "/api/indexing/request";
     const isAutomationSettings = url.pathname === "/api/automation/settings";
     const isAutomationPublications = url.pathname === "/api/automation/publications";
     const isAutomationApi = isAutomationSettings || isAutomationPublications;
@@ -1665,7 +1770,7 @@ export default {
     const isCvMatchRecord = url.pathname === "/api/cv-matches";
     const isAutomationNotification = url.pathname === "/api/automation/notify";
     if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS" &&
-        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord || isAutomationNotification || isAutomationPublications))) {
+        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord || isAutomationNotification || isAutomationPublications || isGoogleIndexingRequest))) {
       return jsonResponse({ error: "Method not allowed." }, 405);
     }
     if (request.method === "GET" && !url.pathname.startsWith("/api/") &&
@@ -1677,11 +1782,49 @@ export default {
       if (!ALERTS_ALLOWED_ORIGINS.has(origin)) return alertsJsonResponse({ error: "This request is not allowed." }, 403, origin);
       return alertsJsonResponse({}, 204, origin);
     }
-    if (request.method === "OPTIONS" && (isAutomationApi || url.pathname === "/api/jobs")) {
+    if (request.method === "OPTIONS" && (isAutomationApi || isGoogleIndexingRequest || url.pathname === "/api/jobs")) {
       return jsonResponse({}, 204);
     }
     if (request.method === "POST" && isAlertSignup) return subscribeToJobAlerts(request, env);
     if (request.method === "POST" && isCvMatchRecord) return recordCvMatch(request, env);
+    if (isGoogleIndexingRequest) {
+      if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
+      if (!env.ADMIN_TOKEN) return jsonResponse({ error: "The Worker admin token is not configured." }, 503);
+      if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) {
+        return jsonResponse({ error: "Invalid admin token." }, 401);
+      }
+      if (!env.GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON) {
+        return jsonResponse({
+          error: "Google indexing is not configured. Add the GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON Worker secret."
+        }, 503);
+      }
+      let input;
+      try {
+        input = await request.json();
+      } catch {
+        return jsonResponse({ error: "Request body must be valid JSON." }, 400);
+      }
+      if (!input || typeof input !== "object" || Array.isArray(input) ||
+          Object.keys(input).length !== 1 || typeof input.jobId !== "string" ||
+          !input.jobId.trim() || input.jobId.length > 200) {
+        return jsonResponse({ error: "Provide the ID of one published vacancy." }, 400);
+      }
+      const jobs = await loadPublishedJobs(env);
+      const job = jobs.find(candidate => candidate.id === input.jobId);
+      if (!job || isExpired(job)) return jsonResponse({ error: "That vacancy is not currently published." }, 404);
+      const vacancyUrl = new URL(jobPagePath(job), WORKER_SITE_URL).href;
+      try {
+        const result = await requestGoogleIndexing(vacancyUrl, env);
+        const metadata = result.urlNotificationMetadata;
+        return jsonResponse({
+          success: true,
+          url: vacancyUrl,
+          notificationTime: metadata?.latestUpdate?.notifyTime ?? null
+        });
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 502);
+      }
+    }
     if (isAutomationApi) {
       if ((isAutomationSettings && request.method !== "GET" && request.method !== "PUT") ||
           (isAutomationPublications && request.method !== "GET" && request.method !== "POST")) {

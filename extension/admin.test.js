@@ -34,6 +34,8 @@ test("published list rows show normalized titles and post numbers without employ
 
   assert.match(renderer, /displayVacancyTitle\(job\.title\)/);
   assert.match(renderer, /`Post \$\{job\.postNo \|\| "number not stated"\}`/);
+  assert.match(renderer, /Request indexing/);
+  assert.match(renderer, /requestGoogleIndexing\(job\.id\)/);
   assert.doesNotMatch(renderer, /job-tags|Remote-friendly|salaryText|job\.posted/);
 });
 
