@@ -35,6 +35,7 @@ const JOBS_KEY = "published-jobs";
 const AUTO_PUBLISH_SETTINGS_KEY = "dpsa-auto-publish:settings";
 const AUTO_PUBLISH_HISTORY_KEY = "dpsa-auto-publish:history";
 const MAX_AUTO_PUBLISH_HISTORY = 100;
+const GOOGLE_INDEXING_HISTORY_KEY = "google-indexing:history";
 const ALERTS_SUBSCRIBER_PREFIX = "job-alerts:subscriber:";
 const ALERTS_VERIFY_PREFIX = "job-alerts:verify:";
 const ALERTS_UNSUBSCRIBE_PREFIX = "job-alerts:unsubscribe:";
@@ -49,12 +50,13 @@ const TYPES = new Set([
   "Full-time", "Part-time", "Contract", "Sessional", "Internship", "Seasonal"
 ]);
 const MAX_JOBS = 6000;
+const MAX_GOOGLE_INDEXING_HISTORY = MAX_JOBS;
 const MAX_JOBS_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 160;
 const SITE_URL = "https://dpsagovernmentjobs.co.za";
 const WORKER_SITE_URL = "https://jobs.dpsagovernmentjobs.co.za";
 const GOOGLE_INDEXING_SERVICE_ACCOUNT_EMAIL = "dsgjo-google-indexing@dsgjo-website-indexing.iam.gserviceaccount.com";
-const GOOGLE_INDEXING_SCOPE = "https://www.googleapis.com/auth/indexing";
+const GOOGLE_INDEXING_SCOPE = "https://www.googleapis.com/auth/indexing https://www.googleapis.com/auth/webmasters.readonly";
 const ALERTS_ALLOWED_ORIGINS = new Set([SITE_URL, "https://www.dpsagovernmentjobs.co.za"]);
 const ALERTS_CONFIRMATION_TTL = 24 * 60 * 60;
 const ALERTS_RESEND_COOLDOWN = 15 * 60 * 1000;
@@ -188,7 +190,7 @@ async function requestGoogleIndexing(url, env) {
     response = await fetch("https://indexing.googleapis.com/v3/urlNotifications:publish", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: "Bearer " + accessToken,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ url, type: "URL_UPDATED" })
@@ -207,6 +209,48 @@ async function requestGoogleIndexing(url, env) {
     throw new Error(typeof message === "string" ? message : `Google Indexing API rejected the request (HTTP ${response.status}).`);
   }
   return result;
+}
+
+async function inspectGoogleIndexingUrl(url, env) {
+  const accessToken = await getGoogleIndexingAccessToken(env.GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON);
+  let response;
+  try {
+    response = await fetch("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        inspectionUrl: url,
+        siteUrl: "sc-domain:dpsagovernmentjobs.co.za",
+        languageCode: "en-US"
+      })
+    });
+  } catch {
+    throw new Error("Could not reach the Google Search Console URL Inspection API.");
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`Google URL Inspection returned an invalid response (HTTP ${response.status}).`);
+  }
+  if (!response.ok) {
+    const message = result.error?.message;
+    throw new Error(typeof message === "string" ? message : `Google URL Inspection failed (HTTP ${response.status}).`);
+  }
+  const status = result.inspectionResult?.indexStatusResult;
+  if (!status || typeof status.verdict !== "string") {
+    throw new Error("Google returned no index status for this URL.");
+  }
+  return {
+    verdict: status.verdict,
+    coverageState: typeof status.coverageState === "string" ? status.coverageState : "",
+    indexingState: typeof status.indexingState === "string" ? status.indexingState : "",
+    lastCrawlTime: typeof status.lastCrawlTime === "string" ? status.lastCrawlTime : "",
+    googleCanonical: typeof status.googleCanonical === "string" ? status.googleCanonical : ""
+  };
 }
 
 function alertsJsonResponse(body, status = 200, origin = "") {
@@ -1761,6 +1805,8 @@ export default {
   async fetch(request, env, context) {
     const url = new URL(request.url);
     const isGoogleIndexingRequest = url.pathname === "/api/indexing/request";
+    const isGoogleIndexingHistory = url.pathname === "/api/indexing/history";
+    const isGoogleIndexingInspection = url.pathname === "/api/indexing/inspect";
     const isAutomationSettings = url.pathname === "/api/automation/settings";
     const isAutomationPublications = url.pathname === "/api/automation/publications";
     const isAutomationApi = isAutomationSettings || isAutomationPublications;
@@ -1770,7 +1816,7 @@ export default {
     const isCvMatchRecord = url.pathname === "/api/cv-matches";
     const isAutomationNotification = url.pathname === "/api/automation/notify";
     if (request.method !== "GET" && request.method !== "PUT" && request.method !== "OPTIONS" &&
-        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord || isAutomationNotification || isAutomationPublications || isGoogleIndexingRequest))) {
+        !(request.method === "POST" && (isAlertSignup || isAlertConfirmation || isAlertUnsubscribe || isCvMatchRecord || isAutomationNotification || isAutomationPublications || isGoogleIndexingRequest || isGoogleIndexingInspection))) {
       return jsonResponse({ error: "Method not allowed." }, 405);
     }
     if (request.method === "GET" && !url.pathname.startsWith("/api/") &&
@@ -1782,16 +1828,23 @@ export default {
       if (!ALERTS_ALLOWED_ORIGINS.has(origin)) return alertsJsonResponse({ error: "This request is not allowed." }, 403, origin);
       return alertsJsonResponse({}, 204, origin);
     }
-    if (request.method === "OPTIONS" && (isAutomationApi || isGoogleIndexingRequest || url.pathname === "/api/jobs")) {
+    if (request.method === "OPTIONS" && (isAutomationApi || isGoogleIndexingRequest || isGoogleIndexingHistory || isGoogleIndexingInspection || url.pathname === "/api/jobs")) {
       return jsonResponse({}, 204);
     }
     if (request.method === "POST" && isAlertSignup) return subscribeToJobAlerts(request, env);
     if (request.method === "POST" && isCvMatchRecord) return recordCvMatch(request, env);
-    if (isGoogleIndexingRequest) {
-      if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
+    if (isGoogleIndexingRequest || isGoogleIndexingHistory || isGoogleIndexingInspection) {
+      if ((isGoogleIndexingRequest || isGoogleIndexingInspection) && request.method !== "POST" ||
+          isGoogleIndexingHistory && request.method !== "GET") {
+        return jsonResponse({ error: "Method not allowed." }, 405);
+      }
       if (!env.ADMIN_TOKEN) return jsonResponse({ error: "The Worker admin token is not configured." }, 503);
       if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) {
         return jsonResponse({ error: "Invalid admin token." }, 401);
+      }
+      if (isGoogleIndexingHistory) {
+        const history = await env.JOBS.get(GOOGLE_INDEXING_HISTORY_KEY, "json");
+        return jsonResponse({ submissions: Array.isArray(history) ? history : [] });
       }
       if (!env.GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON) {
         return jsonResponse({
@@ -1805,9 +1858,33 @@ export default {
         return jsonResponse({ error: "Request body must be valid JSON." }, 400);
       }
       if (!input || typeof input !== "object" || Array.isArray(input) ||
-          Object.keys(input).length !== 1 || typeof input.jobId !== "string" ||
-          !input.jobId.trim() || input.jobId.length > 200) {
+          isGoogleIndexingInspection && (
+            Object.keys(input).length !== 1 || typeof input.url !== "string" ||
+            !input.url.trim() || input.url.length > 2048
+          ) ||
+          isGoogleIndexingRequest && (
+            Object.keys(input).length !== 1 || typeof input.jobId !== "string" ||
+            !input.jobId.trim() || input.jobId.length > 200
+          )) {
+        if (isGoogleIndexingInspection) {
+          return jsonResponse({ error: "Provide one previously submitted vacancy URL." }, 400);
+        }
         return jsonResponse({ error: "Provide the ID of one published vacancy." }, 400);
+      }
+      if (isGoogleIndexingInspection) {
+        const history = await env.JOBS.get(GOOGLE_INDEXING_HISTORY_KEY, "json");
+        const record = Array.isArray(history) ? history.find(item => item.url === input.url) : null;
+        if (!record) return jsonResponse({ error: "This URL is not in the saved Google indexing submission history." }, 404);
+        try {
+          const indexStatus = await inspectGoogleIndexingUrl(record.url, env);
+          const updatedRecord = { ...record, indexStatus, inspectedAt: new Date().toISOString() };
+          await env.JOBS.put(GOOGLE_INDEXING_HISTORY_KEY, JSON.stringify([
+            ...history.map(item => item.url === record.url ? updatedRecord : item)
+          ]));
+          return jsonResponse({ success: true, submission: updatedRecord });
+        } catch (error) {
+          return jsonResponse({ error: error.message }, 502);
+        }
       }
       const jobs = await loadPublishedJobs(env);
       const job = jobs.find(candidate => candidate.id === input.jobId);
@@ -1816,10 +1893,34 @@ export default {
       try {
         const result = await requestGoogleIndexing(vacancyUrl, env);
         const metadata = result.urlNotificationMetadata;
+        let historySaved = true;
+        try {
+          const previousHistory = await env.JOBS.get(GOOGLE_INDEXING_HISTORY_KEY, "json");
+          const previousRecord = Array.isArray(previousHistory)
+            ? previousHistory.find(item => item.url === vacancyUrl)
+            : null;
+          const submission = {
+            jobId: job.id,
+            title: displayJobTitle(job.title),
+            url: vacancyUrl,
+            submittedAt: new Date().toISOString(),
+            notificationTime: metadata?.latestUpdate?.notifyTime ?? null,
+            submissionCount: (previousRecord?.submissionCount ?? 0) + 1,
+            indexStatus: previousRecord?.indexStatus ?? null,
+            ...(previousRecord?.inspectedAt ? { inspectedAt: previousRecord.inspectedAt } : {})
+          };
+          await env.JOBS.put(GOOGLE_INDEXING_HISTORY_KEY, JSON.stringify([
+            submission,
+            ...(Array.isArray(previousHistory) ? previousHistory.filter(item => item.url !== vacancyUrl) : [])
+          ].slice(0, MAX_GOOGLE_INDEXING_HISTORY)));
+        } catch {
+          historySaved = false;
+        }
         return jsonResponse({
           success: true,
           url: vacancyUrl,
-          notificationTime: metadata?.latestUpdate?.notifyTime ?? null
+          notificationTime: metadata?.latestUpdate?.notifyTime ?? null,
+          historySaved
         });
       } catch (error) {
         return jsonResponse({ error: error.message }, 502);

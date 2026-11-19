@@ -39,6 +39,9 @@ const forgetButton = document.querySelector("#forget-credentials");
 const autoPublishToggle = document.querySelector("#auto-publish-toggle");
 const autoPublishStatus = document.querySelector("#auto-publish-status");
 const autoPublishHistory = document.querySelector("#auto-publish-history");
+const indexingHistoryBody = document.querySelector("#indexing-history-body");
+const indexingHistoryStatus = document.querySelector("#indexing-history-status");
+const refreshIndexingHistoryButton = document.querySelector("#refresh-indexing-history");
 const connectionBadge = document.querySelector("#connection-badge");
 const connectedDetails = document.querySelector("#connected-details");
 const connectedUrl = document.querySelector("#connected-url");
@@ -77,6 +80,7 @@ let circularOptions = [];
 let activeCircularName = "";
 let publishInProgress = false;
 let autoPublishBusy = false;
+let indexingHistoryBusy = false;
 
 function showToast(message, isError = false) {
   toast.textContent = message;
@@ -93,6 +97,7 @@ function setConnected(connected) {
   jobSearch.disabled = !connected;
   sortJobs.disabled = !connected;
   refreshButton.disabled = !connected;
+  refreshIndexingHistoryButton.disabled = !connected || indexingHistoryBusy;
   autoPublishToggle.disabled = !connected || autoPublishBusy;
   updatePublishButton();
 }
@@ -185,6 +190,146 @@ async function requestGoogleIndexing(jobId) {
   return result;
 }
 
+async function requestIndexingHistory() {
+  const endpoint = new URL(apiUrl);
+  endpoint.pathname = "/api/indexing/history";
+  endpoint.search = "";
+  endpoint.hash = "";
+  const response = await fetch(endpoint, { headers: { Authorization: "Bearer " + adminToken } });
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`The Worker returned an invalid indexing history response (HTTP ${response.status}).`);
+  }
+  if (!response.ok || !Array.isArray(result?.submissions)) {
+    throw new Error(typeof result?.error === "string" ? result.error : `Could not load indexing history (HTTP ${response.status}).`);
+  }
+  return result.submissions;
+}
+
+async function inspectIndexingUrl(url) {
+  const endpoint = new URL(apiUrl);
+  endpoint.pathname = "/api/indexing/inspect";
+  endpoint.search = "";
+  endpoint.hash = "";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + adminToken,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ url })
+  });
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`The Worker returned an invalid URL inspection response (HTTP ${response.status}).`);
+  }
+  if (!response.ok || result?.success !== true || !result.submission) {
+    throw new Error(typeof result?.error === "string" ? result.error : `Could not inspect URL status (HTTP ${response.status}).`);
+  }
+  return result.submission;
+}
+
+function formatIndexingDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value ?? "Unknown")
+    : date.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", dateStyle: "medium", timeStyle: "short" }) + " SAST";
+}
+
+function renderIndexingHistory(submissions) {
+  indexingHistoryBody.replaceChildren();
+  if (!submissions.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.className = "automation-empty";
+    cell.textContent = "No requests have been recorded yet. Successful requests made after this feature is deployed will appear here.";
+    row.append(cell);
+    indexingHistoryBody.append(row);
+    return;
+  }
+  for (const submission of submissions) {
+    const row = document.createElement("tr");
+    const titleCell = document.createElement("td");
+    titleCell.textContent = submission.title || "Vacancy";
+    const urlCell = document.createElement("td");
+    const link = document.createElement("a");
+    link.className = "indexing-url";
+    link.href = submission.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = submission.url;
+    urlCell.append(link);
+    const submittedCell = document.createElement("td");
+    submittedCell.textContent = `${formatIndexingDate(submission.submittedAt)}${submission.submissionCount > 1 ? ` · ${submission.submissionCount} requests` : ""}`;
+    const statusCell = document.createElement("td");
+    statusCell.className = "indexing-status";
+    if (submission.indexStatus) {
+      const { verdict, coverageState, lastCrawlTime } = submission.indexStatus;
+      const statusText = verdict === "PASS" ? "Indexed"
+        : verdict === "FAIL" ? "Not indexed"
+          : verdict === "PARTIAL" ? "Partially indexed"
+            : verdict === "NEUTRAL" ? "Not indexed (neutral)"
+              : verdict;
+      statusCell.textContent = `${statusText}${coverageState ? ` · ${coverageState}` : ""}${lastCrawlTime ? ` · Last crawled ${formatIndexingDate(lastCrawlTime)}` : ""} · Checked ${formatIndexingDate(submission.inspectedAt)}`;
+      statusCell.classList.toggle("indexed", verdict === "PASS");
+      statusCell.classList.toggle("not-indexed", verdict === "FAIL");
+    } else {
+      statusCell.textContent = "Not checked";
+    }
+    const actionCell = document.createElement("td");
+    const inspectButton = document.createElement("button");
+    inspectButton.className = "button button-light";
+    inspectButton.type = "button";
+    inspectButton.textContent = "Check status";
+    inspectButton.addEventListener("click", async () => {
+      inspectButton.disabled = true;
+      inspectButton.textContent = "Checking…";
+      indexingHistoryStatus.classList.remove("error");
+      indexingHistoryStatus.textContent = `Checking Google index status for ${submission.url}…`;
+      try {
+        await inspectIndexingUrl(submission.url);
+        const refreshed = await requestIndexingHistory();
+        renderIndexingHistory(refreshed);
+        indexingHistoryStatus.textContent = "Google Search Console status updated. This shows Google's last inspection result, not a guarantee of future indexing.";
+      } catch (error) {
+        indexingHistoryStatus.classList.add("error");
+        indexingHistoryStatus.textContent = `Could not check Google index status: ${error.message}`;
+        inspectButton.disabled = false;
+        inspectButton.textContent = "Check status";
+      }
+    });
+    actionCell.append(inspectButton);
+    row.append(titleCell, urlCell, submittedCell, statusCell, actionCell);
+    indexingHistoryBody.append(row);
+  }
+}
+
+async function refreshIndexingHistory() {
+  if (!apiUrl || !adminToken) return;
+  indexingHistoryBusy = true;
+  refreshIndexingHistoryButton.disabled = true;
+  indexingHistoryStatus.classList.remove("error");
+  indexingHistoryStatus.textContent = "Loading Google indexing history…";
+  try {
+    const submissions = await requestIndexingHistory();
+    renderIndexingHistory(submissions);
+    indexingHistoryStatus.textContent = submissions.length
+      ? `${submissions.length} URL${submissions.length === 1 ? "" : "s"} accepted for notification. Indexed status is only shown after checking each URL.`
+      : "No requests have been recorded yet. Successful requests made after this feature is deployed will appear here.";
+  } catch (error) {
+    indexingHistoryStatus.classList.add("error");
+    indexingHistoryStatus.textContent = `Could not load Google indexing history: ${error.message}`;
+  } finally {
+    indexingHistoryBusy = false;
+    refreshIndexingHistoryButton.disabled = !adminToken;
+  }
+}
+
 function renderAutoPublishHistory(publications) {
   autoPublishHistory.replaceChildren();
   if (!publications.length) {
@@ -273,6 +418,7 @@ async function connect(urlValue, tokenValue, askPermission) {
     renderJobs();
     renderImportedVacancies();
     await refreshAutomationPanel();
+    await refreshIndexingHistory();
     showToast("Connected. Your settings are saved on this device.");
   } catch (error) {
     if (askPermission) showToast(error.message, true);
@@ -429,7 +575,12 @@ function renderJobs() {
       index.textContent = "Requesting…";
       try {
         const result = await requestGoogleIndexing(job.id);
-        showToast(`Google accepted an indexing notification for ${result.url}. Indexing is not guaranteed.`);
+        if (result.historySaved) {
+          await refreshIndexingHistory();
+          showToast(`Google accepted an indexing notification for ${result.url}.`);
+        } else {
+          showToast(`Google accepted ${result.url}, but the Worker could not save it in the extension history.`, true);
+        }
       } catch (error) {
         showToast(`Indexing request failed: ${error.message}`, true);
       } finally {
@@ -891,6 +1042,9 @@ forgetButton.addEventListener("click", async () => {
   autoPublishStatus.classList.remove("error");
   autoPublishStatus.textContent = "Connect to the Worker to manage automatic publishing.";
   renderAutoPublishHistory([]);
+  indexingHistoryStatus.classList.remove("error");
+  indexingHistoryStatus.textContent = "Connect to the Worker to load submitted URLs.";
+  renderIndexingHistory([]);
   jobSummary.textContent = "Connect to load your current listings.";
   renderJobs();
   renderImportedVacancies();
@@ -920,6 +1074,7 @@ refreshButton.addEventListener("click", async () => {
     refreshButton.disabled = false;
   }
 });
+refreshIndexingHistoryButton.addEventListener("click", refreshIndexingHistory);
 autoPublishToggle.addEventListener("change", async () => {
   const enabled = autoPublishToggle.checked;
   autoPublishBusy = true;

@@ -71,6 +71,23 @@
       </div>
     </section>
 
+    <section class="automation-card indexing-history-card" aria-labelledby="indexing-history-title">
+      <div class="automation-heading">
+        <div>
+          <h2 id="indexing-history-title">Google indexing activity</h2>
+          <p>Review URLs Google accepted for notification, then check their actual Search Console index status. Google acceptance does not mean a page is indexed.</p>
+        </div>
+        <button id="refresh-indexing-history" class="button button-light" type="button" disabled>Refresh history</button>
+      </div>
+      <p id="indexing-history-status" class="automation-status" role="status" aria-live="polite">Connect to the Worker to load submitted URLs.</p>
+      <div class="indexing-table-wrap">
+        <table class="indexing-table">
+          <thead><tr><th>Vacancy</th><th>URL</th><th>Last submitted</th><th>Google index status</th><th>Action</th></tr></thead>
+          <tbody id="indexing-history-body"><tr><td colspan="5" class="automation-empty">Connect to load Google indexing history.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="import-section" aria-labelledby="import-title">
       <div class="import-heading">
         <div>

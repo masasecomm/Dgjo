@@ -60,6 +60,19 @@ h1 { margin-bottom: 8px; font-family: "Jost", Arial, Helvetica, sans-serif; font
 .automation-history li { color: #59604f; font-size: 11px; line-height: 1.55; }
 .automation-history time { color: #777d73; }
 .automation-empty { color: #858a80 !important; }
+.indexing-history-card { overflow: hidden; }
+.indexing-history-card .automation-heading { align-items: center; }
+.indexing-table-wrap { max-height: 480px; margin-top: 15px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+.indexing-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 11px; }
+.indexing-table th, .indexing-table td { min-width: 120px; padding: 9px 10px; border-bottom: 1px solid #eff0ea; text-align: left; vertical-align: top; }
+.indexing-table th { position: sticky; top: 0; z-index: 1; background: #f7f8f4; color: #555b50; font-size: 10px; }
+.indexing-table td:nth-child(2) { min-width: 240px; overflow-wrap: anywhere; }
+.indexing-url { color: #17499e; text-decoration: underline; }
+.indexing-status { color: #68705f; }
+.indexing-status.indexed { color: #42712c; font-weight: 700; }
+.indexing-status.not-indexed { color: #a44c43; font-weight: 700; }
+.indexing-table .button { min-height: 31px; padding: 0 9px; font-size: 10px; white-space: nowrap; }
+.indexing-history-card .automation-status { margin-bottom: 0; }
 .import-section { margin-top: 16px; padding: 21px 23px 20px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
 .import-heading h2 { margin: 0 0 5px; font-family: "Jost", Arial, Helvetica, sans-serif; font-size: 15px; letter-spacing: 0; }
 .import-heading p { max-width: 700px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }

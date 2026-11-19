@@ -177,10 +177,29 @@ test("Google indexing requests sign in with the configured service account and n
       return Response.json({ access_token: "google-access-token" });
     }
     assert.equal(init.headers.Authorization, "Bearer google-access-token");
+    if (requestUrl === "https://indexing.googleapis.com/v3/urlNotifications:publish") {
+      return Response.json({
+        urlNotificationMetadata: {
+          url: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/",
+          latestUpdate: { notifyTime: "2026-11-19T07:00:00Z" }
+        }
+      });
+    }
+    assert.equal(requestUrl, "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect");
+    assert.deepEqual(JSON.parse(init.body), {
+      inspectionUrl: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/",
+      siteUrl: "sc-domain:dpsagovernmentjobs.co.za",
+      languageCode: "en-US"
+    });
     return Response.json({
-      urlNotificationMetadata: {
-        url: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/",
-        latestUpdate: { notifyTime: "2026-11-19T07:00:00Z" }
+      inspectionResult: {
+        indexStatusResult: {
+          verdict: "PASS",
+          coverageState: "Submitted and indexed",
+          indexingState: "INDEXING_ALLOWED",
+          lastCrawlTime: "2026-11-19T07:15:00Z",
+          googleCanonical: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/"
+        }
       }
     });
   });
@@ -200,9 +219,42 @@ test("Google indexing requests sign in with the configured service account and n
   assert.deepEqual(responseBody, {
     success: true,
     url: "https://jobs.dpsagovernmentjobs.co.za/assistant-director-1-1-example-1/",
-    notificationTime: "2026-11-19T07:00:00Z"
+    notificationTime: "2026-11-19T07:00:00Z",
+    historySaved: true
   });
   assert.equal(requests.length, 2);
+
+  const historyResponse = await worker.fetch(new Request("https://jobs.example/api/indexing/history", {
+    headers: { Authorization: "Bearer test-token" }
+  }), env);
+  const history = await historyResponse.json();
+  assert.equal(history.submissions.length, 1);
+  assert.equal(history.submissions[0].title, "Assistant Director: Example");
+  assert.equal(history.submissions[0].submissionCount, 1);
+
+  const inspectionResponse = await worker.fetch(new Request("https://jobs.example/api/indexing/inspect", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ url: history.submissions[0].url })
+  }), env);
+  const inspection = await inspectionResponse.json();
+  assert.equal(inspectionResponse.status, 200);
+  assert.equal(inspection.submission.indexStatus.verdict, "PASS");
+  assert.equal((await env.JOBS.get("google-indexing:history", "json"))[0].inspectedAt.length > 0, true);
+  assert.equal(requests.length, 4);
+});
+
+test("Google indexing history and inspection require admin authorization and only inspect tracked URLs", async () => {
+  const env = createEnv([]);
+  const history = await worker.fetch(new Request("https://jobs.example/api/indexing/history"), env);
+  assert.equal(history.status, 401);
+  env.GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON = "{}";
+  const inspection = await worker.fetch(new Request("https://jobs.example/api/indexing/inspect", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ url: "https://jobs.dpsagovernmentjobs.co.za/example/" })
+  }), env);
+  assert.equal(inspection.status, 404);
 });
 
 test("auto-publish history validates and returns successful circular publication timestamps", async () => {

@@ -49,3 +49,16 @@ test("the extension can toggle auto-publishing and shows its saved publication t
   assert.match(adminJs, /SAST/);
   assert.match(adminCss, /\.automation-switch input:checked \+ span/);
 });
+
+test("the extension shows submitted Google URLs and checks their actual Search Console index status", () => {
+  assert.match(adminHtml, /id="indexing-history-title">Google indexing activity/);
+  assert.match(adminHtml, /id="refresh-indexing-history"/);
+  assert.match(adminHtml, /id="indexing-history-body"/);
+  assert.match(adminHtml, /Google acceptance does not mean a page is indexed/);
+  assert.match(adminJs, /async function requestIndexingHistory\(\)/);
+  assert.match(adminJs, /async function inspectIndexingUrl\(url\)/);
+  assert.match(adminJs, /async function refreshIndexingHistory\(\)/);
+  assert.match(adminJs, /Check status/);
+  assert.match(adminJs, /verdict === "PASS" \? "Indexed"/);
+  assert.match(adminJs, /Successful requests made after this feature is deployed will appear here/);
+});
