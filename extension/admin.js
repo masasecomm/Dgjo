@@ -41,8 +41,11 @@ const autoPublishStatus = document.querySelector("#auto-publish-status");
 const autoPublishHistory = document.querySelector("#auto-publish-history");
 const indexingHistoryBody = document.querySelector("#indexing-history-body");
 const indexingHistoryStatus = document.querySelector("#indexing-history-status");
+const indexingHistorySummary = document.querySelector("#indexing-history-summary");
 const refreshIndexingHistoryButton = document.querySelector("#refresh-indexing-history");
+const autoPublishSummaryStatus = document.querySelector("#auto-publish-summary-status");
 const connectionBadge = document.querySelector("#connection-badge");
+const connectionPanel = document.querySelector("#connection-panel");
 const connectedDetails = document.querySelector("#connected-details");
 const connectedUrl = document.querySelector("#connected-url");
 const jobSearch = document.querySelector("#job-search");
@@ -53,6 +56,7 @@ const circularFilter = document.querySelector("#circular-filter");
 const selectAllJobs = document.querySelector("#select-all-jobs");
 const selectionCount = document.querySelector("#selection-count");
 const editSelectedButton = document.querySelector("#edit-selected");
+const indexSelectedButton = document.querySelector("#index-selected");
 const deleteSelectedButton = document.querySelector("#delete-selected");
 const dialog = document.querySelector("#job-dialog");
 const form = document.querySelector("#job-form");
@@ -81,6 +85,12 @@ let activeCircularName = "";
 let publishInProgress = false;
 let autoPublishBusy = false;
 let indexingHistoryBusy = false;
+let selectedIndexingBusy = false;
+let indexingSubmissionsByJobId = new Map();
+const submittedJobIds = new Set();
+const indexingInProgress = new Set();
+const indexingFailures = new Map();
+let selectedIndexingProgress;
 
 function showToast(message, isError = false) {
   toast.textContent = message;
@@ -208,6 +218,21 @@ async function requestIndexingHistory() {
   return result.submissions;
 }
 
+function getIndexingStatus(jobId) {
+  if (indexingInProgress.has(jobId)) return { label: "Submitting to Google…", className: "indexing-pending" };
+  if (indexingFailures.has(jobId)) return { label: `Request failed: ${indexingFailures.get(jobId)}`, className: "indexing-failed" };
+  const submission = indexingSubmissionsByJobId.get(jobId);
+  if (!submission && submittedJobIds.has(jobId)) return { label: "Submitted · Pending indexing", className: "indexing-pending" };
+  if (!submission) return { label: "Not submitted", className: "indexing-unsubmitted" };
+  const verdict = submission.indexStatus?.verdict;
+  if (verdict === "PASS") return { label: "Indexed", className: "indexing-indexed" };
+  if (verdict === "FAIL") return { label: "Submitted · Not indexed", className: "indexing-not-indexed" };
+  if (verdict === "PARTIAL" || verdict === "NEUTRAL") {
+    return { label: `Submitted · ${submission.indexStatus.coverageState || "Pending"}`, className: "indexing-pending" };
+  }
+  return { label: "Submitted · Pending indexing", className: "indexing-pending" };
+}
+
 async function inspectIndexingUrl(url) {
   const endpoint = new URL(apiUrl);
   endpoint.pathname = "/api/indexing/inspect";
@@ -241,6 +266,11 @@ function formatIndexingDate(value) {
 }
 
 function renderIndexingHistory(submissions) {
+  indexingSubmissionsByJobId = new Map(submissions.map(submission => [submission.jobId, submission]));
+  for (const submission of submissions) submittedJobIds.delete(submission.jobId);
+  indexingHistorySummary.textContent = `${submissions.length} URL${submissions.length === 1 ? "" : "s"} submitted`;
+  indexingHistorySummary.classList.toggle("badge-connected", submissions.length > 0);
+  indexingHistorySummary.classList.toggle("badge-muted", submissions.length === 0);
   indexingHistoryBody.replaceChildren();
   if (!submissions.length) {
     const row = document.createElement("tr");
@@ -295,6 +325,7 @@ function renderIndexingHistory(submissions) {
         await inspectIndexingUrl(submission.url);
         const refreshed = await requestIndexingHistory();
         renderIndexingHistory(refreshed);
+        renderJobs();
         indexingHistoryStatus.textContent = "Google Search Console status updated. This shows Google's last inspection result, not a guarantee of future indexing.";
       } catch (error) {
         indexingHistoryStatus.classList.add("error");
@@ -318,6 +349,7 @@ async function refreshIndexingHistory() {
   try {
     const submissions = await requestIndexingHistory();
     renderIndexingHistory(submissions);
+    renderJobs();
     indexingHistoryStatus.textContent = submissions.length
       ? `${submissions.length} URL${submissions.length === 1 ? "" : "s"} accepted for notification. Indexed status is only shown after checking each URL.`
       : "No requests have been recorded yet. Successful requests made after this feature is deployed will appear here.";
@@ -365,6 +397,8 @@ async function refreshAutomationPanel() {
   if (!apiUrl || !adminToken) return;
   autoPublishBusy = true;
   autoPublishToggle.disabled = true;
+  autoPublishSummaryStatus.textContent = "Loading status…";
+  autoPublishSummaryStatus.className = "badge badge-muted";
   autoPublishStatus.classList.remove("error");
   autoPublishStatus.textContent = "Loading automatic publishing settings and history…";
   try {
@@ -376,6 +410,8 @@ async function refreshAutomationPanel() {
       throw new Error("The Worker returned invalid automatic publishing data.");
     }
     autoPublishToggle.checked = settings.enabled;
+    autoPublishSummaryStatus.textContent = settings.enabled ? "Enabled" : "Disabled";
+    autoPublishSummaryStatus.className = `badge ${settings.enabled ? "badge-connected" : "badge-muted"}`;
     autoPublishStatus.textContent = settings.enabled
       ? "Auto publish is on. The Friday monitor will check for new DPSA circulars."
       : "Auto publish is off. Turn it on here to enable the Friday circular monitor.";
@@ -383,6 +419,8 @@ async function refreshAutomationPanel() {
   } catch (error) {
     autoPublishStatus.classList.add("error");
     autoPublishStatus.textContent = `Could not load auto-publish settings: ${error.message}`;
+    autoPublishSummaryStatus.textContent = "Status unavailable";
+    autoPublishSummaryStatus.className = "badge badge-muted";
     renderAutoPublishHistory([]);
   } finally {
     autoPublishBusy = false;
@@ -414,6 +452,7 @@ async function connect(urlValue, tokenValue, askPermission) {
     connectedDetails.hidden = false;
     forgetButton.hidden = false;
     connectedUrl.textContent = url.origin;
+    connectionPanel.open = false;
     setConnected(true);
     renderJobs();
     renderImportedVacancies();
@@ -485,10 +524,16 @@ function updateSelectionControls(visibleJobs) {
   const selectedCount = selectedJobIds.size;
   selectAllJobs.checked = visibleJobs.length > 0 && visibleSelectedCount === visibleJobs.length;
   selectAllJobs.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleJobs.length;
-  selectAllJobs.disabled = !adminToken || visibleJobs.length === 0;
+  selectAllJobs.disabled = !adminToken || visibleJobs.length === 0 || selectedIndexingBusy;
   selectionCount.textContent = `${selectedCount} selected`;
-  editSelectedButton.disabled = !adminToken || selectedCount !== 1;
-  deleteSelectedButton.disabled = !adminToken || selectedCount === 0;
+  editSelectedButton.disabled = !adminToken || selectedCount !== 1 || selectedIndexingBusy;
+  indexSelectedButton.disabled = !adminToken || selectedCount === 0 || selectedIndexingBusy;
+  indexSelectedButton.textContent = selectedIndexingBusy
+    ? selectedIndexingProgress
+      ? `Indexing ${selectedIndexingProgress.current} of ${selectedIndexingProgress.total}…`
+      : "Indexing selected…"
+    : `Index all selected${selectedCount ? ` (${selectedCount})` : ""}`;
+  deleteSelectedButton.disabled = !adminToken || selectedCount === 0 || selectedIndexingBusy;
   deleteSelectedButton.textContent = selectedCount ? `Delete selected (${selectedCount})` : "Delete selected";
 }
 
@@ -525,6 +570,7 @@ function renderJobs() {
     checkbox.className = "job-select";
     checkbox.dataset.jobId = job.id;
     checkbox.checked = selectedJobIds.has(job.id);
+    checkbox.disabled = selectedIndexingBusy;
     checkbox.setAttribute("aria-label", `Select Post ${job.postNo || "number not stated"}: ${displayVacancyTitle(job.title)}`);
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) selectedJobIds.add(job.id);
@@ -558,6 +604,11 @@ function renderJobs() {
       metadata.append(location);
     }
     details.append(title, metadata);
+    const indexingStatus = document.createElement("span");
+    const jobIndexingStatus = getIndexingStatus(job.id);
+    indexingStatus.className = `job-indexing-status ${jobIndexingStatus.className}`;
+    indexingStatus.textContent = `Google: ${jobIndexingStatus.label}`;
+    details.append(indexingStatus);
 
     const actions = document.createElement("div");
     actions.className = "job-actions";
@@ -569,23 +620,28 @@ function renderJobs() {
     index.type = "button";
     index.textContent = "Request indexing";
     index.setAttribute("aria-label", `Request Google indexing for ${displayVacancyTitle(job.title)}`);
-    index.disabled = !adminToken;
+    index.disabled = !adminToken || indexingInProgress.has(job.id) || selectedIndexingBusy;
     index.addEventListener("click", async () => {
-      index.disabled = true;
-      index.textContent = "Requesting…";
+      indexingFailures.delete(job.id);
+      indexingInProgress.add(job.id);
+      renderJobs();
       try {
         const result = await requestGoogleIndexing(job.id);
+        submittedJobIds.add(job.id);
         if (result.historySaved) {
           await refreshIndexingHistory();
           showToast(`Google accepted an indexing notification for ${result.url}.`);
         } else {
+          renderJobs();
           showToast(`Google accepted ${result.url}, but the Worker could not save it in the extension history.`, true);
         }
       } catch (error) {
+        indexingFailures.set(job.id, error.message);
+        renderJobs();
         showToast(`Indexing request failed: ${error.message}`, true);
       } finally {
-        index.disabled = !adminToken;
-        index.textContent = "Request indexing";
+        indexingInProgress.delete(job.id);
+        renderJobs();
       }
     });
     actions.append(edit, index);
@@ -1031,6 +1087,9 @@ forgetButton.addEventListener("click", async () => {
   adminToken = undefined;
   jobs = [];
   selectedJobIds.clear();
+  submittedJobIds.clear();
+  indexingSubmissionsByJobId.clear();
+  indexingFailures.clear();
   tokenInput.value = "";
   apiUrlInput.value = DEFAULT_API_URL;
   connectionForm.hidden = false;
@@ -1041,6 +1100,8 @@ forgetButton.addEventListener("click", async () => {
   autoPublishToggle.checked = false;
   autoPublishStatus.classList.remove("error");
   autoPublishStatus.textContent = "Connect to the Worker to manage automatic publishing.";
+  autoPublishSummaryStatus.textContent = "Connect to check status";
+  autoPublishSummaryStatus.className = "badge badge-muted";
   renderAutoPublishHistory([]);
   indexingHistoryStatus.classList.remove("error");
   indexingHistoryStatus.textContent = "Connect to the Worker to load submitted URLs.";
@@ -1075,6 +1136,49 @@ refreshButton.addEventListener("click", async () => {
   }
 });
 refreshIndexingHistoryButton.addEventListener("click", refreshIndexingHistory);
+indexSelectedButton.addEventListener("click", async () => {
+  const selectedJobs = jobs.filter(job => selectedJobIds.has(job.id));
+  if (!selectedJobs.length || selectedIndexingBusy) return;
+  selectedIndexingBusy = true;
+  const failures = [];
+  let historySaveFailures = 0;
+  let submitted = 0;
+  selectedIndexingProgress = { current: 0, total: selectedJobs.length };
+  updateSelectionControls(getVisibleJobs());
+  renderJobs();
+  for (const [index, job] of selectedJobs.entries()) {
+    selectedIndexingProgress.current = index + 1;
+    indexingFailures.delete(job.id);
+    indexingInProgress.add(job.id);
+    renderJobs();
+    try {
+      const result = await requestGoogleIndexing(job.id);
+      submittedJobIds.add(job.id);
+      if (!result.historySaved) {
+        historySaveFailures += 1;
+      }
+      submitted += 1;
+    } catch (error) {
+      indexingFailures.set(job.id, error.message);
+      failures.push(`${displayVacancyTitle(job.title)}: ${error.message}`);
+    } finally {
+      indexingInProgress.delete(job.id);
+      renderJobs();
+    }
+  }
+  await refreshIndexingHistory();
+  selectedIndexingBusy = false;
+  selectedIndexingProgress = undefined;
+  updateSelectionControls(getVisibleJobs());
+  const historyWarning = historySaveFailures
+    ? ` ${historySaveFailures} accepted request${historySaveFailures === 1 ? " could not" : "s could not"} be saved in extension history.`
+    : "";
+  if (failures.length) {
+    showToast(`Indexing finished: ${submitted} accepted; ${failures.length} failed. ${failures[0]}${historyWarning}`, true);
+  } else {
+    showToast(`Google accepted indexing requests for all ${submitted} selected ${submitted === 1 ? "vacancy" : "vacancies"}.${historyWarning}`, historySaveFailures > 0);
+  }
+});
 autoPublishToggle.addEventListener("change", async () => {
   const enabled = autoPublishToggle.checked;
   autoPublishBusy = true;
@@ -1089,10 +1193,14 @@ autoPublishToggle.addEventListener("change", async () => {
     autoPublishStatus.textContent = enabled
       ? "Auto publish is on. The Friday monitor will check for new DPSA circulars."
       : "Auto publish is off. The Friday circular monitor will skip publishing.";
+    autoPublishSummaryStatus.textContent = enabled ? "Enabled" : "Disabled";
+    autoPublishSummaryStatus.className = `badge ${enabled ? "badge-connected" : "badge-muted"}`;
   } catch (error) {
     autoPublishToggle.checked = !enabled;
     autoPublishStatus.classList.add("error");
     autoPublishStatus.textContent = `Could not save auto-publish setting: ${error.message}`;
+    autoPublishSummaryStatus.textContent = "Status unavailable";
+    autoPublishSummaryStatus.className = "badge badge-muted";
   } finally {
     autoPublishBusy = false;
     autoPublishToggle.disabled = !adminToken;

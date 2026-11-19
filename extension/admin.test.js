@@ -14,6 +14,7 @@ test("admin listings use the site font and provide circular-scoped bulk selectio
   assert.match(listings, /id="circular-filter"/);
   assert.match(listings, /id="select-all-jobs"/);
   assert.match(listings, /id="edit-selected"/);
+  assert.match(listings, /id="index-selected"[^>]*>Index all selected<\/button>/);
   assert.match(listings, /id="delete-selected"/);
   assert.match(listings, /class="job-list"/);
   assert.match(listings, /<option value="post-number">Post number<\/option>/);
@@ -51,14 +52,32 @@ test("the extension can toggle auto-publishing and shows its saved publication t
 });
 
 test("the extension shows submitted Google URLs and checks their actual Search Console index status", () => {
+  const indexingPanel = adminHtml.match(/<details class="automation-card indexing-history-card collapsible-card" id="indexing-history-panel">([\s\S]*?)<\/details>/)?.[0];
+  const connectionPanel = adminHtml.match(/<details class="settings-card collapsible-card" id="connection-panel">([\s\S]*?)<\/details>/)?.[0];
+  const autoPublishPanel = adminHtml.match(/<details class="automation-card collapsible-card" id="auto-publish-panel">([\s\S]*?)<\/details>/)?.[0];
+
+  assert.ok(indexingPanel);
+  assert.ok(connectionPanel);
+  assert.ok(autoPublishPanel);
+  assert.doesNotMatch(indexingPanel, /<details[^>]*\bopen\b/);
+  assert.doesNotMatch(connectionPanel, /<details[^>]*\bopen\b/);
+  assert.doesNotMatch(autoPublishPanel, /<details[^>]*\bopen\b/);
   assert.match(adminHtml, /id="indexing-history-title">Google indexing activity/);
   assert.match(adminHtml, /id="refresh-indexing-history"/);
   assert.match(adminHtml, /id="indexing-history-body"/);
+  assert.match(adminHtml, /id="connection-badge"/);
+  assert.match(adminHtml, /id="auto-publish-summary-status"/);
   assert.match(adminHtml, /Google acceptance does not mean a page is indexed/);
   assert.match(adminJs, /async function requestIndexingHistory\(\)/);
   assert.match(adminJs, /async function inspectIndexingUrl\(url\)/);
   assert.match(adminJs, /async function refreshIndexingHistory\(\)/);
+  assert.match(adminJs, /indexSelectedButton\.addEventListener\("click"/);
+  assert.match(adminJs, /indexingSubmissionsByJobId/);
+  assert.match(adminJs, /Submitted · Pending indexing/);
+  assert.match(adminJs, /Submitted · Not indexed/);
   assert.match(adminJs, /Check status/);
   assert.match(adminJs, /verdict === "PASS" \? "Indexed"/);
+  assert.match(adminCss, /\.collapsible-card\[open\] > \.panel-summary::after/);
+  assert.match(adminCss, /\.job-indexing-status\.indexing-indexed/);
   assert.match(adminJs, /Successful requests made after this feature is deployed will appear here/);
 });

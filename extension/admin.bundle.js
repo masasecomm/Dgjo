@@ -47663,8 +47663,11 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   var autoPublishHistory = document.querySelector("#auto-publish-history");
   var indexingHistoryBody = document.querySelector("#indexing-history-body");
   var indexingHistoryStatus = document.querySelector("#indexing-history-status");
+  var indexingHistorySummary = document.querySelector("#indexing-history-summary");
   var refreshIndexingHistoryButton = document.querySelector("#refresh-indexing-history");
+  var autoPublishSummaryStatus = document.querySelector("#auto-publish-summary-status");
   var connectionBadge = document.querySelector("#connection-badge");
+  var connectionPanel = document.querySelector("#connection-panel");
   var connectedDetails = document.querySelector("#connected-details");
   var connectedUrl = document.querySelector("#connected-url");
   var jobSearch = document.querySelector("#job-search");
@@ -47675,6 +47678,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   var selectAllJobs = document.querySelector("#select-all-jobs");
   var selectionCount = document.querySelector("#selection-count");
   var editSelectedButton = document.querySelector("#edit-selected");
+  var indexSelectedButton = document.querySelector("#index-selected");
   var deleteSelectedButton = document.querySelector("#delete-selected");
   var dialog = document.querySelector("#job-dialog");
   var form = document.querySelector("#job-form");
@@ -47703,6 +47707,12 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
   var publishInProgress = false;
   var autoPublishBusy = false;
   var indexingHistoryBusy = false;
+  var selectedIndexingBusy = false;
+  var indexingSubmissionsByJobId = /* @__PURE__ */ new Map();
+  var submittedJobIds = /* @__PURE__ */ new Set();
+  var indexingInProgress = /* @__PURE__ */ new Set();
+  var indexingFailures = /* @__PURE__ */ new Map();
+  var selectedIndexingProgress;
   function showToast(message, isError = false) {
     toast.textContent = message;
     toast.classList.toggle("error", isError);
@@ -47819,6 +47829,20 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     }
     return result.submissions;
   }
+  function getIndexingStatus(jobId) {
+    if (indexingInProgress.has(jobId)) return { label: "Submitting to Google\u2026", className: "indexing-pending" };
+    if (indexingFailures.has(jobId)) return { label: `Request failed: ${indexingFailures.get(jobId)}`, className: "indexing-failed" };
+    const submission = indexingSubmissionsByJobId.get(jobId);
+    if (!submission && submittedJobIds.has(jobId)) return { label: "Submitted \xB7 Pending indexing", className: "indexing-pending" };
+    if (!submission) return { label: "Not submitted", className: "indexing-unsubmitted" };
+    const verdict = submission.indexStatus?.verdict;
+    if (verdict === "PASS") return { label: "Indexed", className: "indexing-indexed" };
+    if (verdict === "FAIL") return { label: "Submitted \xB7 Not indexed", className: "indexing-not-indexed" };
+    if (verdict === "PARTIAL" || verdict === "NEUTRAL") {
+      return { label: `Submitted \xB7 ${submission.indexStatus.coverageState || "Pending"}`, className: "indexing-pending" };
+    }
+    return { label: "Submitted \xB7 Pending indexing", className: "indexing-pending" };
+  }
   async function inspectIndexingUrl(url) {
     const endpoint = new URL(apiUrl);
     endpoint.pathname = "/api/indexing/inspect";
@@ -47848,6 +47872,11 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     return Number.isNaN(date.getTime()) ? String(value ?? "Unknown") : date.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", dateStyle: "medium", timeStyle: "short" }) + " SAST";
   }
   function renderIndexingHistory(submissions) {
+    indexingSubmissionsByJobId = new Map(submissions.map((submission) => [submission.jobId, submission]));
+    for (const submission of submissions) submittedJobIds.delete(submission.jobId);
+    indexingHistorySummary.textContent = `${submissions.length} URL${submissions.length === 1 ? "" : "s"} submitted`;
+    indexingHistorySummary.classList.toggle("badge-connected", submissions.length > 0);
+    indexingHistorySummary.classList.toggle("badge-muted", submissions.length === 0);
     indexingHistoryBody.replaceChildren();
     if (!submissions.length) {
       const row = document.createElement("tr");
@@ -47898,6 +47927,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
           await inspectIndexingUrl(submission.url);
           const refreshed = await requestIndexingHistory();
           renderIndexingHistory(refreshed);
+          renderJobs();
           indexingHistoryStatus.textContent = "Google Search Console status updated. This shows Google's last inspection result, not a guarantee of future indexing.";
         } catch (error) {
           indexingHistoryStatus.classList.add("error");
@@ -47920,6 +47950,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     try {
       const submissions = await requestIndexingHistory();
       renderIndexingHistory(submissions);
+      renderJobs();
       indexingHistoryStatus.textContent = submissions.length ? `${submissions.length} URL${submissions.length === 1 ? "" : "s"} accepted for notification. Indexed status is only shown after checking each URL.` : "No requests have been recorded yet. Successful requests made after this feature is deployed will appear here.";
     } catch (error) {
       indexingHistoryStatus.classList.add("error");
@@ -47961,6 +47992,8 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     if (!apiUrl || !adminToken) return;
     autoPublishBusy = true;
     autoPublishToggle.disabled = true;
+    autoPublishSummaryStatus.textContent = "Loading status\u2026";
+    autoPublishSummaryStatus.className = "badge badge-muted";
     autoPublishStatus.classList.remove("error");
     autoPublishStatus.textContent = "Loading automatic publishing settings and history\u2026";
     try {
@@ -47972,11 +48005,15 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         throw new Error("The Worker returned invalid automatic publishing data.");
       }
       autoPublishToggle.checked = settings.enabled;
+      autoPublishSummaryStatus.textContent = settings.enabled ? "Enabled" : "Disabled";
+      autoPublishSummaryStatus.className = `badge ${settings.enabled ? "badge-connected" : "badge-muted"}`;
       autoPublishStatus.textContent = settings.enabled ? "Auto publish is on. The Friday monitor will check for new DPSA circulars." : "Auto publish is off. Turn it on here to enable the Friday circular monitor.";
       renderAutoPublishHistory(history.publications);
     } catch (error) {
       autoPublishStatus.classList.add("error");
       autoPublishStatus.textContent = `Could not load auto-publish settings: ${error.message}`;
+      autoPublishSummaryStatus.textContent = "Status unavailable";
+      autoPublishSummaryStatus.className = "badge badge-muted";
       renderAutoPublishHistory([]);
     } finally {
       autoPublishBusy = false;
@@ -48005,6 +48042,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       connectedDetails.hidden = false;
       forgetButton.hidden = false;
       connectedUrl.textContent = url.origin;
+      connectionPanel.open = false;
       setConnected(true);
       renderJobs();
       renderImportedVacancies();
@@ -48074,10 +48112,12 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     const selectedCount = selectedJobIds.size;
     selectAllJobs.checked = visibleJobs.length > 0 && visibleSelectedCount === visibleJobs.length;
     selectAllJobs.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleJobs.length;
-    selectAllJobs.disabled = !adminToken || visibleJobs.length === 0;
+    selectAllJobs.disabled = !adminToken || visibleJobs.length === 0 || selectedIndexingBusy;
     selectionCount.textContent = `${selectedCount} selected`;
-    editSelectedButton.disabled = !adminToken || selectedCount !== 1;
-    deleteSelectedButton.disabled = !adminToken || selectedCount === 0;
+    editSelectedButton.disabled = !adminToken || selectedCount !== 1 || selectedIndexingBusy;
+    indexSelectedButton.disabled = !adminToken || selectedCount === 0 || selectedIndexingBusy;
+    indexSelectedButton.textContent = selectedIndexingBusy ? selectedIndexingProgress ? `Indexing ${selectedIndexingProgress.current} of ${selectedIndexingProgress.total}\u2026` : "Indexing selected\u2026" : `Index all selected${selectedCount ? ` (${selectedCount})` : ""}`;
+    deleteSelectedButton.disabled = !adminToken || selectedCount === 0 || selectedIndexingBusy;
     deleteSelectedButton.textContent = selectedCount ? `Delete selected (${selectedCount})` : "Delete selected";
   }
   function renderJobs() {
@@ -48110,6 +48150,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       checkbox.className = "job-select";
       checkbox.dataset.jobId = job.id;
       checkbox.checked = selectedJobIds.has(job.id);
+      checkbox.disabled = selectedIndexingBusy;
       checkbox.setAttribute("aria-label", `Select Post ${job.postNo || "number not stated"}: ${displayVacancyTitle(job.title)}`);
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) selectedJobIds.add(job.id);
@@ -48141,6 +48182,11 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         metadata.append(location);
       }
       details.append(title, metadata);
+      const indexingStatus = document.createElement("span");
+      const jobIndexingStatus = getIndexingStatus(job.id);
+      indexingStatus.className = `job-indexing-status ${jobIndexingStatus.className}`;
+      indexingStatus.textContent = `Google: ${jobIndexingStatus.label}`;
+      details.append(indexingStatus);
       const actions = document.createElement("div");
       actions.className = "job-actions";
       const edit = document.createElement("button");
@@ -48151,23 +48197,28 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       index.type = "button";
       index.textContent = "Request indexing";
       index.setAttribute("aria-label", `Request Google indexing for ${displayVacancyTitle(job.title)}`);
-      index.disabled = !adminToken;
+      index.disabled = !adminToken || indexingInProgress.has(job.id) || selectedIndexingBusy;
       index.addEventListener("click", async () => {
-        index.disabled = true;
-        index.textContent = "Requesting\u2026";
+        indexingFailures.delete(job.id);
+        indexingInProgress.add(job.id);
+        renderJobs();
         try {
           const result = await requestGoogleIndexing(job.id);
+          submittedJobIds.add(job.id);
           if (result.historySaved) {
             await refreshIndexingHistory();
             showToast(`Google accepted an indexing notification for ${result.url}.`);
           } else {
+            renderJobs();
             showToast(`Google accepted ${result.url}, but the Worker could not save it in the extension history.`, true);
           }
         } catch (error) {
+          indexingFailures.set(job.id, error.message);
+          renderJobs();
           showToast(`Indexing request failed: ${error.message}`, true);
         } finally {
-          index.disabled = !adminToken;
-          index.textContent = "Request indexing";
+          indexingInProgress.delete(job.id);
+          renderJobs();
         }
       });
       actions.append(edit, index);
@@ -48565,6 +48616,9 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     adminToken = void 0;
     jobs = [];
     selectedJobIds.clear();
+    submittedJobIds.clear();
+    indexingSubmissionsByJobId.clear();
+    indexingFailures.clear();
     tokenInput.value = "";
     apiUrlInput.value = DEFAULT_API_URL;
     connectionForm.hidden = false;
@@ -48575,6 +48629,8 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     autoPublishToggle.checked = false;
     autoPublishStatus.classList.remove("error");
     autoPublishStatus.textContent = "Connect to the Worker to manage automatic publishing.";
+    autoPublishSummaryStatus.textContent = "Connect to check status";
+    autoPublishSummaryStatus.className = "badge badge-muted";
     renderAutoPublishHistory([]);
     indexingHistoryStatus.classList.remove("error");
     indexingHistoryStatus.textContent = "Connect to the Worker to load submitted URLs.";
@@ -48608,6 +48664,47 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     }
   });
   refreshIndexingHistoryButton.addEventListener("click", refreshIndexingHistory);
+  indexSelectedButton.addEventListener("click", async () => {
+    const selectedJobs = jobs.filter((job) => selectedJobIds.has(job.id));
+    if (!selectedJobs.length || selectedIndexingBusy) return;
+    selectedIndexingBusy = true;
+    const failures = [];
+    let historySaveFailures = 0;
+    let submitted = 0;
+    selectedIndexingProgress = { current: 0, total: selectedJobs.length };
+    updateSelectionControls(getVisibleJobs());
+    renderJobs();
+    for (const [index, job] of selectedJobs.entries()) {
+      selectedIndexingProgress.current = index + 1;
+      indexingFailures.delete(job.id);
+      indexingInProgress.add(job.id);
+      renderJobs();
+      try {
+        const result = await requestGoogleIndexing(job.id);
+        submittedJobIds.add(job.id);
+        if (!result.historySaved) {
+          historySaveFailures += 1;
+        }
+        submitted += 1;
+      } catch (error) {
+        indexingFailures.set(job.id, error.message);
+        failures.push(`${displayVacancyTitle(job.title)}: ${error.message}`);
+      } finally {
+        indexingInProgress.delete(job.id);
+        renderJobs();
+      }
+    }
+    await refreshIndexingHistory();
+    selectedIndexingBusy = false;
+    selectedIndexingProgress = void 0;
+    updateSelectionControls(getVisibleJobs());
+    const historyWarning = historySaveFailures ? ` ${historySaveFailures} accepted request${historySaveFailures === 1 ? " could not" : "s could not"} be saved in extension history.` : "";
+    if (failures.length) {
+      showToast(`Indexing finished: ${submitted} accepted; ${failures.length} failed. ${failures[0]}${historyWarning}`, true);
+    } else {
+      showToast(`Google accepted indexing requests for all ${submitted} selected ${submitted === 1 ? "vacancy" : "vacancies"}.${historyWarning}`, historySaveFailures > 0);
+    }
+  });
   autoPublishToggle.addEventListener("change", async () => {
     const enabled = autoPublishToggle.checked;
     autoPublishBusy = true;
@@ -48620,10 +48717,14 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
         throw new Error("The Worker did not confirm the requested setting.");
       }
       autoPublishStatus.textContent = enabled ? "Auto publish is on. The Friday monitor will check for new DPSA circulars." : "Auto publish is off. The Friday circular monitor will skip publishing.";
+      autoPublishSummaryStatus.textContent = enabled ? "Enabled" : "Disabled";
+      autoPublishSummaryStatus.className = `badge ${enabled ? "badge-connected" : "badge-muted"}`;
     } catch (error) {
       autoPublishToggle.checked = !enabled;
       autoPublishStatus.classList.add("error");
       autoPublishStatus.textContent = `Could not save auto-publish setting: ${error.message}`;
+      autoPublishSummaryStatus.textContent = "Status unavailable";
+      autoPublishSummaryStatus.className = "badge badge-muted";
     } finally {
       autoPublishBusy = false;
       autoPublishToggle.disabled = !adminToken;

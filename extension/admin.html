@@ -31,62 +31,78 @@
       </div>
     </section>
 
-    <section class="settings-card" aria-labelledby="connection-title">
-      <div class="settings-heading">
-        <div>
-          <h2 id="connection-title">Publishing connection</h2>
-          <p>Connect once. Your connection details are remembered on this Chrome profile.</p>
+    <details class="settings-card collapsible-card" id="connection-panel">
+      <summary class="panel-summary">
+        <div class="settings-heading">
+          <div>
+            <h2 id="connection-title">Publishing connection</h2>
+            <p>Connect once. Your connection details are remembered on this Chrome profile.</p>
+          </div>
+          <span id="connection-badge" class="badge badge-muted"><span class="badge-dot"></span> Not connected</span>
         </div>
-        <span id="connection-badge" class="badge badge-muted"><span class="badge-dot"></span> Not connected</span>
+      </summary>
+      <div class="panel-content">
+        <form id="connection-form" class="connection-form">
+          <label class="field"><span>Worker API URL</span><input id="api-url" type="url" placeholder="https://your-worker.workers.dev/api/jobs" autocomplete="url" required></label>
+          <label class="field"><span>Admin key</span><input id="admin-token" type="password" placeholder="Enter your Cloudflare secret" autocomplete="new-password" required></label>
+          <div class="connection-actions">
+            <button id="connect" class="button button-dark" type="submit">Connect and save</button>
+            <span class="privacy-note">Saved only in Chrome on this device. Never shared with the website.</span>
+          </div>
+        </form>
+        <div id="connected-details" class="connected-details" hidden>
+          <div><span class="connected-dot"></span><span id="connected-url"></span></div>
+          <div class="connected-actions">
+            <button id="change-connection" class="text-button" type="button">Change connection</button>
+            <button id="forget-credentials" class="text-button" type="button">Forget saved credentials</button>
+          </div>
+        </div>
       </div>
-      <form id="connection-form" class="connection-form">
-        <label class="field"><span>Worker API URL</span><input id="api-url" type="url" placeholder="https://your-worker.workers.dev/api/jobs" autocomplete="url" required></label>
-        <label class="field"><span>Admin key</span><input id="admin-token" type="password" placeholder="Enter your Cloudflare secret" autocomplete="new-password" required></label>
-        <div class="connection-actions">
-          <button id="connect" class="button button-dark" type="submit">Connect and save</button>
-          <span class="privacy-note">Saved only in Chrome on this device. Never shared with the website.</span>
-        </div>
-      </form>
-      <div id="connected-details" class="connected-details" hidden>
-        <div><span class="connected-dot"></span><span id="connected-url"></span></div>
-        <div class="connected-actions">
-          <button id="change-connection" class="text-button" type="button">Change connection</button>
-          <button id="forget-credentials" class="text-button" type="button">Forget saved credentials</button>
-        </div>
-      </div>
-    </section>
+    </details>
 
-    <section class="automation-card" aria-labelledby="auto-publish-title">
-      <div class="automation-heading">
-        <div>
-          <h2 id="auto-publish-title">Automatic circular publishing</h2>
-          <p>When enabled, the Friday monitor publishes new circulars and records the publication time here.</p>
+    <details class="automation-card collapsible-card" id="auto-publish-panel">
+      <summary class="panel-summary">
+        <div class="automation-heading">
+          <div>
+            <h2 id="auto-publish-title">Automatic circular publishing</h2>
+            <p>When enabled, the Friday monitor publishes new circulars and records the publication time here.</p>
+          </div>
+          <span id="auto-publish-summary-status" class="badge badge-muted">Connect to check status</span>
         </div>
-        <label class="automation-switch"><input id="auto-publish-toggle" type="checkbox" disabled><span aria-hidden="true"></span><strong>Auto publish</strong></label>
+      </summary>
+      <div class="panel-content">
+        <div class="automation-heading">
+          <label class="automation-switch"><input id="auto-publish-toggle" type="checkbox" disabled><span aria-hidden="true"></span><strong>Auto publish</strong></label>
+        </div>
+        <p id="auto-publish-status" class="automation-status" role="status" aria-live="polite">Connect to the Worker to manage automatic publishing.</p>
+        <div class="automation-history">
+          <h3>Recent automatic publications</h3>
+          <ol id="auto-publish-history"><li class="automation-empty">Connect to load publication history.</li></ol>
+        </div>
       </div>
-      <p id="auto-publish-status" class="automation-status" role="status" aria-live="polite">Connect to the Worker to manage automatic publishing.</p>
-      <div class="automation-history">
-        <h3>Recent automatic publications</h3>
-        <ol id="auto-publish-history"><li class="automation-empty">Connect to load publication history.</li></ol>
-      </div>
-    </section>
+    </details>
 
-    <section class="automation-card indexing-history-card" aria-labelledby="indexing-history-title">
-      <div class="automation-heading">
-        <div>
-          <h2 id="indexing-history-title">Google indexing activity</h2>
-          <p>Review URLs Google accepted for notification, then check their actual Search Console index status. Google acceptance does not mean a page is indexed.</p>
+    <details class="automation-card indexing-history-card collapsible-card" id="indexing-history-panel">
+      <summary class="panel-summary">
+        <div class="automation-heading">
+          <div>
+            <h2 id="indexing-history-title">Google indexing activity</h2>
+            <p>See submitted URLs and check their actual Search Console index status. Google acceptance does not mean a page is indexed.</p>
+          </div>
+          <span id="indexing-history-summary" class="badge badge-muted">Connect to load history</span>
         </div>
+      </summary>
+      <div class="panel-content">
+        <p id="indexing-history-status" class="automation-status" role="status" aria-live="polite">Connect to the Worker to load submitted URLs.</p>
         <button id="refresh-indexing-history" class="button button-light" type="button" disabled>Refresh history</button>
+        <div class="indexing-table-wrap">
+          <table class="indexing-table">
+            <thead><tr><th>Vacancy</th><th>URL</th><th>Last submitted</th><th>Google index status</th><th>Action</th></tr></thead>
+            <tbody id="indexing-history-body"><tr><td colspan="5" class="automation-empty">Connect to load Google indexing history.</td></tr></tbody>
+          </table>
+        </div>
       </div>
-      <p id="indexing-history-status" class="automation-status" role="status" aria-live="polite">Connect to the Worker to load submitted URLs.</p>
-      <div class="indexing-table-wrap">
-        <table class="indexing-table">
-          <thead><tr><th>Vacancy</th><th>URL</th><th>Last submitted</th><th>Google index status</th><th>Action</th></tr></thead>
-          <tbody id="indexing-history-body"><tr><td colspan="5" class="automation-empty">Connect to load Google indexing history.</td></tr></tbody>
-        </table>
-      </div>
-    </section>
+    </details>
 
     <section class="import-section" aria-labelledby="import-title">
       <div class="import-heading">
@@ -143,6 +159,7 @@
           <label class="select-all-label"><input id="select-all-jobs" type="checkbox" disabled> Select all</label>
           <span id="selection-count" class="selection-count" aria-live="polite">0 selected</span>
           <button id="edit-selected" class="button button-light" type="button" disabled>Edit selected</button>
+          <button id="index-selected" class="button button-light" type="button" disabled>Index all selected</button>
           <button id="delete-selected" class="button button-danger" type="button" disabled>Delete selected</button>
         </div>
         <label class="sort-label">Sort <select id="sort-jobs" disabled><option value="post-number">Post number</option><option value="recent">Recently added</option><option value="date-newest">Date (newest)</option><option value="title-asc">A–Z</option><option value="title-desc">Z–A</option></select></label>

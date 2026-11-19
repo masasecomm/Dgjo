@@ -41,6 +41,18 @@ h1 { margin-bottom: 8px; font-family: "Jost", Arial, Helvetica, sans-serif; font
 .button-light:hover { background: #f5f6f1; }
 .settings-card { padding: 21px 23px 20px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
 .automation-card { margin-top: 16px; padding: 21px 23px 20px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+.collapsible-card { padding: 0; }
+.panel-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 23px; cursor: pointer; list-style: none; }
+.panel-summary::-webkit-details-marker { display: none; }
+.panel-summary::after { flex: 0 0 auto; color: #64734f; font-size: 19px; font-weight: 500; content: "+"; }
+.collapsible-card[open] > .panel-summary::after { content: "−"; }
+.panel-summary:focus-visible { outline: 3px solid #dfeccf; outline-offset: -3px; }
+.panel-summary h2 { margin: 0 0 5px; font-family: "Jost", Arial, Helvetica, sans-serif; font-size: 15px; letter-spacing: 0; }
+.panel-summary p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.panel-content { padding: 0 23px 21px; border-top: 1px solid #f0f0eb; }
+.panel-content > .automation-heading:first-child { padding-top: 15px; }
+.panel-summary .settings-heading, .panel-summary .automation-heading { flex: 1; align-items: center; }
+.panel-summary .settings-heading h2, .panel-summary .automation-heading h2 { margin-top: 0; }
 .automation-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .automation-heading h2, .automation-history h3 { margin: 0 0 5px; font-family: "Jost", Arial, Helvetica, sans-serif; font-size: 15px; letter-spacing: 0; }
 .automation-heading p { max-width: 650px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
@@ -155,6 +167,10 @@ h1 { margin-bottom: 8px; font-family: "Jost", Arial, Helvetica, sans-serif; font
 .job-metadata { display: flex; flex-wrap: wrap; gap: 3px 14px; color: #68717d; font-size: 13px; line-height: 1.5; }
 .job-metadata span + span::before { content: "·"; margin-right: 14px; color: #a3acb7; }
 .job-post-number { color: #17499e; font-weight: 600; }
+.job-indexing-status { display: inline-flex; width: fit-content; max-width: 100%; margin-top: 6px; padding: 3px 7px; border-radius: 4px; background: #f0f1ed; color: #646a5e; font-size: 10px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.job-indexing-status.indexing-pending { background: #fff6df; color: #846316; }
+.job-indexing-status.indexing-indexed { background: #eaf4e5; color: #42712c; }
+.job-indexing-status.indexing-not-indexed, .job-indexing-status.indexing-failed { background: #fff0ee; color: #a44c43; }
 .job-actions { display: flex; gap: 5px; }
 .job-actions button { min-height: 34px; padding: 0 13px; border: 1px solid #dce3ed; border-radius: 5px; background: #fff; color: #17499e; font-size: 12px; font-weight: 600; }
 .job-actions button:hover { background: #f1f6fc; }
@@ -189,6 +205,10 @@ dialog::backdrop { background: #1a1f18aa; backdrop-filter: blur(3px); }
   .page-actions .button { flex: 1; }
   .settings-card { padding: 17px; }
   .automation-card { padding: 17px; }
+  .collapsible-card { padding: 0; }
+  .panel-summary { padding: 17px; }
+  .panel-content { padding: 0 17px 17px; }
+  .panel-summary .settings-heading, .panel-summary .automation-heading { align-items: flex-start; }
   .import-section { padding: 17px; }
   .import-tools { grid-template-columns: 1fr; }
   .discover-row { grid-column: 1; }
