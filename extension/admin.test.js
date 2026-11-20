@@ -109,6 +109,7 @@ test("the extension shows submitted Google URLs and checks their actual Search C
   assert.match(adminHtml, /id="indexing-history-title">Google indexing activity/);
   assert.match(adminHtml, /id="refresh-indexing-history"/);
   assert.match(adminHtml, /id="indexing-history-body"/);
+  assert.match(adminHtml, /submitting the same URL again will not make it happen faster/);
   assert.match(adminHtml, /id="connection-badge"/);
   assert.match(adminHtml, /id="auto-publish-summary-status"/);
   assert.match(adminHtml, /Google acceptance does not mean a page is indexed/);
@@ -124,6 +125,8 @@ test("the extension shows submitted Google URLs and checks their actual Search C
   assert.match(adminJs, /indexingSubmissionsByJobId/);
   assert.match(adminJs, /Submitted · Pending indexing/);
   assert.match(adminJs, /Submitted · Not indexed/);
+  assert.match(adminJs, /hasUnknownGoogleUrlStatus/);
+  assert.match(adminJs, /Awaiting Google discovery/);
   assert.match(adminJs, /Check status/);
   assert.match(adminJs, /verdict === "PASS" \? "Indexed"/);
   assert.match(adminCss, /\.collapsible-card\[open\] > \.panel-summary::after/);

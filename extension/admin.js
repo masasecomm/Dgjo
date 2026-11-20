@@ -278,10 +278,17 @@ function getIndexingStatus(jobId) {
   const verdict = submission.indexStatus?.verdict;
   if (verdict === "PASS") return { label: "Indexed", className: "indexing-indexed" };
   if (verdict === "FAIL") return { label: "Submitted · Not indexed", className: "indexing-not-indexed" };
+  if (hasUnknownGoogleUrlStatus(submission.indexStatus)) {
+    return { label: "Submitted · Awaiting Google discovery", className: "indexing-pending" };
+  }
   if (verdict === "PARTIAL" || verdict === "NEUTRAL") {
     return { label: `Submitted · ${submission.indexStatus.coverageState || "Pending"}`, className: "indexing-pending" };
   }
   return { label: "Submitted · Pending indexing", className: "indexing-pending" };
+}
+
+function hasUnknownGoogleUrlStatus(indexStatus) {
+  return indexStatus?.verdict === "NEUTRAL" && /url is unknown to google/i.test(indexStatus.coverageState || "");
 }
 
 function getIndexingStatusClass(jobId) {
@@ -370,7 +377,9 @@ function renderIndexingHistory(submissions) {
       const statusText = verdict === "PASS" ? "Indexed"
         : verdict === "FAIL" ? "Not indexed"
           : verdict === "PARTIAL" ? "Partially indexed"
-            : verdict === "NEUTRAL" ? "Not indexed (neutral)"
+            : verdict === "NEUTRAL" ? hasUnknownGoogleUrlStatus(submission.indexStatus)
+              ? "Awaiting Google discovery"
+              : "Pending Google assessment"
               : verdict;
       statusCell.textContent = `${statusText}${coverageState ? ` · ${coverageState}` : ""}${lastCrawlTime ? ` · Last crawled ${formatIndexingDate(lastCrawlTime)}` : ""} · Checked ${formatIndexingDate(submission.inspectedAt)}`;
       statusCell.classList.toggle("indexed", verdict === "PASS");

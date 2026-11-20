@@ -47902,10 +47902,16 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
     const verdict = submission.indexStatus?.verdict;
     if (verdict === "PASS") return { label: "Indexed", className: "indexing-indexed" };
     if (verdict === "FAIL") return { label: "Submitted \xB7 Not indexed", className: "indexing-not-indexed" };
+    if (hasUnknownGoogleUrlStatus(submission.indexStatus)) {
+      return { label: "Submitted \xB7 Awaiting Google discovery", className: "indexing-pending" };
+    }
     if (verdict === "PARTIAL" || verdict === "NEUTRAL") {
       return { label: `Submitted \xB7 ${submission.indexStatus.coverageState || "Pending"}`, className: "indexing-pending" };
     }
     return { label: "Submitted \xB7 Pending indexing", className: "indexing-pending" };
+  }
+  function hasUnknownGoogleUrlStatus(indexStatus) {
+    return indexStatus?.verdict === "NEUTRAL" && /url is unknown to google/i.test(indexStatus.coverageState || "");
   }
   function getIndexingStatusClass(jobId) {
     return getIndexingStatus(jobId).className;
@@ -47984,7 +47990,7 @@ ${text.slice(0, 12e3)}`.match(/(?:CIRCULAR|PUBLICATION\s+NO\.?)\s*(\d{1,2})\s*(?
       statusCell.className = "indexing-status";
       if (submission.indexStatus) {
         const { verdict, coverageState, lastCrawlTime } = submission.indexStatus;
-        const statusText = verdict === "PASS" ? "Indexed" : verdict === "FAIL" ? "Not indexed" : verdict === "PARTIAL" ? "Partially indexed" : verdict === "NEUTRAL" ? "Not indexed (neutral)" : verdict;
+        const statusText = verdict === "PASS" ? "Indexed" : verdict === "FAIL" ? "Not indexed" : verdict === "PARTIAL" ? "Partially indexed" : verdict === "NEUTRAL" ? hasUnknownGoogleUrlStatus(submission.indexStatus) ? "Awaiting Google discovery" : "Pending Google assessment" : verdict;
         statusCell.textContent = `${statusText}${coverageState ? ` \xB7 ${coverageState}` : ""}${lastCrawlTime ? ` \xB7 Last crawled ${formatIndexingDate(lastCrawlTime)}` : ""} \xB7 Checked ${formatIndexingDate(submission.inspectedAt)}`;
         statusCell.classList.toggle("indexed", verdict === "PASS");
         statusCell.classList.toggle("not-indexed", verdict === "FAIL");
