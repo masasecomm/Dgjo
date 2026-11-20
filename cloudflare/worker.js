@@ -33,6 +33,8 @@ import {
 } from "../salary-scales.js";
 
 const JOBS_KEY = "published-jobs";
+const PUBLISHED_JOBS_CACHE_TTL_MS = 30_000;
+const publishedJobsCache = new WeakMap();
 const AUTO_PUBLISH_SETTINGS_KEY = "dpsa-auto-publish:settings";
 const AUTO_PUBLISH_HISTORY_KEY = "dpsa-auto-publish:history";
 const MAX_AUTO_PUBLISH_HISTORY = 100;
@@ -951,13 +953,24 @@ function prunePublishedJobs(jobs, now = Date.now()) {
 }
 
 async function loadPublishedJobs(env) {
+  const cached = publishedJobsCache.get(env.JOBS);
+  if (cached && cached.expiresAt > Date.now()) return cached.jobs;
+
   const savedJobs = await env.JOBS.get(JOBS_KEY, "json");
   const sourceJobs = savedJobs ?? defaultJobs;
   const cleaned = prunePublishedJobs(sourceJobs);
   if (savedJobs && cleaned.changed) {
     await env.JOBS.put(JOBS_KEY, JSON.stringify(cleaned.jobs));
   }
+  cachePublishedJobs(env, cleaned.jobs);
   return cleaned.jobs;
+}
+
+function cachePublishedJobs(env, jobs) {
+  publishedJobsCache.set(env.JOBS, {
+    jobs,
+    expiresAt: Date.now() + PUBLISHED_JOBS_CACHE_TTL_MS
+  });
 }
 
 function hiringOrganizationName(job) {
@@ -1116,31 +1129,35 @@ function selectRelatedJobs(job, jobs) {
   const province = normalizeProvince(job.province);
   const company = String(job.company ?? "").trim().toLowerCase();
   const circularName = canonicalCircularName(job.circularName);
-
-  return jobs
-    .filter(candidate =>
-      candidate.id !== job.id &&
-      candidate.slug !== job.slug &&
-      !isExpired(candidate) &&
-      typeof candidate.title === "string" &&
-      typeof candidate.company === "string"
-    )
-    .map(candidate => {
-      const sharedTitleTerms = [...relatedTitleTerms(candidate)].filter(term => titleTerms.has(term)).length;
-      const score =
-        (province && normalizeProvince(candidate.province) === province ? 5 : 0) +
+  const relatedJobs = [];
+  const compareRelatedJobs = (left, right) =>
+    right.score - left.score ||
+    compareCircularNames(left.candidate.circularName, right.candidate.circularName) ||
+    displayJobTitle(left.candidate.title).localeCompare(displayJobTitle(right.candidate.title), "en-ZA");
+  for (const candidate of jobs) {
+    if (candidate.id === job.id ||
+        jobSlug(candidate) === job.slug ||
+        typeof candidate.title !== "string") continue;
+    const verifiedFacts = VERIFIED_CIRCULAR_FACTS.get(`${candidate.circularName ?? ""}|${candidate.postNo ?? ""}`);
+    const candidateCompany = verifiedFacts?.company || hiringOrganizationName(candidate);
+    if (!candidateCompany) continue;
+    const sharedTitleTerms = [...relatedTitleTerms(candidate)].filter(term => titleTerms.has(term)).length;
+    const relatedJob = {
+      candidate,
+      score:
+        (province && normalizeProvince(verifiedFacts?.province ?? candidate.province) === province ? 5 : 0) +
         sharedTitleTerms * 2 +
-        (company && String(candidate.company).trim().toLowerCase() === company ? 2 : 0) +
-        (circularName && canonicalCircularName(candidate.circularName) === circularName ? 1 : 0);
-      return { candidate, score };
-    })
-    .sort((left, right) =>
-      right.score - left.score ||
-      compareCircularNames(left.candidate.circularName, right.candidate.circularName) ||
-      displayJobTitle(left.candidate.title).localeCompare(displayJobTitle(right.candidate.title), "en-ZA")
-    )
-    .slice(0, 3)
-    .map(({ candidate }) => candidate);
+        (company && candidateCompany.toLowerCase() === company ? 2 : 0) +
+        (circularName && canonicalCircularName(candidate.circularName) === circularName ? 1 : 0)
+    };
+    let insertAt = 0;
+    while (insertAt < relatedJobs.length && compareRelatedJobs(relatedJobs[insertAt], relatedJob) <= 0) {
+      insertAt++;
+    }
+    relatedJobs.splice(insertAt, 0, relatedJob);
+    if (relatedJobs.length > 3) relatedJobs.pop();
+  }
+  return relatedJobs.map(({ candidate }) => publicJob(candidate));
 }
 
 function relatedJobsMarkup(job, jobs, origin, query = "") {
@@ -1555,7 +1572,7 @@ function vacancyPage(job, requestUrl, jobs) {
   const breadcrumbJsonLd = `<script type="application/ld+json">${jsonLdScript(breadcrumbSchema)}</script>`;
   const faq = vacancyFaqMarkup(vacancyFaq(job));
   const circularPage = String(job.circularPage ?? "").replace(/^page\s*/i, "").trim();
-  const circularNavigation = groupJobsByCircular(jobs.filter(candidate => !isExpired(candidate)))
+  const circularNavigation = groupJobsByCircular(jobs)
     .slice(-MAX_ACTIVE_CIRCULARS)
     .reverse()
     .map(group => `<a href="${SITE_URL}${group.path}">${escapeHtml(group.name)}<span>${group.jobs.length} ${group.jobs.length === 1 ? "job" : "jobs"}</span></a>`)
@@ -2060,8 +2077,7 @@ export default {
       }
 
       const jobs = await loadPublishedJobs(env);
-      const publicJobs = jobs.map(publicJob);
-      if (url.pathname === "/sitemap.xml") return sitemapResponse(publicJobs, url);
+      if (url.pathname === "/sitemap.xml") return sitemapResponse(jobs, url);
       const legacyJobPath = url.pathname.match(/^\/jobs\/([^/]+)\/?$/);
       if (legacyJobPath) {
         let jobId;
@@ -2074,7 +2090,7 @@ export default {
           candidate.id === jobId || candidate.slug === jobId ||
           jobSlug(candidate) === jobId || legacyJobSlug(candidate) === jobId
         );
-        const job = publicJobs[jobIndex];
+        const job = jobs[jobIndex];
         if (!job) return homeRedirect(legacyCircularRedirectTarget(url) ?? "/");
         if (isExpired(job)) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>This vacancy has closed. Check the official advert for current opportunities.</body></html>", 410, "noindex");
         return new Response(null, {
@@ -2097,10 +2113,10 @@ export default {
           candidate.slug === jobId || candidate.id === jobId ||
           jobSlug(candidate) === jobId || legacyJobSlug(candidate) === jobId
         );
-        const job = publicJobs[jobIndex];
+        const job = jobs[jobIndex];
         if (!job) return homeRedirect(legacyCircularRedirectTarget(url) ?? "/");
         if (isExpired(job)) return htmlResponse("<!doctype html><html><head><meta name=\"robots\" content=\"noindex\"></head><body>This vacancy has closed. Check the official advert for current opportunities.</body></html>", 410, "noindex");
-        if (jobId !== job.slug) {
+        if (jobId !== jobSlug(job)) {
           return new Response(null, {
             status: 301,
             headers: {
@@ -2109,7 +2125,7 @@ export default {
             }
           });
         }
-        return vacancyPage(job, url, publicJobs);
+        return vacancyPage(publicJob(job), url, jobs);
       }
       if (url.pathname !== "/api/jobs") {
         if (url.pathname.startsWith("/api/") || url.pathname === "/api") {
@@ -2124,7 +2140,7 @@ export default {
         }
         return jsonResponse(jobs);
       }
-      return jsonResponse(publicJobs.filter(job => !isExpired(job)));
+      return jsonResponse(jobs.map(publicJob));
     }
 
     if (url.pathname !== "/api/jobs") return jsonResponse({ error: "Not found." }, 404);
@@ -2164,6 +2180,7 @@ export default {
     }
 
     await env.JOBS.put(JOBS_KEY, serializedJobs);
+    cachePublishedJobs(env, cleanedJobs.jobs);
     const newJobs = cleanedJobs.jobs.filter(job => !previousIds.has(job.id));
     if (newJobs.length) {
       const sendAlerts = () => sendNewJobAlerts(env, newJobs);

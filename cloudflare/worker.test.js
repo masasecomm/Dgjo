@@ -876,6 +876,48 @@ test("links the job level to its salary guide section and shows three similar cu
   assert.doesNotMatch(html, /EXAMPLE CLOSED/);
 });
 
+test("renders a vacancy page from a large published-job collection", async () => {
+  const jobs = Array.from({ length: 1502 }, (_, index) => makeJob({
+    id: `assistant-director-example-${index + 1}`,
+    postNo: `1/${index + 1}`,
+    refNo: `EXAMPLE/${index + 1}`
+  }));
+  const canonicalPath = jobPagePath(jobs[0]);
+  const response = await worker.fetch(new Request(`https://jobs.example${canonicalPath}`), createEnv(jobs));
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.ok(html.includes(`<link rel="canonical" href="https://jobs.example${canonicalPath}">`));
+  assert.ok(html.includes('<h1 class="job-title">Assistant Director: Example</h1>'));
+});
+
+test("refreshes the per-isolate vacancy cache immediately after publishing", async () => {
+  const existingJob = makeJob();
+  const env = createEnv([existingJob]);
+  const initialResponse = await worker.fetch(new Request("https://jobs.example/api/jobs"), env);
+  assert.equal(initialResponse.status, 200);
+
+  const newJob = makeJob({
+    id: "community-liaison-example",
+    title: "Community Liaison",
+    postNo: "1/2",
+    refNo: "EXAMPLE/2"
+  });
+  const publishResponse = await worker.fetch(new Request("https://jobs.example/api/jobs", {
+    method: "PUT",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify([existingJob, newJob])
+  }), env);
+  assert.equal(publishResponse.status, 200);
+
+  const pageResponse = await worker.fetch(
+    new Request(`https://jobs.example${jobPagePath(newJob)}`),
+    env
+  );
+  assert.equal(pageResponse.status, 200);
+  assert.ok((await pageResponse.text()).includes("<h1 class=\"job-title\">Community Liaison</h1>"));
+});
+
 test("vacancy URLs use a short title slug and preserve the full post and reference numbers", async () => {
   const job = makeJob({
     title: "ASSISTANT DIRECTOR: SECURITY MANAGEMENT",
