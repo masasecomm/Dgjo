@@ -1,10 +1,6 @@
 name: Monitor and publish DPSA circulars
 
 on:
-  schedule:
-    # South Africa is UTC+2; these checks cover Friday 09:00 through 12:00 SAST.
-    - cron: "*/5 7-9 * * 5"
-    - cron: "0 10 * * 5"
   workflow_dispatch:
 
 permissions:

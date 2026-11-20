@@ -6,6 +6,25 @@ import { jobPagePath } from "../vacancy-url.js";
 const adminHtml = await readFile(new URL("./admin.html", import.meta.url), "utf8");
 const adminCss = await readFile(new URL("./admin.css", import.meta.url), "utf8");
 const adminJs = await readFile(new URL("./admin.js", import.meta.url), "utf8");
+const pagesWorkflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+const autoPublishWorkflow = await readFile(new URL("../.github/workflows/dpsa-auto-publish.yml", import.meta.url), "utf8");
+
+test("Friday auto-publishing runs inside the existing scheduled Pages build", () => {
+  assert.match(pagesWorkflow, /- cron: "0 7-10 \* \* 5"/);
+  assert.match(pagesWorkflow, /if: github\.event_name == 'schedule' && github\.event\.schedule == '0 7-10 \* \* 5'/);
+  assert.match(pagesWorkflow, /WORKER_ADMIN_TOKEN: \$\{\{ secrets\.WORKER_ADMIN_TOKEN \}\}[\s\S]*run: node scripts\/auto-publish-dpsa\.mjs/);
+  assert.match(autoPublishWorkflow, /workflow_dispatch:/);
+  assert.doesNotMatch(autoPublishWorkflow, /schedule:/);
+});
+
+test("the extension retries transient Worker failures and retains a minimal offline vacancy list", () => {
+  assert.match(adminJs, /for \(let attempt = 0; attempt < 3; attempt\+\+\)/);
+  assert.match(adminJs, /\[502, 503, 504\]\.includes\(response\.status\)/);
+  assert.match(adminJs, /const CACHED_JOBS_KEY = "goodworkAdminCachedJobs"/);
+  assert.match(adminJs, /Saved copy \(offline; reconnect to make changes\)/);
+  assert.match(adminJs, /Unavailable offline/);
+  assert.match(adminJs, /current Cloudflare ADMIN_TOKEN/);
+});
 
 test("Excel vacancy links use the public site's canonical permalink format", () => {
   const vacancy = {

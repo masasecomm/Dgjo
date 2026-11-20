@@ -28,6 +28,7 @@ import { jobPagePath } from "../vacancy-url.js";
 
 const DEFAULT_API_URL = "https://goodwork-jobs-api.dpsajobs.workers.dev/api/jobs";
 const SETTINGS_KEY = "goodworkAdminSettings";
+const CACHED_JOBS_KEY = "goodworkAdminCachedJobs";
 const MAX_PUBLISHED_JOBS = 6000;
 const MAX_JOB_LINKS = 100;
 const PUBLISHED_SITE_ORIGIN = "https://jobs.dpsagovernmentjobs.co.za";
@@ -80,6 +81,7 @@ const publishStatus = document.querySelector("#publish-status");
 let apiUrl;
 let adminToken;
 let jobs = [];
+let usingCachedJobs = false;
 const selectedJobIds = new Set();
 let toastTimer;
 const importedVacancies = new Map();
@@ -107,8 +109,8 @@ function setConnected(connected) {
   connectionBadge.classList.toggle("badge-connected", connected);
   connectionBadge.classList.toggle("badge-muted", !connected);
   connectionBadge.innerHTML = `<span class="badge-dot"></span> ${connected ? "Connected" : "Not connected"}`;
-  jobSearch.disabled = !connected;
-  sortJobs.disabled = !connected;
+  jobSearch.disabled = !connected && !usingCachedJobs;
+  sortJobs.disabled = !connected && !usingCachedJobs;
   indexingStatusFilter.disabled = !connected;
   refreshButton.disabled = !connected;
   refreshIndexingHistoryButton.disabled = !connected || indexingHistoryBusy;
@@ -137,20 +139,64 @@ async function requestPermission(url) {
 }
 
 async function readJobs(url, token) {
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok) {
-    let message = `Could not load jobs (HTTP ${response.status}).`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let response;
     try {
-      const result = await response.json();
-      if (typeof result.error === "string") message = result.error;
-    } catch {
-      // Use the HTTP status when the server does not return JSON.
+      response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20000)
+      });
+    } catch (error) {
+      if (attempt === 2) throw new Error(`Could not reach the Worker API: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      continue;
     }
-    throw new Error(message);
+    if (!response.ok) {
+      let message = `Could not load jobs (HTTP ${response.status}).`;
+      try {
+        const result = await response.json();
+        if (typeof result.error === "string") message = result.error;
+      } catch {
+        // Use the HTTP status when the server does not return JSON.
+      }
+      if ([502, 503, 504].includes(response.status) && attempt < 2) {
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        continue;
+      }
+      if (response.status === 401) {
+        throw new Error("The Worker rejected the saved admin key. Choose Change connection and enter the current Cloudflare ADMIN_TOKEN.");
+      }
+      if (response.status >= 500) {
+        throw new Error(`${message} Check that the production Worker is running and its required secrets are configured.`);
+      }
+      throw new Error(message);
+    }
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error("The Worker returned an invalid job list.");
+    }
+    if (!Array.isArray(data)) throw new Error("The Worker returned an invalid job list.");
+    return data;
   }
-  const data = await response.json();
-  if (!Array.isArray(data)) throw new Error("The Worker returned an invalid job list.");
-  return data;
+  throw new Error("Could not load jobs after retrying the Worker API.");
+}
+
+function cacheJobsSnapshot(nextJobs) {
+  const snapshot = nextJobs.map(job => ({
+    id: job.id,
+    title: job.title,
+    postNo: job.postNo,
+    refNo: job.refNo,
+    circularName: job.circularName,
+    circularDate: job.circularDate,
+    company: job.company,
+    location: job.location
+  }));
+  chrome.storage.local.set({ [CACHED_JOBS_KEY]: snapshot }).catch(error => {
+    console.error("Could not cache the latest vacancy list for offline viewing.", error);
+  });
 }
 
 async function requestAutomation(path, method = "GET", body) {
@@ -223,6 +269,7 @@ async function requestIndexingHistory() {
 }
 
 function getIndexingStatus(jobId) {
+  if (usingCachedJobs) return { label: "Unavailable offline", className: "indexing-unsubmitted" };
   if (indexingInProgress.has(jobId)) return { label: "Submitting to Google…", className: "indexing-pending" };
   if (indexingFailures.has(jobId)) return { label: `Request failed: ${indexingFailures.get(jobId)}`, className: "indexing-failed" };
   const submission = indexingSubmissionsByJobId.get(jobId);
@@ -490,10 +537,12 @@ async function connect(urlValue, tokenValue, askPermission) {
     apiUrl = url.href;
     adminToken = tokenValue;
     jobs = loadedJobs;
+    usingCachedJobs = false;
     selectedJobIds.clear();
     await chrome.storage.local.set({
       [SETTINGS_KEY]: { apiUrl, adminToken, origin: url.origin }
     });
+    cacheJobsSnapshot(loadedJobs);
 
     apiUrlInput.value = apiUrl;
     tokenInput.value = "";
@@ -513,7 +562,11 @@ async function connect(urlValue, tokenValue, askPermission) {
     if (askPermission) showToast(error.message, true);
     else {
       connectionForm.classList.add("connection-error");
+      usingCachedJobs = jobs.length > 0;
       setConnected(false);
+      if (jobs.length) {
+        renderJobs();
+      }
       showToast(`Could not reconnect: ${error.message} Enter your key and connect again.`, true);
     }
   } finally {
@@ -530,7 +583,7 @@ function updateCircularFilterOptions() {
     circularFilter.add(new Option(`${group.name} (${group.jobs.length})`, group.name));
   }
   circularFilter.value = groups.some(group => group.name === selectedCircular) ? selectedCircular : "";
-  circularFilter.disabled = !adminToken || groups.length === 0;
+  circularFilter.disabled = (!adminToken && !usingCachedJobs) || groups.length === 0;
 }
 
 function getVisibleJobs() {
@@ -597,7 +650,7 @@ function updateSelectionControls(visibleJobs) {
 function renderJobs() {
   updateCircularFilterOptions();
   const filtered = getVisibleJobs();
-  jobSummary.textContent = `${filtered.length} ${filtered.length === 1 ? "opportunity" : "opportunities"}${filtered.length !== jobs.length ? ` · ${jobs.length} total` : ""}`;
+  jobSummary.textContent = `${filtered.length} ${filtered.length === 1 ? "opportunity" : "opportunities"}${filtered.length !== jobs.length ? ` · ${jobs.length} total` : ""}${usingCachedJobs ? " · Saved copy (offline; reconnect to make changes)" : ""}`;
   jobList.replaceChildren();
 
   if (!filtered.length) {
@@ -627,7 +680,7 @@ function renderJobs() {
     checkbox.className = "job-select";
     checkbox.dataset.jobId = job.id;
     checkbox.checked = selectedJobIds.has(job.id);
-    checkbox.disabled = selectedIndexingBusy;
+    checkbox.disabled = !adminToken || selectedIndexingBusy;
     checkbox.setAttribute("aria-label", `Select Post ${job.postNo || "number not stated"}: ${displayVacancyTitle(job.title)}`);
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) selectedJobIds.add(job.id);
@@ -1091,6 +1144,7 @@ async function publishJobs(nextJobs) {
   }
   const removedIds = new Set(result.removedJobIds);
   jobs = publishableJobs.filter(job => !removedIds.has(job.id));
+  cacheJobsSnapshot(jobs);
   const remainingIds = new Set(jobs.map(job => job.id));
   for (const id of selectedJobIds) {
     if (!remainingIds.has(id)) selectedJobIds.delete(id);
@@ -1181,6 +1235,8 @@ refreshButton.addEventListener("click", async () => {
   refreshButton.disabled = true;
   try {
     jobs = await readJobs(apiUrl, adminToken);
+    usingCachedJobs = false;
+    cacheJobsSnapshot(jobs);
     selectedJobIds.clear();
     renderJobs();
     renderImportedVacancies();
@@ -1350,7 +1406,15 @@ form.addEventListener("submit", async event => {
 async function initialize() {
   apiUrlInput.value = DEFAULT_API_URL;
   setConnected(false);
-  const stored = await chrome.storage.local.get(SETTINGS_KEY);
+  const stored = await chrome.storage.local.get([SETTINGS_KEY, CACHED_JOBS_KEY]);
+  if (Array.isArray(stored[CACHED_JOBS_KEY])) {
+    jobs = stored[CACHED_JOBS_KEY];
+    usingCachedJobs = jobs.length > 0;
+    if (usingCachedJobs) {
+      setConnected(false);
+      renderJobs();
+    }
+  }
   const settings = stored[SETTINGS_KEY];
   if (!settings?.apiUrl || !settings?.adminToken) return;
 
